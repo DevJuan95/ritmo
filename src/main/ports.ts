@@ -1,4 +1,4 @@
-import type { PublicState } from '../shared/contracts';
+import type { PublicState, Task } from '../shared/contracts';
 
 export type BlockAction = 'block' | 'unblock';
 
@@ -13,6 +13,16 @@ export interface Notifier {
 
 export interface SoundPlayer {
   play(): void;
+}
+
+export type TaskPatch = { title?: string; plannedDate?: string; done?: boolean };
+
+export interface TaskRepositoryPort {
+  listByDay(date: string): Task[];
+  create(title: string, date: string): Task;
+  update(id: string, patch: TaskPatch): Task;
+  delete(id: string): void;
+  importLegacy(tasks: ReadonlyArray<{ id: string; title: string; done: boolean }>, day: string): void;
 }
 
 export type Clock = () => number;
