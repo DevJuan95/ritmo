@@ -8,7 +8,7 @@
     "node": ">=24"
   },
   "scripts": {
-    "build": "npm run clean && tsc && tsc -p tsconfig.renderer.json --noEmit && vite build && cp src/block-sites.sh assets/icon.png dist/src/",
+    "build": "npm run clean && tsc && tsc -p tsconfig.renderer.json --noEmit && vite build && cp src/block-sites.sh src/install-block-helper.sh assets/icon.png dist/src/",
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
     "dev:renderer": "vite",
     "start": "npm run build && electron .",
