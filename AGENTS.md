@@ -1,6 +1,6 @@
 # Guía para agentes: Ritmo
 
-Ritmo es una aplicación de productividad para macOS hecha con Electron y TypeScript. Ofrece sesiones de foco y descanso, tareas diarias y bloqueo de dominios durante el foco. Lee `README.md` para el comportamiento visible para el usuario.
+Ritmo es una aplicación de productividad para macOS hecha con Electron y TypeScript. Ofrece sesiones de foco y descanso, tareas diarias y bloqueo de dominios durante el foco. Lee `README.md` para el comportamiento visible para el usuario, `docs/glosario.md` para el significado de cada término del dominio y `docs/arquitectura.md` para los diagramas de procesos, servicios, puertos y adaptadores, y del ciclo de una sesión.
 
 ## Mapa del proyecto
 
@@ -31,6 +31,7 @@ Ritmo es una aplicación de productividad para macOS hecha con Electron y TypeSc
 - En el bloqueo de sitios, preserva las entradas ajenas a la sección de Ritmo y la recuperación tras un cierre inesperado. No ejecutes pruebas contra el `/etc/hosts` real: la prueba del script usa `RITMO_TEST_HOSTS` con un archivo temporal.
 - Antes de cerrar un cambio de código, ejecuta `npm run typecheck` y las pruebas pertinentes. Si cambias la compilación o recursos copiados a `dist/`, ejecuta también `npm run build`.
 - No edites `dist/` ni `node_modules/` directamente. Respeta los cambios locales existentes que no pertenezcan a la tarea.
+- Si cambias un puerto, un servicio, su registro en `src/main/container.ts` o su cableado en `src/main/app.ts`, el ciclo de una sesión o un término del dominio (tipos de `src/shared/contracts.ts` o `src/main/ports.ts`), actualiza `docs/glosario.md` y `docs/arquitectura.md` en el mismo cambio.
 - Inyecta las dependencias nuevas con efectos externos (Electron, procesos, reloj, red) como un puerto en `src/main/ports.ts`, regístralas en `src/main/container.ts` y pasa desde `src/main/app.ts` lo que dependa de Electron. Los servicios no deben importar `electron` ni usar `Date.now()` directamente; usan `store.now()`.
 
 ## Flujo de trabajo con worktrees

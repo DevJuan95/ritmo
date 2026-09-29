@@ -35,6 +35,8 @@ El código de Electron, la interfaz y las pruebas está en TypeScript. La interf
 - `src/renderer/`: interfaz organizada por temporizador, tareas y dominios; esbuild la empaqueta en un archivo local sin framework.
 - `src/shared/`: contratos TypeScript y validaciones compartidas.
 
+El vocabulario del dominio (sesión, foco, pomodoro, bloqueo pendiente…) está en [`docs/glosario.md`](docs/glosario.md), y los diagramas de procesos, servicios y del ciclo de una sesión, en [`docs/arquitectura.md`](docs/arquitectura.md).
+
 `src/main.ts` y `src/preload.ts` son las entradas CommonJS de Electron. `src/renderer/app.ts` es la entrada de la interfaz. La compilación usa `tsconfig.json` para Electron y pruebas (también compila los módulos del renderer a CommonJS para probarlos), y `tsconfig.renderer.json` para comprobar los tipos de la interfaz, que esbuild empaqueta.
 
 El icono de Ritmo se muestra en el Dock al abrir la app. Si quieres regenerarlo, ejecuta `python3 scripts/generate-icon.py`; la compilación copia `assets/icon.png` a `dist/`.
