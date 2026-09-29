@@ -89,3 +89,14 @@ test('el instalador rechaza la ejecución sin privilegios', { skip: asRoot }, ()
   assert.equal(result.status, 2);
   assert.match(result.stderr, /Instalación inválida/);
 });
+
+test('el instalador valida el nombre de la cuenta y acepta puntos', { skip: asRoot }, () => {
+  const install = (account: string) => spawnSync('/bin/sh', [installer, script, account], { encoding: 'utf8' });
+  for (const account of ['', '-root', '.oculto', 'juan hoyos', 'juan/../root', 'juan;id']) {
+    const result = install(account);
+    assert.equal(result.status, 2, account);
+    assert.match(result.stderr, /Usuario inválido/, account);
+  }
+  // Un nombre con punto pasa la validación y solo se detiene por no ser root.
+  for (const account of ['juan.hoyos', 'student', 'ana_maria-2']) assert.match(install(account).stderr, /Instalación inválida/, account);
+});
