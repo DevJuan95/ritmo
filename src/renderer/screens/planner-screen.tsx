@@ -25,7 +25,8 @@ function PlannerDayButton({ children, ...props }: ComponentProps<typeof Calendar
   </CalendarDayButton>;
 }
 
-// Constante del módulo: un objeto nuevo en cada render haría que react-day-picker recalculara sus componentes.
+// PlannerDayButton está fuera del render para que React vea siempre el mismo componente y no vuelva a
+// montar las celdas. react-day-picker recalcula su configuración en cada render de todos modos.
 const CALENDAR_COMPONENTS = { DayButton: PlannerDayButton };
 
 interface PlannerScreenProps {
@@ -57,7 +58,7 @@ export function PlannerScreen({ state, run, showError, today, date, onDateChange
 
   useEffect(() => {
     let active = true;
-    window.ritmo.getTaskSummary(from, to).then(items => { if (active) setSummary(items); }).catch(error => { if (active) showError(error); });
+    window.ritmo.getTaskSummary(from, to).then(items => { if (active) setSummary(items); }).catch(error => { if (active) { setSummary({}); showError(error); } });
     return () => { active = false; };
   }, [from, to, revision, reload, showError]);
 
