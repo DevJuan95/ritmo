@@ -69,7 +69,7 @@ Interfaces de `src/main/ports.ts` por las que los servicios acceden a efectos ex
 | Puerto | Qué abstrae | Implementación real | Quién lo usa |
 | --- | --- | --- | --- |
 | `SiteBlocker` | Consultar y cambiar la sección gestionada de `/etc/hosts`. | `createSiteBlocker()` en `site-blocker.ts`: ejecuta con `sudo -n` el helper instalado (copia de `block-sites.sh`); si falta o cambió, lo instala `install-block-helper.sh` mediante `osascript` con privilegios de administrador. | `FocusService` |
-| `BlockAction` | Acción de `SiteBlocker.changeBlock()`: `'block'` o `'unblock'`. | — | `FocusService`, `block-sites.sh` |
+| `BlockAction` | Acción de `SiteBlocker.changeBlock()`: `'block'` o `'unblock'`. El helper acepta además `check`, que no toca `/etc/hosts`: `site-blocker.ts` lo usa tras un fallo para distinguir la falta de permiso de otros errores, y no forma parte del puerto. | — | `FocusService`, `site-blocker.ts`, `block-sites.sh` |
 | `Notifier` | Notificaciones del sistema. | `createNotifier(notificationApi)` en `notifier.ts`; `app.ts` pasa `Notification` de Electron como `notificationApi`. | `FocusService`, `LifecycleService` |
 | `SoundPlayer` | Señal sonora al completar un pomodoro. | `createSoundPlayer()` en `sound-player.ts`: `afplay` con `Glass.aiff`. | `FocusService` |
 | `TaskRepositoryPort` | Lectura y escritura de tareas por día, y la migración de las antiguas. | `TaskRepository` en `tasks.ts`, registrado como `taskRepository` en `container.ts`. | `StateStore`, `TaskService` |
