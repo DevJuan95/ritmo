@@ -2,7 +2,7 @@
 
 Cómo se conectan los procesos de Electron, los servicios del proceso principal, sus puertos y sus adaptadores, y cómo avanza una sesión. Los términos se definen en [`glosario.md`](glosario.md).
 
-Si cambias un puerto, un servicio, su cableado en `src/main/app.ts` o el ciclo de una sesión, actualiza estos diagramas en el mismo cambio.
+Si cambias un puerto, un servicio, su registro en `src/main/container.ts`, su cableado en `src/main/app.ts` o el ciclo de una sesión, actualiza estos diagramas en el mismo cambio.
 
 ## 1. Procesos
 
@@ -40,11 +40,12 @@ Canales: `get-state`, `start-focus`, `finish-focus`, `retry-unblock`, `start-bre
 
 ## 2. Servicios y dependencias
 
-`src/main/app.ts` es la raíz de composición: crea las implementaciones reales y las inyecta. Solo `app.ts` y `preload.ts` importan `electron`; el resto de módulos de `src/main/` recibe lo que necesita de Electron (`ipcMain`, `Notification`, `webContents.send`) a través de los puertos de `ports.ts`.
+`src/main/app.ts` es la raíz de composición. Crea con `createMainContainer()` (`src/main/container.ts`, Awilix) un contenedor en el que todo es singleton, le pasa lo que viene de Electron (`userData`, `Notification` y la función que publica el estado) y resuelve de él `store` y `focus`. Después registra los manejadores IPC con `ipcMain` y el propio `container.cradle`. Solo `app.ts` y `preload.ts` importan `electron`, y solo `app.ts` y `container.ts` importan Awilix. Los servicios no conocen el contenedor: las fábricas de `container.ts` llaman a sus constructores de forma explícita y los servicios reciben lo de Electron a través de los puertos de `ports.ts`.
 
 ```mermaid
 flowchart TB
   app["app.ts<br/>raíz de composición"]:::electron
+  container["createMainContainer<br/>container.ts (Awilix)"]
 
   subgraph servicios["Servicios (no importan Electron)"]
     ipc["registerHandlers<br/>ipc.ts"]
@@ -72,8 +73,10 @@ flowchart TB
     db[("ritmo.db<br/>SQLite")]
   end
 
-  app -. "crea e inyecta" .-> servicios
-  app -. "crea e inyecta" .-> adaptadores
+  app -- "userDataPath, notificationApi, publish" --> container
+  app -- "ipcMain, container.cradle" --> ipc
+  container -. "registra singletons" .-> servicios
+  container -. "registra singletons" .-> adaptadores
 
   ipc -- "IpcRegistrar" --> ipcMain
   ipc --> store
@@ -102,20 +105,24 @@ flowchart TB
   classDef electron fill:#fde2e2,stroke:#c0392b,color:#000
 ```
 
-En rojo, lo que depende de Electron. Las flechas continuas son dependencias en tiempo de ejecución, rotuladas con el puerto cuando lo hay; las discontinuas indican que `app.ts` crea el módulo.
+En rojo, lo que depende de Electron. Las flechas continuas son dependencias en tiempo de ejecución, rotuladas con el puerto cuando lo hay; las discontinuas indican que `container.ts` registra el módulo. `registerHandlers()` no está en el contenedor: lo llama `app.ts`.
 
-Cableado exacto de `app.ts`:
+Registros de `createMainContainer()`:
 
-| Módulo | Cómo lo crea `app.ts` | Puertos sin inyectar |
+| Registro | Fábrica | Puertos sin inyectar |
 | --- | --- | --- |
-| `TaskRepository` | `new TaskRepository(<userData>/ritmo.db)` | `Clock` (`Date.now`) e `IdGenerator` (`crypto.randomUUID`) toman su valor por defecto. |
-| `StateStore` | `new StateStore(<userData>/state.json, { tasks, publish })`; `publish` envía el estado por `webContents.send('state', …)` si la ventana existe. | `Clock` (`Date.now`). |
-| `FocusService` | `new FocusService(store, { blocker: createSiteBlocker(), notifier: createNotifier(Notification), sound: createSoundPlayer() })` | — |
-| `TaskService` | `new TaskService(store, tasks)` | — |
-| `DomainService` | `new DomainService(store)` | — |
-| Manejadores IPC | `registerHandlers(ipcMain, { store, focus, tasks: TaskService, domains: DomainService })` | — |
+| `userDataPath`, `publish`, `notificationApi` | Valores que pasa `app.ts`: `app.getPath('userData')`, la función que envía el estado por `webContents.send('state', …)` si la ventana existe, y `Notification` de Electron. | — |
+| `now` | Valor: `options.now`, o `Date.now` si no se pasa (`app.ts` no lo pasa). | — |
+| `blocker` | `createSiteBlocker()` | — |
+| `notifier` | `createNotifier(notificationApi)` | — |
+| `sound` | `createSoundPlayer()` | — |
+| `taskRepository` | `new TaskRepository(<userData>/ritmo.db, { now })`; `container.dispose()` lo cierra. | `IdGenerator` (`crypto.randomUUID`) |
+| `store` | `new StateStore(<userData>/state.json, { tasks: taskRepository, publish, now })` | — |
+| `focus` | `new FocusService(store, { blocker, notifier, sound })` | — |
+| `tasks` | `new TaskService(store, taskRepository)` | — |
+| `domains` | `new DomainService(store)` | — |
 
-Orden de arranque: repositorio y almacén, `focus.recover()`, manejadores IPC, ventana, `store.rollDay()`, cierre inmediato de un foco que venció con la app cerrada, e intervalo de 1 s que llama a `focus.tick()`. En `before-quit`, si `mustReleaseBeforeQuit()`, la app desbloquea dentro de `guarded` antes de salir. `app.ts` usa `Date.now()` directamente al arrancar; los servicios usan `store.now()`.
+Orden de arranque en `app.ts`: se crea el contenedor y se resuelven `store` y `focus` (con ellos, el repositorio y los adaptadores); después `focus.recover()`, `registerHandlers(ipcMain, container.cradle)`, la ventana y `store.rollDay()`. A continuación se cierra de inmediato un foco que venció con la app cerrada (comparando con `store.now()`) y empieza el intervalo de 1 s que llama a `focus.tick()`. En `before-quit`, si `mustReleaseBeforeQuit()`, la app desbloquea dentro de `guarded` antes de salir. En `will-quit`, `container.dispose()` cierra SQLite y la app termina con `app.exit()`.
 
 ## 3. Ciclo de una sesión
 
