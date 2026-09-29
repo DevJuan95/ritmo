@@ -3,8 +3,12 @@ import type { Notifier, QuitSignals, TimerHandle, Timers } from './ports';
 import type { StateStore } from './state';
 import type { TaskRepository } from './tasks';
 
-/** Tiempo máximo del cierre ordenado si no se configura otro. */
-export const DEFAULT_SHUTDOWN_TIMEOUT_MS = 15000;
+/**
+ * Tiempo máximo del cierre ordenado si no se configura otro. Supera el límite de 120 s de
+ * `osascript` en `site-blocker.ts`, para que el usuario pueda responder al diálogo de administrador
+ * y, si no lo hace, el cierre siga por el camino de fallo del desbloqueo.
+ */
+export const DEFAULT_SHUTDOWN_TIMEOUT_MS = 125000;
 export const TICK_INTERVAL_MS = 1000;
 
 export interface LifecycleDeps {
@@ -80,8 +84,8 @@ export class LifecycleService {
       await Promise.race([this.store.closeWith(() => this.release()), deadline]);
     } finally {
       this.timers.clearTimeout(timeout);
-      if (expired && this.focus.mustReleaseBeforeQuit() && !this.store.state.blockError) {
-        this.store.state.blockError = 'Ritmo se cerró antes de quitar el bloqueo.';
+      if (expired && this.focus.mustReleaseBeforeQuit()) {
+        this.leavePending(this.store.state.blockError ?? 'Ritmo se cerró antes de quitar el bloqueo.');
       }
       try { this.store.save(); }
       finally { this.tasks.close(); }
@@ -91,9 +95,16 @@ export class LifecycleService {
   private async release(): Promise<void> {
     if (!this.focus.mustReleaseBeforeQuit()) return;
     try { await this.focus.endFocus(false); }
-    catch (error) {
-      this.store.state.blockError = error instanceof Error ? error.message : String(error);
-      this.notifier.notify('Bloqueo aún activo', 'Ritmo se cerró sin quitar el bloqueo. Ábrelo y usa “Quitar bloqueo”.');
-    }
+    catch (error) { this.leavePending(error instanceof Error ? error.message : String(error)); }
+  }
+
+  /**
+   * Deja un bloqueo pendiente para `recover()` y lo notifica. Descarta el foco, como `tick()` al fallar
+   * el desbloqueo: un foco interrumpido al salir no debe contarse como pomodoro al volver a abrir.
+   */
+  private leavePending(message: string): void {
+    this.store.state.blockError = message;
+    this.store.state.session = null;
+    this.notifier.notify('Bloqueo aún activo', 'Ritmo se cerró sin quitar el bloqueo. Ábrelo y usa “Quitar bloqueo”.');
   }
 }
