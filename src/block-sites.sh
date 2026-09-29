@@ -5,6 +5,7 @@ export LC_ALL
 
 action=${1:-}
 domains=${2:-}
+if [ "$action" = check ]; then exit 0; fi
 start='# >>> RITMO FOCUS BLOCK >>>'
 end='# <<< RITMO FOCUS BLOCK <<<'
 hosts=/etc/hosts
