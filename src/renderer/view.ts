@@ -1,5 +1,5 @@
 import type { PublicState, RitmoAPI, Task } from '../shared/contracts.js';
-import { MINUTES } from '../shared/validation.js';
+import { MINUTES, safePlannedDate } from '../shared/validation.js';
 
 // Lógica de presentación sin DOM: los módulos de render solo copian estos valores a la página.
 
@@ -24,6 +24,17 @@ export function dateLabel(day: string): string {
  */
 export function tasksRevision(state: PublicState): string {
   return JSON.stringify([state.day, state.tasks]);
+}
+
+/** Si el valor del campo de fecha es un día que se puede planificar. Vacío o a medio escribir, no. */
+export function isPlannableDate(value: string): boolean {
+  try { safePlannedDate(value); return true; }
+  catch { return false; }
+}
+
+/** El día al que mover una tarea, o `null` si el campo no tiene un día válido o no cambió. */
+export function plannedDateToSave(value: string, current: string): string | null {
+  return value !== current && isPlannableDate(value) ? value : null;
 }
 
 /** Los sitios no se editan mientras el bloqueo está activo, pendiente o en autorización. */

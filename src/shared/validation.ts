@@ -21,8 +21,16 @@ export function todayKey(date = new Date()): string {
   return `${y}-${m}-${d}`;
 }
 
+/**
+ * Rango de días que se pueden planificar. Evita guardar los años intermedios que el campo de
+ * fecha produce mientras se escribe el año a mano (0202-… antes de 2026-…).
+ */
+export const FIRST_PLANNED_DATE = '2000-01-01';
+export const LAST_PLANNED_DATE = '2100-12-31';
+
 export function safePlannedDate(value: unknown): string {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Error('Fecha inválida.');
+  if (value < FIRST_PLANNED_DATE || value > LAST_PLANNED_DATE) throw new Error('Elige una fecha entre 2000 y 2100.');
   const [year, month, day] = value.split('-').map(Number);
   const parsed = new Date(Date.UTC(year, month - 1, day));
   if (parsed.getUTCFullYear() !== year || parsed.getUTCMonth() + 1 !== month || parsed.getUTCDate() !== day) throw new Error('Fecha inválida.');

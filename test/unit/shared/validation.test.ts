@@ -32,3 +32,11 @@ test('valida fechas de calendario en formato ISO', () => {
     assert.throws(() => safePlannedDate(value), /Fecha inválida/);
   }
 });
+
+test('solo acepta fechas entre 2000 y 2100', () => {
+  assert.equal(safePlannedDate('2000-01-01'), '2000-01-01');
+  assert.equal(safePlannedDate('2100-12-31'), '2100-12-31');
+  for (const value of ['0202-09-29', '1999-12-31', '2101-01-01']) {
+    assert.throws(() => safePlannedDate(value), /entre 2000 y 2100/);
+  }
+});

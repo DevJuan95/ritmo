@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { AppState, PublicState, RitmoAPI, Task } from '../../../src/shared/contracts';
-import { completionText, dateLabel, domainsLocked, focusCountText, tasksRevision, timerActions, timerView } from '../../../src/renderer/view';
+import { completionText, dateLabel, domainsLocked, focusCountText, isPlannableDate, plannedDateToSave, tasksRevision, timerActions, timerView } from '../../../src/renderer/view';
 import { buildState } from '../../helpers/harness';
 
 const now = new Date(2026, 8, 29, 9, 0, 0).getTime();
@@ -35,6 +35,15 @@ test('la revisión de tareas solo cambia con el día o sus tareas', () => {
   assert.equal(tasksRevision({ ...base, busy: true, now: now + 1000, focusCount: 3 }), tasksRevision(base));
   assert.notEqual(tasksRevision({ ...base, tasks: [task('a', true)] }), tasksRevision(base));
   assert.notEqual(tasksRevision({ ...base, day: '2026-09-30' }), tasksRevision(base));
+});
+
+test('solo mueve una tarea a un día completo, en rango y distinto', () => {
+  assert.equal(isPlannableDate('2026-10-01'), true);
+  for (const value of ['', '0202-10-01', '2026-02-30']) assert.equal(isPlannableDate(value), false, value);
+  assert.equal(plannedDateToSave('2026-10-01', '2026-09-29'), '2026-10-01');
+  assert.equal(plannedDateToSave('2026-09-29', '2026-09-29'), null);
+  assert.equal(plannedDateToSave('0202-09-29', '2026-09-29'), null);
+  assert.equal(plannedDateToSave('', '2026-09-29'), null);
 });
 
 test('bloquea la edición de sitios durante el foco, con bloqueo pendiente o en espera', () => {
