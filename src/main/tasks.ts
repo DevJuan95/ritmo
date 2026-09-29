@@ -3,7 +3,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import type { Task } from '../shared/contracts';
-import type { Clock, IdGenerator } from './ports';
+import type { Clock, IdGenerator, TaskPatch, TaskRepositoryPort } from './ports';
 import { safePlannedDate, safeTaskTitle } from '../shared/validation';
 
 interface TaskRow {
@@ -26,7 +26,7 @@ export interface TaskRepositoryDeps {
   newId?: IdGenerator;
 }
 
-export class TaskRepository {
+export class TaskRepository implements TaskRepositoryPort {
   private readonly db: DatabaseSync;
   private closed = false;
   private readonly now: Clock;
@@ -64,7 +64,7 @@ export class TaskRepository {
     return task;
   }
 
-  update(id: string, patch: { title?: string; plannedDate?: string; done?: boolean }): Task {
+  update(id: string, patch: TaskPatch): Task {
     const existing = this.find(id);
     if (!existing) throw new Error('La tarea no existe.');
     if (!patch || typeof patch !== 'object' || !Object.keys(patch).length || Object.keys(patch).some(key => !['title', 'plannedDate', 'done'].includes(key))) throw new Error('Cambio de tarea inválido.');

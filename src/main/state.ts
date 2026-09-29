@@ -2,13 +2,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { AppState, PublicState } from '../shared/contracts';
 import { DEFAULT_DOMAINS, normalizeDomains, safePlannedDate, safeTaskTitle, todayKey } from '../shared/validation';
-import type { Clock, PublishState } from './ports';
-import { TaskRepository } from './tasks';
+import type { Clock, PublishState, TaskRepositoryPort } from './ports';
 
 export interface StateStoreDeps {
   publish?: PublishState;
   now?: Clock;
-  tasks?: TaskRepository;
+  tasks?: TaskRepositoryPort;
 }
 
 export class StateStore {
@@ -19,7 +18,7 @@ export class StateStore {
   private running?: Promise<unknown>;
   private migrated = false;
   readonly now: Clock;
-  readonly tasks?: TaskRepository;
+  readonly tasks?: TaskRepositoryPort;
   private readonly publishState: PublishState;
 
   constructor(private readonly statePath: string, deps: StateStoreDeps = {}) {

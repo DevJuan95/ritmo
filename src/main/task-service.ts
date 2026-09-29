@@ -1,12 +1,10 @@
 import type { Task } from '../shared/contracts';
 import { safePlannedDate } from '../shared/validation';
+import type { TaskPatch, TaskRepositoryPort } from './ports';
 import { StateStore } from './state';
-import { TaskRepository } from './tasks';
-
-export type TaskPatch = { title?: string; plannedDate?: string; done?: boolean };
 
 export class TaskService {
-  constructor(private readonly store: StateStore, private readonly repository: TaskRepository) {}
+  constructor(private readonly store: StateStore, private readonly repository: TaskRepositoryPort) {}
 
   add(title: unknown, date: unknown): void {
     this.store.rollDay();
