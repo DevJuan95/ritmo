@@ -16,7 +16,7 @@ function TaskRow({ task, planner, run }: { task: Task; planner: boolean; run: Ru
     </form> : <span className={`task-title ${task.done ? 'done' : ''}`}>{task.title}</span>}
     {planner ? <div className="planner-actions">
       <Button size="sm" variant="ghost" className="row-action" aria-label={`Editar ${task.title}`} onClick={() => { setTitle(task.title); setEditing(true); }}>Editar</Button>
-      <Input type="date" className="row-date" value={task.plannedDate} aria-label={`Mover ${task.title} a otro día`} onChange={event => void run(() => window.ritmo.updateTask(task.id, { plannedDate: event.target.value }))} />
+      <Input type="date" className="row-date" value={task.plannedDate} aria-label={`Mover ${task.title} a otro día`} onChange={event => { const plannedDate = event.target.value; if (plannedDate) void run(() => window.ritmo.updateTask(task.id, { plannedDate })); }} />
       <Button size="sm" variant="ghost" className="row-action row-action-danger" aria-label={`Eliminar ${task.title}`} onClick={() => void run(() => window.ritmo.deleteTask(task.id))}>Eliminar</Button>
     </div> : <Button size="icon" variant="ghost" className="task-remove" aria-label={`Eliminar ${task.title}`} onClick={() => void run(() => window.ritmo.deleteTask(task.id))}>×</Button>}
   </li>;
