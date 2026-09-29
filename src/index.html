@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="es" data-theme="ritmo">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'">
+  <title>Ritmo</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="bg-base-200 text-base-content">
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span><span>ritmo<span class="brand-dot">.</span></span></div>
+      <div class="sidebar-bottom">
+        <div class="today-label">Hoy</div>
+        <div id="date-label" class="sidebar-date"></div>
+        <p>Un bloque de atención a la vez.</p>
+        <span class="version">Versión inicial para macOS</span>
+      </div>
+    </aside>
+    <main class="main-content">
+      <header class="topbar">
+        <div><div class="eyebrow">Tu espacio de foco</div><h1>Haz espacio para avanzar.</h1></div>
+        <div id="focus-count" class="focus-count"></div>
+      </header>
+
+      <div id="error" class="alert alert-error error-banner" role="alert" hidden></div>
+
+      <div class="dashboard">
+        <section class="card timer-panel" aria-labelledby="timer-heading">
+          <div class="flex items-start justify-between gap-2.5"><h2 id="timer-heading">Pomodoro</h2><span id="timer-status" class="badge badge-soft badge-secondary status-pill">Listo para empezar</span></div>
+          <div class="timer-stage">
+            <div id="timer-ring" class="timer-ring">
+              <div class="timer-inner">
+                <span id="timer-kind" class="timer-kind">Tiempo de foco</span>
+                <span id="timer-value" class="timer-value">25:00</span>
+                <span id="timer-caption" class="timer-caption">Sin distracciones</span>
+              </div>
+            </div>
+          </div>
+          <div id="timer-actions" class="timer-actions flex min-h-12 flex-wrap justify-center gap-2.5"></div>
+          <p class="timer-note">Al iniciar el foco, macOS pedirá permiso para bloquear los sitios de tu lista.</p>
+        </section>
+
+        <div class="right-column grid gap-[22px]">
+          <section class="card tasks-panel" aria-labelledby="tasks-heading">
+            <div class="flex items-start justify-between gap-2.5"><div><h2 id="tasks-heading">Plan de hoy</h2><p id="task-progress" class="section-subtitle">Elige lo que importa.</p></div></div>
+            <form id="task-form" class="inline-form mt-[21px] flex gap-2"><label class="sr-only" for="task-input">Nueva tarea</label><input id="task-input" class="input input-bordered" type="text" maxlength="160" placeholder="Añadir una tarea…" autocomplete="off"><button class="btn btn-secondary btn-square" type="submit" aria-label="Añadir tarea">+</button></form>
+            <ul id="task-list" class="task-list"></ul>
+            <p id="task-empty" class="empty-state">Anota una tarea para empezar el día con intención.</p>
+          </section>
+
+          <section class="card sites-panel" aria-labelledby="sites-heading">
+            <div class="flex items-start justify-between gap-2.5"><div><h2 id="sites-heading">Sitios en pausa</h2><p class="section-subtitle">Se bloquean mientras corre el pomodoro.</p></div><span class="shield-icon" aria-hidden="true">✳</span></div>
+            <div id="domain-list" class="mt-5 flex flex-wrap gap-[7px]"></div>
+            <form id="domain-form" class="inline-form domain-form mt-[17px] flex gap-2"><label class="sr-only" for="domain-input">Añadir sitio</label><input id="domain-input" class="input input-bordered" type="text" placeholder="Añadir dominio, ej. instagram.com" autocomplete="off" inputmode="url"><button class="btn btn-secondary btn-square" type="submit" aria-label="Añadir sitio">+</button></form>
+            <p class="sites-note">El bloqueo cubre cada dominio y su versión con www. Necesita permiso de administrador para activarse y retirarse.</p>
+          </section>
+        </div>
+      </div>
+    </main>
+  </div>
+  <script src="renderer.js"></script>
+</body>
+</html>
