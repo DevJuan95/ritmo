@@ -43,6 +43,29 @@ export function createSiteBlocker(overrides: Partial<SiteBlockerDeps> = {}): Sit
     catch { return true; }
   }
 
+  async function installHelper(): Promise<void> {
+    try {
+      await deps.exec('/usr/bin/osascript', ['-e', appleScript, deps.installerPath, deps.helperPath, deps.account], { timeout: 120000 });
+    } catch (error) {
+      const detail = error as Error & { stderr?: string };
+      if (/User canceled|(-128)/i.test(`${detail.message} ${detail.stderr || ''}`)) throw new Error('Se canceló la autorización de macOS.');
+      throw new Error('No se pudo instalar el helper de Ritmo. Revisa los permisos de administrador.');
+    }
+  }
+
+  function runHelper(action: BlockAction | 'check', domainList: string): Promise<unknown> {
+    return deps.exec('/usr/bin/sudo', ['-n', '-k', deps.installedHelperPath, action, domainList], { timeout: 120000 });
+  }
+
+  async function canRunHelper(): Promise<boolean> {
+    try { await runHelper('check', ''); return true; }
+    catch { return false; }
+  }
+
+  function blockError(action: BlockAction, cause: unknown): Error {
+    return new Error(`No se pudo ${action === 'block' ? 'activar' : 'quitar'} el bloqueo. Revisa la instalación del helper de Ritmo.`, { cause });
+  }
+
   return {
     hasManagedBlock() {
       try { return deps.readFile(deps.hostsPath).includes(BLOCK_MARKER); }
@@ -52,19 +75,14 @@ export function createSiteBlocker(overrides: Partial<SiteBlockerDeps> = {}): Sit
     async changeBlock(action, domains) {
       if (deps.platform !== 'darwin') throw new Error('El bloqueo de sitios de esta versión requiere macOS.');
       const domainList = action === 'block' ? domains.join('\n') : '';
-      if (needsInstall()) {
-        try {
-          await deps.exec('/usr/bin/osascript', ['-e', appleScript, deps.installerPath, deps.helperPath, deps.account], { timeout: 120000 });
-        } catch (error) {
-          const detail = error as Error & { stderr?: string };
-          if (/User canceled|(-128)/i.test(`${detail.message} ${detail.stderr || ''}`)) throw new Error('Se canceló la autorización de macOS.');
-          throw new Error('No se pudo instalar el helper de Ritmo. Revisa los permisos de administrador.');
-        }
-      }
+      if (needsInstall()) await installHelper();
       try {
-        await deps.exec('/usr/bin/sudo', ['-n', deps.installedHelperPath, action, domainList], { timeout: 120000 });
+        await runHelper(action, domainList);
       } catch (error) {
-        throw new Error(`No se pudo ${action === 'block' ? 'activar' : 'quitar'} el bloqueo. Revisa la instalación del helper de Ritmo.`, { cause: error });
+        if (await canRunHelper()) throw blockError(action, error);
+        await installHelper();
+        try { await runHelper(action, domainList); }
+        catch (retryError) { throw blockError(action, retryError); }
       }
     }
   };

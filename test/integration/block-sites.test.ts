@@ -46,6 +46,12 @@ test('desbloquear sin sección previa deja el archivo igual', { skip: asRoot }, 
   assert.equal(read(), original);
 });
 
+test('comprobar el helper no modifica hosts', { skip: asRoot }, t => {
+  const { run, read } = hostsFile(t);
+  assert.equal(run('check').status, 0);
+  assert.equal(read(), original);
+});
+
 test('entradas inválidas terminan con error y no modifican hosts', { skip: asRoot }, t => {
   const { run, read } = hostsFile(t);
   const cases: Array<[string[], RegExp]> = [
