@@ -25,7 +25,7 @@ Si cambias un término, un puerto o un servicio, actualiza este glosario y `arqu
 | --- | --- | --- | --- |
 | Día | Fecha local actual con formato `YYYY-MM-DD`. Es el día al que pertenecen el contador y la lista **Hoy**. | `AppState.day`, `todayKey()`, `StateStore.today()` | `src/shared/contracts.ts`, `src/shared/validation.ts`, `src/main/state.ts` |
 | Reinicio diario | Cambio de día detectado al abrir la app, en cada tic, en `get-state` y al crear, marcar o borrar tareas. Pone `focusCount` a 0 y recarga las tareas del nuevo día. No borra ni mueve tareas. | `StateStore.rollDay()` | `src/main/state.ts` |
-| Tarea | Algo por hacer en un día concreto. Título de 1 a 160 caracteres. Su fuente es SQLite (`ritmo.db`); `state.json` solo guarda una copia de las tareas de hoy que no se vuelve a leer. | `Task` (`id`, `title`) | `src/shared/contracts.ts`, `src/main/tasks.ts` |
+| Tarea | Algo por hacer en un día concreto. Título de 1 a 160 caracteres. Su fuente es SQLite (`ritmo.db`). `state.json` guarda además una copia de las tareas de hoy: se valida en cada arranque, pero las tareas vigentes se cargan desde SQLite. | `Task` (`id`, `title`) | `src/shared/contracts.ts`, `src/main/tasks.ts` |
 | Fecha planificada | Día al que pertenece una tarea. Las pendientes se quedan en su fecha hasta que el usuario las mueve en el **Planner**. | `Task.plannedDate`, columna `planned_date`, `safePlannedDate()` | `src/shared/contracts.ts`, `src/main/tasks.ts`, `src/shared/validation.ts` |
 | Tarea completada | Tarea con fecha de finalización. `done` se deriva de `completedAt`; desmarcarla borra la fecha. | `Task.done`, `Task.completedAt` | `src/shared/contracts.ts`, `src/main/tasks.ts` |
 | Fecha de creación | Marca ISO de cuándo se creó la tarea; ordena la lista del día. | `Task.createdAt` | `src/shared/contracts.ts` |
@@ -51,7 +51,7 @@ Si cambias un término, un puerto o un servicio, actualiza este glosario y `arqu
 
 | Término | Definición | En código | Dónde |
 | --- | --- | --- | --- |
-| Estado de la app | Estado persistente del proceso principal. Se guarda completo en `state.json`, con escritura atómica. `tasks` va incluido solo como copia: al arrancar se recarga desde SQLite y el JSON solo se lee para la migración inicial. | `AppState`, `StateStore.state`, `StateStore.save()` | `src/shared/contracts.ts`, `src/main/state.ts` |
+| Estado de la app | Estado persistente del proceso principal. Se guarda completo en `state.json`, con escritura atómica. `tasks` va incluido como copia. En cada arranque `load()` lee y valida esa copia, y si es inválida la app no arranca; después las tareas se sustituyen por las de SQLite. Solo la migración inicial importa esa copia a SQLite. | `AppState`, `StateStore.state`, `StateStore.save()` | `src/shared/contracts.ts`, `src/main/state.ts` |
 | Almacén de estado | Dueño del estado: lo carga, valida, guarda y publica, y ofrece el reloj a los servicios. | `StateStore` | `src/main/state.ts` |
 | Estado público | Lo que recibe el renderer: `AppState` más `busy` y `now`. Se envía por el canal `state` en cada `save()` y al empezar una operación protegida. | `PublicState`, `StateStore.publicState()`, `StateStore.publish()` | `src/shared/contracts.ts`, `src/main/state.ts` |
 | Hora del proceso principal | `now` de `PublicState`: hora del reloj del proceso principal cuando se publicó el estado. El temporizador del renderer usa su propio `Date.now()`. | `PublicState.now` | `src/shared/contracts.ts` |
