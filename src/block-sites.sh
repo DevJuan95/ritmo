@@ -1,7 +1,12 @@
 #!/bin/sh
 set -eu
+# Corre como root con sudo, que conserva el PATH de quien lo llama: se fija el entorno y
+# cada orden externa usa su ruta absoluta, para no ejecutar programas puestos por otro proceso.
+PATH=/usr/bin:/bin:/usr/sbin:/sbin
+IFS=' 	
+'
 LC_ALL=C
-export LC_ALL
+export PATH LC_ALL
 
 action=${1:-}
 domains=${2:-}
@@ -9,17 +14,17 @@ if [ "$action" = check ]; then exit 0; fi
 start='# >>> RITMO FOCUS BLOCK >>>'
 end='# <<< RITMO FOCUS BLOCK <<<'
 hosts=/etc/hosts
-if [ "$(id -u)" -ne 0 ] && [ -n "${RITMO_TEST_HOSTS:-}" ]; then
+if [ "$(/usr/bin/id -u)" -ne 0 ] && [ -n "${RITMO_TEST_HOSTS:-}" ]; then
   case "$RITMO_TEST_HOSTS" in
     /tmp/*|/private/tmp/*) hosts=$RITMO_TEST_HOSTS ;;
     *) echo 'Ruta de prueba inválida.' >&2; exit 2 ;;
   esac
 fi
-temporary=$(mktemp /tmp/ritmo-hosts.XXXXXX)
-trap 'rm -f "$temporary"' EXIT HUP INT TERM
+temporary=$(/usr/bin/mktemp /tmp/ritmo-hosts.XXXXXX)
+trap '/bin/rm -f "$temporary"' EXIT HUP INT TERM
 
 # Remove only the section managed by this app. Leave every other entry intact.
-awk -v start="$start" -v end="$end" '
+/usr/bin/awk -v start="$start" -v end="$end" '
   $0 == start { inside = 1; next }
   $0 == end { inside = 0; next }
   !inside { print }
@@ -47,6 +52,6 @@ case "$action" in
   *) echo 'Acción inválida.' >&2; exit 2 ;;
 esac
 
-cat "$temporary" > "$hosts"
+/bin/cat "$temporary" > "$hosts"
 /usr/bin/dscacheutil -flushcache || true
 /usr/bin/killall -HUP mDNSResponder >/dev/null 2>&1 || true
