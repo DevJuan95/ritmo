@@ -103,10 +103,15 @@ export class StateStore {
     return this.run(work);
   }
 
-  /** Deja de aceptar operaciones protegidas, espera la que esté en curso y ejecuta `work` como la última. */
-  async closeWith<T>(work: () => Promise<T>): Promise<T> {
+  /** Deja de aceptar operaciones protegidas y espera a que termine la que esté en curso. */
+  async drain(): Promise<void> {
     this.closing = true;
     await this.running?.catch(() => {});
+  }
+
+  /** Como `drain`, y después ejecuta `work` como la última operación protegida. */
+  async closeWith<T>(work: () => Promise<T>): Promise<T> {
+    await this.drain();
     return this.run(work);
   }
 

@@ -198,6 +198,45 @@ test('al agotarse el tiempo máximo sale dejando blockError para recover() y lo 
   assert.equal(reopened.store.state.session, null);
 });
 
+test('el desbloqueo tiene su propio tiempo máximo tras esperar la operación en curso', async t => {
+  const harness = createHarness(t, { shutdownTimeoutMs: 5000 });
+  const { lifecycle, focus, blocker, clock } = harness;
+  const releaseBlock = blocker.hold();
+  const starting = focus.startFocus();
+  let closed = false;
+  const closing = lifecycle.shutdown().then(() => { closed = true; });
+  clock.advance(4000);
+  releaseBlock();
+  const releaseUnblock = blocker.hold();
+  await starting;
+  await settle();
+  assert.deepEqual(blocker.calls.map(call => call.action), ['block', 'unblock']);
+
+  clock.advance(4999);
+  await settle();
+  assert.equal(closed, false);
+  releaseUnblock();
+  await closing;
+  assert.equal(harness.readSaved().session, null);
+  assert.equal(harness.readSaved().blockError, null);
+  assert.deepEqual(harness.notifier.sent, []);
+});
+
+test('si la operación en curso agota el tiempo, no empieza el desbloqueo', async t => {
+  const harness = createHarness(t, { saved: { blockError: 'pendiente' }, shutdownTimeoutMs: 10 });
+  const { lifecycle, store, blocker, clock } = harness;
+  let finish!: () => void;
+  const stuck = store.guarded(() => new Promise<void>(resolve => { finish = resolve; }));
+  const closing = lifecycle.shutdown();
+  clock.advance(10);
+  await closing;
+  assert.deepEqual(blocker.calls, []);
+  assert.equal(harness.readSaved().blockError, 'pendiente');
+  assert.equal(clock.pendingTimers, 0);
+  finish();
+  await stuck;
+});
+
 test('al agotarse el tiempo conserva un blockError anterior', async t => {
   const harness = createHarness(t, { saved: { blockError: 'pendiente' }, shutdownTimeoutMs: 10 });
   harness.blocker.hold();

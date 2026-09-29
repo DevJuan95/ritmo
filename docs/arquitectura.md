@@ -129,7 +129,7 @@ Registros de `createMainContainer()`:
 | `userDataPath`, `publish`, `notificationApi` | Valores que pasa `app.ts`: `app.getPath('userData')`, la función que envía el estado por `webContents.send('state', …)` si la ventana existe, y `Notification` de Electron. | — |
 | `now` | Valor: `options.now`, o `Date.now` si no se pasa (`app.ts` no lo pasa). | — |
 | `timers` | Valor: `options.timers`, o `systemTimers` si no se pasa (`app.ts` no lo pasa). | — |
-| `shutdownTimeoutMs` | Valor: `options.shutdownTimeoutMs`; sin él, `LifecycleService` usa `DEFAULT_SHUTDOWN_TIMEOUT_MS` (125 s). | — |
+| `shutdownTimeoutMs` | Valor: `options.shutdownTimeoutMs`; sin él, `LifecycleService` usa `DEFAULT_SHUTDOWN_TIMEOUT_MS` (125 s por fase del cierre). | — |
 | `blocker` | `createSiteBlocker()` | — |
 | `notifier` | `createNotifier(notificationApi)` | — |
 | `sound` | `createSoundPlayer()` | — |
@@ -156,9 +156,10 @@ sequenceDiagram
 
   Q->>L: before-quit, SIGINT, SIGTERM o shutdown
   Note over L: Los avisos repetidos reutilizan el mismo cierre
-  L->>L: clearInterval(tic), setTimeout(tiempo máximo)
-  L->>S: closeWith(liberar)
+  L->>L: clearInterval(tic)
+  L->>S: drain(), con su propio tiempo máximo
   S->>S: closing = true, espera la operación en curso
+  L->>S: closeWith(liberar), con su propio tiempo máximo
   alt mustReleaseBeforeQuit()
     S->>F: endFocus(false)
     alt falla el desbloqueo
@@ -167,7 +168,7 @@ sequenceDiagram
     end
   end
   S->>S: busy = false, save()
-  opt vence el tiempo máximo antes
+  opt vence el tiempo máximo de drain() o de closeWith()
     L->>S: blockError ??= «Ritmo se cerró antes de quitar el bloqueo.», session = null
     L->>N: notify('Bloqueo aún activo', ...)
   end

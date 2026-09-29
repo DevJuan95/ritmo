@@ -4,9 +4,10 @@ import type { StateStore } from './state';
 import type { TaskRepository } from './tasks';
 
 /**
- * Tiempo máximo del cierre ordenado si no se configura otro. Supera el límite de 120 s de
- * `osascript` en `site-blocker.ts`, para que el usuario pueda responder al diálogo de administrador
- * y, si no lo hace, el cierre siga por el camino de fallo del desbloqueo.
+ * Tiempo máximo de cada fase del cierre ordenado si no se configura otro: la espera de la operación
+ * en curso y el desbloqueo. Supera el límite de 120 s de `osascript` en `site-blocker.ts`, para que
+ * el usuario pueda responder al diálogo de administrador de cada fase y, si no lo hace, el cierre siga
+ * por el camino de fallo del desbloqueo.
  */
 export const DEFAULT_SHUTDOWN_TIMEOUT_MS = 125000;
 export const TICK_INTERVAL_MS = 1000;
@@ -66,7 +67,8 @@ export class LifecycleService {
   /**
    * Cierre ordenado e idempotente: detiene el tic, deja de aceptar operaciones protegidas, espera
    * la que esté en curso, quita el bloqueo si hace falta, guarda el estado y cierra SQLite.
-   * Si se agota el tiempo máximo, guarda `blockError` para que `recover()` lo resuelva al arrancar.
+   * La espera y el desbloqueo tienen cada uno el tiempo máximo completo; si se agota en cualquiera,
+   * guarda `blockError` para que `recover()` lo resuelva al arrancar.
    */
   shutdown(): Promise<void> {
     this.stopping ??= this.stop();
@@ -76,20 +78,26 @@ export class LifecycleService {
   private async stop(): Promise<void> {
     if (this.ticker !== undefined) this.timers.clearInterval(this.ticker);
     let expired = false;
-    let timeout: TimerHandle;
-    const deadline = new Promise<void>(resolve => {
-      timeout = this.timers.setTimeout(() => { expired = true; resolve(); }, this.timeoutMs);
-    });
     try {
-      await Promise.race([this.store.closeWith(() => this.release()), deadline]);
+      expired = !await this.within(this.store.drain()) ||
+        !await this.within(this.store.closeWith(() => this.release()));
     } finally {
-      this.timers.clearTimeout(timeout);
       if (expired && this.focus.mustReleaseBeforeQuit()) {
         this.leavePending(this.store.state.blockError ?? 'Ritmo se cerró antes de quitar el bloqueo.');
       }
       try { this.store.save(); }
       finally { this.tasks.close(); }
     }
+  }
+
+  /** Espera `work` como máximo `timeoutMs`. Devuelve `false` si se agotó el tiempo. */
+  private async within(work: Promise<unknown>): Promise<boolean> {
+    let timeout: TimerHandle;
+    const deadline = new Promise<false>(resolve => {
+      timeout = this.timers.setTimeout(() => resolve(false), this.timeoutMs);
+    });
+    try { return await Promise.race([work.then(() => true as const), deadline]); }
+    finally { this.timers.clearTimeout(timeout); }
   }
 
   private async release(): Promise<void> {
