@@ -62,18 +62,18 @@ Si cambias un término, un puerto o un servicio, actualiza este glosario y `arqu
 
 ## Puertos
 
-Interfaces de `src/main/ports.ts` por las que los servicios acceden a efectos externos. Sus implementaciones reales se cablean en `src/main/app.ts`; las pruebas usan los dobles de `test/helpers/fakes.ts`.
+Interfaces de `src/main/ports.ts` por las que los servicios acceden a efectos externos. Sus implementaciones reales se registran en `src/main/container.ts`, y `src/main/app.ts` le pasa lo que viene de Electron; las pruebas usan los dobles de `test/helpers/fakes.ts`.
 
 | Puerto | Qué abstrae | Implementación real | Quién lo usa |
 | --- | --- | --- | --- |
 | `SiteBlocker` | Consultar y cambiar la sección gestionada de `/etc/hosts`. | `createSiteBlocker()` en `site-blocker.ts`: `osascript` con privilegios de administrador ejecuta `block-sites.sh`. | `FocusService` |
 | `BlockAction` | Acción de `SiteBlocker.changeBlock()`: `'block'` o `'unblock'`. | — | `FocusService`, `block-sites.sh` |
-| `Notifier` | Notificaciones del sistema. | `createNotifier(Notification)` en `notifier.ts`. | `FocusService` |
+| `Notifier` | Notificaciones del sistema. | `createNotifier(notificationApi)` en `notifier.ts`; `app.ts` pasa `Notification` de Electron como `notificationApi`. | `FocusService` |
 | `SoundPlayer` | Señal sonora al completar un pomodoro. | `createSoundPlayer()` en `sound-player.ts`: `afplay` con `Glass.aiff`. | `FocusService` |
-| `Clock` | Hora actual en milisegundos. Los servicios la leen con `store.now()`. | `Date.now`, valor por defecto de `StateStore` y `TaskRepository`; `app.ts` no lo inyecta. | `StateStore`, `TaskRepository` |
-| `IdGenerator` | Identificadores de tareas nuevas. | `crypto.randomUUID()`, valor por defecto de `TaskRepository`; `app.ts` no lo inyecta. | `TaskRepository` |
-| `PublishState` | Envío del estado público al renderer. | Función de `app.ts` que llama a `window.webContents.send('state', …)`. | `StateStore` |
-| `IpcRegistrar` | Registro de manejadores IPC. | `ipcMain` de Electron. | `registerHandlers()` |
+| `Clock` | Hora actual en milisegundos. Los servicios la leen con `store.now()`. | `Date.now`, registrado como `now` en `container.ts` e inyectado en `StateStore` y `TaskRepository`. | `StateStore`, `TaskRepository` |
+| `IdGenerator` | Identificadores de tareas nuevas. | `crypto.randomUUID()`, valor por defecto de `TaskRepository`; `container.ts` no lo registra. | `TaskRepository` |
+| `PublishState` | Envío del estado público al renderer. | Función que `app.ts` pasa a `createMainContainer()` y llama a `window.webContents.send('state', …)`. | `StateStore` |
+| `IpcRegistrar` | Registro de manejadores IPC. | `ipcMain` de Electron, que `app.ts` pasa a `registerHandlers()`. | `registerHandlers()` |
 
 ## Términos que no están en el glosario
 
