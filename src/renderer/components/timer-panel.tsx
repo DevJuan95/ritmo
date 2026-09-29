@@ -19,6 +19,6 @@ export function TimerPanel({ state, run }: { state: PublicState; run: RunAction 
     <div className="timer-actions">
       {timerActions(state).map(action => <Button key={action.label} variant={action.style === 'primary' ? 'default' : action.style === 'secondary' ? 'outline' : 'ghost'} className={`timer-button-${action.style}`} disabled={state.busy} onClick={() => void run(() => action.run(window.ritmo))}>{action.label}</Button>)}
     </div>
-    <p className="timer-note">Al iniciar el foco, macOS pedirá permiso para bloquear los sitios de tu lista.</p>
+    <p className="timer-note">La primera vez, macOS pedirá permiso para instalar el bloqueo de sitios.</p>
   </Card>;
 }
