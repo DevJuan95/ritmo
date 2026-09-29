@@ -97,6 +97,18 @@ test('no reinstala si el helper falla por una causa distinta al permiso', async 
   assert.deepEqual(calls.map(call => call.file), ['/usr/bin/sudo', '/usr/bin/sudo']);
 });
 
+test('no pide autorización dos veces si el helper recién instalado falla', async () => {
+  const { blocker, calls } = blockerWith({
+    readFile: () => { throw new Error('ENOENT'); },
+    exec: async (file, args) => {
+      calls.push({ file, args });
+      if (file === '/usr/bin/sudo') throw new Error('sudo: a password is required');
+    }
+  });
+  await assert.rejects(blocker.changeBlock('block', ['x.com']), /No se pudo activar el bloqueo/);
+  assert.deepEqual(calls.map(call => call.file), ['/usr/bin/osascript', '/usr/bin/sudo']);
+});
+
 test('informa si la recuperación del permiso se cancela o falla el segundo intento', async () => {
   const cancelled = blockerWith({ exec: async file => { throw new Error(file === '/usr/bin/osascript' ? 'User canceled (-128)' : 'sudo denied'); } }).blocker;
   await assert.rejects(cancelled.changeBlock('unblock', []), /Se canceló la autorización/);

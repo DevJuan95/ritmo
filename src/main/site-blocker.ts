@@ -75,11 +75,13 @@ export function createSiteBlocker(overrides: Partial<SiteBlockerDeps> = {}): Sit
     async changeBlock(action, domains) {
       if (deps.platform !== 'darwin') throw new Error('El bloqueo de sitios de esta versión requiere macOS.');
       const domainList = action === 'block' ? domains.join('\n') : '';
-      if (needsInstall()) await installHelper();
+      const installed = needsInstall();
+      if (installed) await installHelper();
       try {
         await runHelper(action, domainList);
       } catch (error) {
-        if (await canRunHelper()) throw blockError(action, error);
+        // Si se acaba de instalar, reinstalar pediría la contraseña otra vez sin arreglar nada.
+        if (installed || await canRunHelper()) throw blockError(action, error);
         await installHelper();
         try { await runHelper(action, domainList); }
         catch (retryError) { throw blockError(action, retryError); }
