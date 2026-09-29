@@ -38,7 +38,11 @@ function loadPreload(invoke?: (channel: string, ...args: unknown[]) => Promise<u
   const original = loader._load;
   const preloadPath = path.join(distRoot, 'src', 'preload.js');
   loader._load = function (request: string, ...rest: unknown[]) {
-    return request === 'electron' ? electron : original.call(this, request, ...rest);
+    if (request === 'electron') return electron;
+    if ((rest[0] as { filename?: string } | undefined)?.filename === preloadPath && request.startsWith('.')) {
+      throw new Error(`El preload con sandbox no puede cargar ${request}.`);
+    }
+    return original.call(this, request, ...rest);
   };
   try {
     delete require.cache[preloadPath];
