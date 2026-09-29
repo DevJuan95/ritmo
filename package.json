@@ -8,10 +8,9 @@
     "node": ">=24"
   },
   "scripts": {
-    "build": "npm run clean && tsc && tsc -p tsconfig.renderer.json --noEmit && esbuild src/renderer/app.ts --bundle --platform=browser --format=iife --outfile=dist/src/renderer.js && cp src/index.html src/block-sites.sh assets/icon.png dist/src/ && npm run build:css",
+    "build": "npm run clean && tsc && tsc -p tsconfig.renderer.json --noEmit && vite build && cp src/block-sites.sh assets/icon.png dist/src/",
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
-    "build:css": "tailwindcss -i ./src/styles.css -o ./dist/src/styles.css --minify",
-    "watch:css": "tailwindcss -i ./src/styles.css -o ./dist/src/styles.css --watch",
+    "dev:renderer": "vite",
     "start": "npm run build && electron .",
     "test": "npm run build && npm run test:all",
     "test:all": "node --test \"dist/test/**/*.test.js\"",
@@ -22,16 +21,26 @@
     "typecheck": "tsc --noEmit && tsc -p tsconfig.renderer.json --noEmit"
   },
   "devDependencies": {
-    "@tailwindcss/cli": "^4.3.3",
+    "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^24.0.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^5.2.0",
     "c8": "^12.0.0",
-    "daisyui": "^5.7.46",
     "electron": "^44.4.5",
-    "esbuild": "^0.25.12",
     "tailwindcss": "^4.3.3",
-    "typescript": "^5.9.0"
+    "typescript": "^5.9.0",
+    "vite": "^7.3.6"
   },
   "dependencies": {
-    "awilix": "^13.0.5"
+    "awilix": "^13.0.5",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "cn": "^0.4.0",
+    "lucide-react": "^1.48.0",
+    "radix-ui": "^1.6.7",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "tailwind-merge": "^3.7.0"
   }
 }

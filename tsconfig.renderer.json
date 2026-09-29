@@ -3,10 +3,14 @@
     "target": "ES2022",
     "module": "ES2022",
     "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": { "@/*": ["src/*"] },
     "lib": ["ES2022", "DOM"],
     "strict": true,
     "skipLibCheck": true,
     "rootDir": "src"
   },
-  "include": ["src/renderer/**/*.ts", "src/shared/contracts.ts"]
+  "include": ["src/renderer/**/*.ts", "src/renderer/**/*.tsx", "src/components/**/*.ts", "src/components/**/*.tsx", "src/lib/**/*.ts", "src/shared/contracts.ts", "src/shared/validation.ts"]
 }
