@@ -14,7 +14,7 @@ export function App() {
   return <div className="app-shell">
     <Sidebar />
     <main className="main-content">
-      <header className="topbar"><div><div className="eyebrow">Tu espacio de foco</div><h1>Haz espacio para avanzar.</h1></div><div className="focus-count">{state ? focusCountText(state.focusCount) : ''}</div></header>
+      <header className="topbar"><h1 className="page-date">{new Intl.DateTimeFormat('es-CO', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date())}</h1><div className="focus-count">{state ? focusCountText(state.focusCount) : ''}</div></header>
       {(state?.blockError || error) && <div className="error-banner" role="alert">{state?.blockError || error}</div>}
       <Routes>
         <Route path="/" element={state && <TodayScreen state={state} run={run} />} />
