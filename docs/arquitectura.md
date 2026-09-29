@@ -216,14 +216,14 @@ sequenceDiagram
   L->>S: closeWith(liberar), con su propio tiempo máximo
   alt mustReleaseBeforeQuit()
     S->>F: endFocus(false, { authorize: false })
-    Note over F: solo sudo -n; si hay que reinstalar el helper, falla sin pedir autorización
+    Note over F: solo sudo -n. Si hay que reinstalar el helper, falla sin pedir autorización
     alt falla el desbloqueo
       L->>S: blockError = mensaje, session = null
       L->>N: notify('Bloqueo aún activo', ...)
     end
   end
   S->>S: busy = false, save()
-  L->>S: seal(): último save(); los posteriores no escriben
+  L->>S: seal(): último save(). Los posteriores no escriben
   L->>R: close()
   L->>A: exit(error?)
   A->>A: app.exit(0 o 1)
@@ -239,7 +239,7 @@ sequenceDiagram
   participant N as Notifier
 
   L->>F: abortBlockChange()
-  Note over F: aborta el signal de changeBlock(): execFile mata el osascript o el sudo en curso; si era el desbloqueo del tic, el tic no avisa
+  Note over F: aborta el signal de changeBlock(): execFile mata el osascript o el sudo en curso. Si era el desbloqueo del tic, el tic no avisa
   L->>S: blockError ??= «Ritmo se cerró antes de quitar el bloqueo.», session = null
   L->>N: notify('Bloqueo aún activo', ...)
   Note over L: sigue con seal(), close() y exit()
@@ -336,7 +336,7 @@ sequenceDiagram
   S->>S: busy = true
   S-->>R: estado público con busy
   F->>B: changeBlock('unblock', domains)
-  Note over B: sudo -n ejecuta el helper instalado; si falta o cambió, osascript pide autorización para reinstalarlo
+  Note over B: sudo -n ejecuta el helper instalado. Si falta o cambió, osascript pide autorización para reinstalarlo
   alt desbloqueo correcto
     F->>S: session = null, blockError = null, focusCount + 1
     F->>N: notify('Foco completado', ...)
