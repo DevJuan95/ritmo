@@ -55,6 +55,7 @@ const sampleCalls: { [K in Exclude<keyof RitmoAPI, 'onState'>]: Parameters<Ritmo
   toggleTask: ['id-1'],
   deleteTask: ['id-1'],
   getTasksForDay: ['2026-09-29'],
+  getTaskSummary: ['2026-09-28', '2026-11-08'],
   updateTask: ['id-1', { done: true }],
   addDomain: ['x.com'],
   removeDomain: ['x.com'],

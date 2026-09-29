@@ -1,37 +1,64 @@
-import { useEffect, useState, type FormEvent } from 'react';
-import type { PublicState, Task } from '../../shared/contracts';
+import { createContext, useContext, useEffect, useState, type ComponentProps, type FormEvent } from 'react';
+import { es } from 'react-day-picker/locale';
+import type { PublicState, Task, TaskSummary } from '../../shared/contracts';
 import { Button } from '../../components/ui/button';
+import { Calendar, CalendarDayButton } from '../../components/ui/calendar';
 import { Input } from '../../components/ui/input';
 import { TaskList } from '../components/task-list';
-import { FIRST_PLANNED_DATE, LAST_PLANNED_DATE } from '../../shared/validation';
-import { completionText, isPlannableDate, tasksRevision } from '../view';
+import { FIRST_PLANNED_DATE, LAST_PLANNED_DATE, todayKey } from '../../shared/validation';
+import { calendarRange, completionText, dateLabel, dayButtonLabel, dayIndicator, dayToDate, monthOf, tasksRevision } from '../view';
 import type { RunAction } from '../use-ritmo';
+
+const FIRST_DAY = dayToDate(FIRST_PLANNED_DATE);
+const LAST_DAY = dayToDate(LAST_PLANNED_DATE);
+
+// El resumen llega por contexto: si `DayButton` dependiera de él, react-day-picker volvería a montar
+// las celdas con cada resumen nuevo y el foco del teclado se perdería.
+const SummaryContext = createContext<TaskSummary>({});
+
+function PlannerDayButton({ children, ...props }: ComponentProps<typeof CalendarDayButton>) {
+  const indicator = dayIndicator(useContext(SummaryContext)[todayKey(props.day.date)]);
+  return <CalendarDayButton {...props} className="planner-day">
+    <span className="planner-day-number">{children}</span>
+    {indicator && <span className="planner-day-tasks" data-complete={indicator.complete} aria-hidden="true">{indicator.text}</span>}
+  </CalendarDayButton>;
+}
 
 interface PlannerScreenProps {
   state: PublicState;
   run: RunAction;
   showError: (error: unknown) => void;
+  today: string;
   date: string;
   onDateChange: (date: string) => void;
   title: string;
   onTitleChange: (title: string) => void;
 }
 
-export function PlannerScreen({ state, run, showError, date, onDateChange, title, onTitleChange }: PlannerScreenProps) {
+export function PlannerScreen({ state, run, showError, today, date, onDateChange, title, onTitleChange }: PlannerScreenProps) {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [summary, setSummary] = useState<TaskSummary>({});
+  const [month, setMonth] = useState(() => monthOf(date));
   const [reload, setReload] = useState(0);
   const revision = tasksRevision(state);
-  // Mientras se escribe el año, el campo pasa por días inválidos o fuera de rango: no se piden.
-  const validDate = isPlannableDate(date);
+  const { from, to } = calendarRange(month);
 
-  // Las tareas de otros días no llegan en el estado: se piden al elegir el día y
+  // Al elegir un día de otro mes (o volver a hoy), el calendario pasa a ese mes.
+  useEffect(() => setMonth(monthOf(date)), [date]);
+
+  // Las tareas de otros días no llegan en el estado: se piden al elegir el día o el mes y
   // después de cada cambio hecho aquí o en la lista de hoy.
   useEffect(() => {
-    if (!validDate) { setTasks([]); return; }
     let active = true;
     window.ritmo.getTasksForDay(date).then(items => { if (active) setTasks(items); }).catch(error => { if (active) showError(error); });
     return () => { active = false; };
-  }, [date, validDate, revision, reload, showError]);
+  }, [date, revision, reload, showError]);
+
+  useEffect(() => {
+    let active = true;
+    window.ritmo.getTaskSummary(from, to).then(items => { if (active) setSummary(items); }).catch(error => { if (active) showError(error); });
+    return () => { active = false; };
+  }, [from, to, revision, reload, showError]);
 
   const runAndReload: RunAction = async work => {
     const ok = await run(work);
@@ -41,14 +68,46 @@ export function PlannerScreen({ state, run, showError, date, onDateChange, title
 
   async function add(event: FormEvent) {
     event.preventDefault();
-    if (validDate && title.trim() && await runAndReload(() => window.ritmo.addTask(title, date))) onTitleChange('');
+    if (title.trim() && await runAndReload(() => window.ritmo.addTask(title, date))) onTitleChange('');
+  }
+
+  function goToday() {
+    onDateChange(today);
+    setMonth(monthOf(today));
   }
 
   return <section className="planner-panel" aria-labelledby="planner-heading">
-    <div className="planner-header"><div className="sheet-head"><h2 id="planner-heading">Planner</h2><p className="section-subtitle">Tus tareas permanecen en el día que elegiste hasta que las muevas.</p></div><label className="planner-date-label" htmlFor="planner-date">Día <Input id="planner-date" type="date" value={date} min={FIRST_PLANNED_DATE} max={LAST_PLANNED_DATE} onChange={event => onDateChange(event.target.value)} /></label></div>
-    <form className="inline-form planner-form" onSubmit={event => void add(event)}><label className="sr-only" htmlFor="planner-task-input">Nueva tarea para el día elegido</label><Input id="planner-task-input" value={title} onChange={event => onTitleChange(event.target.value)} maxLength={160} placeholder="Añadir tarea para este día…" autoComplete="off" /><Button type="submit" disabled={!validDate}>Añadir</Button></form>
-    <p className="section-subtitle">{completionText(tasks, '')}</p>
-    <TaskList tasks={tasks} planner run={runAndReload} />
-    {tasks.length === 0 && <p className="empty-state">{validDate ? 'No hay tareas para este día.' : 'Elige un día entre 2000 y 2100 para ver sus tareas.'}</p>}
+    <div className="planner-header">
+      <div className="sheet-head"><h2 id="planner-heading">Planner</h2><p className="section-subtitle">Tus tareas permanecen en el día que elegiste hasta que las muevas.</p></div>
+      <Button variant="outline" className="planner-today" onClick={goToday}>Hoy</Button>
+    </div>
+    <div className="planner-layout">
+      <SummaryContext.Provider value={summary}>
+        <Calendar
+          className="planner-calendar"
+          mode="single"
+          required
+          selected={dayToDate(date)}
+          onSelect={day => onDateChange(todayKey(day))}
+          month={month}
+          onMonthChange={setMonth}
+          startMonth={FIRST_DAY}
+          endMonth={LAST_DAY}
+          disabled={[{ before: FIRST_DAY }, { after: LAST_DAY }]}
+          today={dayToDate(today)}
+          locale={es}
+          weekStartsOn={1}
+          fixedWeeks
+          labels={{ labelDayButton: (day, modifiers) => dayButtonLabel(todayKey(day), summary[todayKey(day)], modifiers.today) }}
+          components={{ DayButton: PlannerDayButton }}
+        />
+      </SummaryContext.Provider>
+      <div className="planner-day-panel" aria-labelledby="planner-day-heading" role="region">
+        <div className="sheet-head"><h3 id="planner-day-heading" className="planner-day-heading">{dateLabel(date)}</h3><p className="section-subtitle">{completionText(tasks, 'Sin tareas planificadas.')}</p></div>
+        <form className="inline-form planner-form" onSubmit={event => void add(event)}><label className="sr-only" htmlFor="planner-task-input">Nueva tarea para el día elegido</label><Input id="planner-task-input" value={title} onChange={event => onTitleChange(event.target.value)} maxLength={160} placeholder="Añadir tarea para este día…" autoComplete="off" /><Button type="submit">Añadir</Button></form>
+        <TaskList tasks={tasks} planner run={runAndReload} />
+        {tasks.length === 0 && <p className="empty-state">No hay tareas para este día.</p>}
+      </div>
+    </div>
   </section>;
 }

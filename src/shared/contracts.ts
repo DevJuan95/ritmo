@@ -10,6 +10,15 @@ export interface Task {
   completedAt: string | null;
 }
 
+/** Cuántas tareas tiene un día y cuántas están completadas. */
+export interface DaySummary {
+  total: number;
+  done: number;
+}
+
+/** Resumen de un rango de días, por clave `AAAA-MM-DD`. Solo incluye los días con tareas. */
+export type TaskSummary = Record<string, DaySummary>;
+
 export interface Session {
   kind: SessionKind;
   endsAt: number;
@@ -39,6 +48,7 @@ export interface RitmoAPI {
   toggleTask(id: string): Promise<void>;
   deleteTask(id: string): Promise<void>;
   getTasksForDay(date: string): Promise<Task[]>;
+  getTaskSummary(from: string, to: string): Promise<TaskSummary>;
   updateTask(id: string, patch: { title?: string; plannedDate?: string; done?: boolean }): Promise<void>;
   addDomain(domain: string): Promise<void>;
   removeDomain(domain: string): Promise<void>;
