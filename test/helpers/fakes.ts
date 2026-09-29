@@ -5,6 +5,13 @@ import type { IpcRegistrar } from '../../src/main/ipc/ports';
 import type { QuitReason, QuitSignals } from '../../src/main/lifecycle/ports';
 import type { IpcResult } from '../../src/shared/contracts';
 
+/** Rechaza cuando se aborta `signal`, como `execFile` al terminar el proceso hijo. */
+function aborted(signal?: AbortSignal): Promise<never> {
+  return new Promise((_resolve, reject) => {
+    signal?.addEventListener('abort', () => reject(new Error('Se canceló el cambio del bloqueo de sitios.')), { once: true });
+  });
+}
+
 /** Bloqueador en memoria: registra llamadas, puede fallar a demanda o quedarse esperando. */
 export class FakeBlocker implements SiteBlocker {
   blocked = false;
@@ -15,7 +22,7 @@ export class FakeBlocker implements SiteBlocker {
 
   failNext(error = new Error('No se pudo cambiar el bloqueo.')): void { this.failures.push(error); }
 
-  /** Deja la siguiente llamada pendiente hasta invocar la función devuelta. */
+  /** Deja la siguiente llamada pendiente hasta invocar la función devuelta o abortar su `signal`. */
   hold(): () => void {
     let release!: () => void;
     this.gate = new Promise(resolve => { release = resolve; });
@@ -26,7 +33,7 @@ export class FakeBlocker implements SiteBlocker {
 
   async changeBlock(action: BlockAction, domains: string[], options: ChangeBlockOptions = {}): Promise<void> {
     this.calls.push({ action, domains: [...domains], ...(options.authorize === false ? { authorize: false as const } : {}) });
-    if (this.gate) await this.gate;
+    if (this.gate) await Promise.race([this.gate, aborted(options.signal)]);
     const failure = this.failures.shift();
     if (failure) throw failure;
     this.blocked = action === 'block';

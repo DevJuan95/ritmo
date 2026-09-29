@@ -194,3 +194,10 @@ test('guarda como texto un fallo de desbloqueo que no es un Error', async t => {
   await focus.tick();
   assert.equal(store.state.blockError, 'sin permiso');
 });
+
+test('sin un cambio de bloqueo en curso, cancelar no hace nada', async t => {
+  const { focus } = createHarness(t);
+  focus.abortBlockChange();
+  await focus.startFocus();
+  assert.equal(focus.mustReleaseBeforeQuit(), true);
+});

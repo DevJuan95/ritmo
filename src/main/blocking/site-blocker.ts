@@ -19,7 +19,7 @@ export const INSTALL_TIMEOUT_MS = 120000;
 export const HELPER_TIMEOUT_MS = 10000;
 
 export interface SiteBlockerDeps {
-  exec: (file: string, args: string[], options: { timeout: number }) => Promise<unknown>;
+  exec: (file: string, args: string[], options: { timeout: number; signal?: AbortSignal }) => Promise<unknown>;
   readFile: (file: string) => string;
   platform: NodeJS.Platform;
   helperPath: string;
@@ -47,23 +47,28 @@ export function createSiteBlocker(overrides: Partial<SiteBlockerDeps> = {}): Sit
     catch { return true; }
   }
 
-  async function installHelper(): Promise<void> {
+  async function installHelper(signal?: AbortSignal): Promise<void> {
     try {
-      await deps.exec('/usr/bin/osascript', ['-e', appleScript, deps.installerPath, deps.helperPath, deps.account], { timeout: INSTALL_TIMEOUT_MS });
+      await deps.exec('/usr/bin/osascript', ['-e', appleScript, deps.installerPath, deps.helperPath, deps.account], { timeout: INSTALL_TIMEOUT_MS, signal });
     } catch (error) {
+      if (signal?.aborted) throw cancelled(error);
       const detail = error as Error & { stderr?: string };
       if (/User canceled|(-128)/i.test(`${detail.message} ${detail.stderr || ''}`)) throw new PublicError('Se canceló la autorización de macOS.', { cause: error });
       throw new PublicError('No se pudo preparar el bloqueo de sitios. Revisa los permisos de administrador.', { cause: error });
     }
   }
 
-  function runHelper(action: BlockAction | 'check', domainList: string): Promise<unknown> {
-    return deps.exec('/usr/bin/sudo', ['-n', '-k', deps.installedHelperPath, action, domainList], { timeout: HELPER_TIMEOUT_MS });
+  function runHelper(action: BlockAction | 'check', domainList: string, signal?: AbortSignal): Promise<unknown> {
+    return deps.exec('/usr/bin/sudo', ['-n', '-k', deps.installedHelperPath, action, domainList], { timeout: HELPER_TIMEOUT_MS, signal });
   }
 
   async function canRunHelper(): Promise<boolean> {
     try { await runHelper('check', ''); return true; }
     catch { return false; }
+  }
+
+  function cancelled(cause: unknown): Error {
+    return new PublicError('Se canceló el cambio del bloqueo de sitios.', { cause });
   }
 
   function blockError(action: BlockAction, cause: unknown): Error {
@@ -76,20 +81,21 @@ export function createSiteBlocker(overrides: Partial<SiteBlockerDeps> = {}): Sit
       catch { return false; }
     },
 
-    async changeBlock(action, domains, { authorize = true } = {}) {
+    async changeBlock(action, domains, { authorize = true, signal } = {}) {
       if (deps.platform !== 'darwin') throw new PublicError('El bloqueo de sitios de esta versión requiere macOS.');
       const domainList = action === 'block' ? domains.join('\n') : '';
       const installed = needsInstall();
       if (installed && !authorize) throw blockError(action, new Error('Hay que reinstalar el helper y no se puede pedir autorización.'));
-      if (installed) await installHelper();
+      if (installed) await installHelper(signal);
       try {
-        await runHelper(action, domainList);
+        await runHelper(action, domainList, signal);
       } catch (error) {
+        if (signal?.aborted) throw cancelled(error);
         // Si se acaba de instalar, reinstalar pediría la contraseña otra vez sin arreglar nada.
         if (installed || !authorize || await canRunHelper()) throw blockError(action, error);
-        await installHelper();
-        try { await runHelper(action, domainList); }
-        catch (retryError) { throw blockError(action, retryError); }
+        await installHelper(signal);
+        try { await runHelper(action, domainList, signal); }
+        catch (retryError) { throw signal?.aborted ? cancelled(retryError) : blockError(action, retryError); }
       }
     }
   };

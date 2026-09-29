@@ -174,6 +174,8 @@ sequenceDiagram
   end
   S->>S: busy = false, save()
   opt vence el tiempo máximo de drain() o de closeWith()
+    L->>F: abortBlockChange()
+    Note over F: aborta el signal de changeBlock(): execFile mata el osascript o el sudo en curso
     L->>S: blockError ??= «Ritmo se cerró antes de quitar el bloqueo.», session = null
     L->>N: notify('Bloqueo aún activo', ...)
   end
@@ -230,7 +232,7 @@ stateDiagram-v2
 
 `recover()` no toca un descanso guardado. Si además encuentra la sección gestionada, marca `blockError` y la interfaz muestra **Bloqueo pendiente** hasta que se quite. Un foco guardado que venció con la app cerrada se cierra en el primer `tick()` tras el arranque.
 
-Al cerrar la app con **Foco** o **Bloqueo pendiente**, el cierre ordenado intenta desbloquear con el helper instalado, sin pedir autorización: si hay que reinstalarlo, el desbloqueo falla y queda pendiente. Si lo consigue, la app sale en **Listo**. Si falla, o si vence el tiempo máximo, la app sale igualmente con `blockError` guardado en `state.json`, sin el foco y tras notificar «Bloqueo aún activo». Descartar el foco evita que, al reabrir después de su fin, el tic lo cuente como pomodoro. En el siguiente arranque, `recover()` lleva a **Bloqueo pendiente** si la sección gestionada sigue en `/etc/hosts`, y a **Listo** si macOS terminó de quitarla.
+Al cerrar la app con **Foco** o **Bloqueo pendiente**, el cierre ordenado intenta desbloquear con el helper instalado, sin pedir autorización: si hay que reinstalarlo, el desbloqueo falla y queda pendiente. Si lo consigue, la app sale en **Listo**. Si vence el tiempo máximo, cancela antes el cambio de bloqueo en curso, lo que cierra el diálogo de administrador y termina `sudo`: un foco que se estaba iniciando no llega a aplicarse y un desbloqueo queda pendiente. Si falla, o si vence el tiempo máximo, la app sale igualmente con `blockError` guardado en `state.json`, sin el foco y tras notificar «Bloqueo aún activo». Descartar el foco evita que, al reabrir después de su fin, el tic lo cuente como pomodoro. En el siguiente arranque, `recover()` lleva a **Bloqueo pendiente** si la sección gestionada sigue en `/etc/hosts`, y a **Listo** si macOS terminó de quitarla. `block-sites.sh` ignora las señales mientras escribe `/etc/hosts`, así que una cancelación nunca lo deja a medias.
 
 Secuencia del cierre de un pomodoro por el tic, con el camino de error:
 

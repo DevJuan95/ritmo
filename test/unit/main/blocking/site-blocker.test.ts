@@ -149,6 +149,45 @@ test('informa si la recuperación del permiso se cancela o falla el segundo inte
   }
 });
 
+test('al abortar mata el proceso en curso y no reintenta ni pide autorización', async () => {
+  const abortable = (fail: (file: string, args: string[]) => boolean) => {
+    const controller = new AbortController();
+    const { blocker, calls } = blockerWith({
+      readFile: () => { throw new Error('ENOENT'); },
+      exec: async (file, args, options) => {
+        calls.push({ file, args });
+        assert.equal(options.signal, controller.signal);
+        if (fail(file, args)) { controller.abort(); throw Object.assign(new Error('The operation was aborted'), { name: 'AbortError' }); }
+      }
+    });
+    return { blocker, calls, signal: controller.signal };
+  };
+
+  const duringDialog = abortable(file => file === '/usr/bin/osascript');
+  await assert.rejects(duringDialog.blocker.changeBlock('block', ['x.com'], { signal: duringDialog.signal }), /^Error: Se canceló el cambio del bloqueo de sitios\.$/);
+  assert.deepEqual(duringDialog.calls.map(call => call.file), ['/usr/bin/osascript']);
+
+  const duringHelper = abortable(file => file === '/usr/bin/sudo');
+  await assert.rejects(duringHelper.blocker.changeBlock('unblock', [], { signal: duringHelper.signal }), /Se canceló el cambio del bloqueo/);
+  assert.deepEqual(duringHelper.calls.map(call => call.file), ['/usr/bin/osascript', '/usr/bin/sudo']);
+});
+
+test('al abortar durante la recuperación del permiso no reintenta', async () => {
+  const controller = new AbortController();
+  let sudo = 0;
+  const { blocker, calls } = blockerWith({
+    exec: async (file, args) => {
+      calls.push({ file, args });
+      if (file !== '/usr/bin/sudo') return;
+      sudo += 1;
+      if (sudo === 3) controller.abort();
+      throw new Error('sudo: a password is required');
+    }
+  });
+  await assert.rejects(blocker.changeBlock('unblock', [], { signal: controller.signal }), /Se canceló el cambio del bloqueo/);
+  assert.deepEqual(calls.map(call => call.file), ['/usr/bin/sudo', '/usr/bin/sudo', '/usr/bin/osascript', '/usr/bin/sudo']);
+});
+
 test('detecta la sección de Ritmo en hosts y tolera errores de lectura', () => {
   const read = (contents: string) => blockerWith({ readFile: () => contents }).blocker.hasManagedBlock();
   assert.equal(read(`127.0.0.1 localhost\n${BLOCK_MARKER}\n0.0.0.0 x.com\n`), true);

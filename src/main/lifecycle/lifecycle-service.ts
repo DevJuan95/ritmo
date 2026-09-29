@@ -9,7 +9,8 @@ import type { LifecycleServicePort, QuitSignals } from './ports';
  * en curso y el desbloqueo. Una operación en curso puede estar reinstalando el helper en
  * `blocking/site-blocker.ts`: un diálogo de `osascript` (hasta 120 s) y hasta tres llamadas a `sudo` (hasta
  * 10 s cada una). El desbloqueo al salir no pide autorización, así que solo usa `sudo`.
- * Si se agota, el cierre sigue por el camino de fallo del desbloqueo.
+ * Si se agota, se cancela el cambio de bloqueo en curso (lo que termina su `osascript` o su `sudo`)
+ * y el cierre sigue por el camino de fallo del desbloqueo.
  */
 export const DEFAULT_SHUTDOWN_TIMEOUT_MS = 160000;
 export const TICK_INTERVAL_MS = 1000;
@@ -33,6 +34,8 @@ export class LifecycleService implements LifecycleServicePort {
   private readonly timeoutMs: number;
   private ticker?: TimerHandle;
   private stopping?: Promise<void>;
+  /** Se agotó el tiempo máximo: lo que termine después ya no cambia el estado guardado. */
+  private expired = false;
 
   constructor(deps: LifecycleDeps) {
     this.store = deps.store;
@@ -70,7 +73,7 @@ export class LifecycleService implements LifecycleServicePort {
    * Cierre ordenado e idempotente: detiene el tic, deja de aceptar operaciones protegidas, espera
    * la que esté en curso, quita el bloqueo si hace falta, guarda el estado y cierra SQLite.
    * La espera y el desbloqueo tienen cada uno el tiempo máximo completo; si se agota en cualquiera,
-   * guarda `blockError` para que `recover()` lo resuelva al arrancar.
+   * cancela el cambio de bloqueo en curso y guarda `blockError` para que `recover()` lo resuelva al arrancar.
    */
   shutdown(): Promise<void> {
     this.stopping ??= this.stop();
@@ -79,12 +82,10 @@ export class LifecycleService implements LifecycleServicePort {
 
   private async stop(): Promise<void> {
     if (this.ticker !== undefined) this.timers.clearInterval(this.ticker);
-    let expired = false;
     try {
-      expired = !await this.within(this.store.drain()) ||
-        !await this.within(this.store.closeWith(() => this.release()));
+      if (await this.within(this.store.drain())) await this.within(this.store.closeWith(() => this.release()));
     } finally {
-      if (expired && this.focus.mustReleaseBeforeQuit()) {
+      if (this.expired && this.focus.mustReleaseBeforeQuit()) {
         this.leavePending(this.store.state.blockError ?? 'Ritmo se cerró antes de quitar el bloqueo.');
       }
       try { this.store.save(); }
@@ -92,14 +93,21 @@ export class LifecycleService implements LifecycleServicePort {
     }
   }
 
-  /** Espera `work` como máximo `timeoutMs`. Devuelve `false` si se agotó el tiempo. */
+  /**
+   * Espera `work` como máximo `timeoutMs`. Si se agota, cancela el cambio de bloqueo en curso para no
+   * dejar un diálogo de administrador ni un `sudo` vivos tras salir, y devuelve `false`.
+   */
   private async within(work: Promise<unknown>): Promise<boolean> {
     let timeout: TimerHandle;
     const deadline = new Promise<false>(resolve => {
       timeout = this.timers.setTimeout(() => resolve(false), this.timeoutMs);
     });
-    try { return await Promise.race([work.then(() => true as const), deadline]); }
-    finally { this.timers.clearTimeout(timeout); }
+    try {
+      if (await Promise.race([work.then(() => true as const), deadline])) return true;
+      this.expired = true;
+      this.focus.abortBlockChange();
+      return false;
+    } finally { this.timers.clearTimeout(timeout); }
   }
 
   private async release(): Promise<void> {
@@ -107,7 +115,10 @@ export class LifecycleService implements LifecycleServicePort {
     // Sin autorización: nadie responde a tiempo a un diálogo de administrador mientras la app sale.
     // Si hace falta reinstalar el helper, el bloqueo queda pendiente para `recover()`.
     try { await this.focus.endFocus(false, { authorize: false }); }
-    catch (error) { this.leavePending(error instanceof Error ? error.message : String(error)); }
+    catch (error) {
+      // Si se canceló por el tiempo máximo, `stop()` ya dejó el bloqueo pendiente y guardó el estado.
+      if (!this.expired) this.leavePending(error instanceof Error ? error.message : String(error));
+    }
   }
 
   /**
