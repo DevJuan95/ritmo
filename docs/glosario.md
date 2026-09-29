@@ -15,7 +15,7 @@ Si cambias un término, un puerto o un servicio, actualiza este glosario y `arqu
 | Descanso corto / largo | Sesión de 5 o 15 minutos sin bloqueo. La inicia el usuario; no empieza sola al acabar el foco. | `BreakKind` = `'shortBreak' \| 'longBreak'`, `FocusService.startBreak()` | `src/shared/contracts.ts`, `src/main/focus.ts` |
 | Duraciones | Minutos de cada tipo de sesión. | `MINUTES` | `src/shared/validation.ts` |
 | Terminar foco / descanso | Acabar la sesión antes de tiempo. Terminar el foco así desbloquea pero no cuenta un pomodoro. | `finishFocus()`, `finishBreak()`, `FocusService.endFocus(false)` | `src/main/focus.ts` |
-| Tic | Comprobación que el proceso principal ejecuta cada segundo: hace el reinicio diario y, si la sesión venció, la cierra. | `FocusService.tick()`, `setInterval` en `app.ts` | `src/main/focus.ts`, `src/main/app.ts` |
+| Tic | Comprobación que el proceso principal ejecuta cada segundo: hace el reinicio diario y, si la sesión venció, la cierra. | `FocusService.tick()`, `LifecycleService.start()`, `TICK_INTERVAL_MS` | `src/main/focus.ts`, `src/main/lifecycle.ts` |
 | Pomodoro | Un foco completado: el que llega a su fin por el tic, no el que se termina a mano. Al completarse se desbloquea, se suma al contador, se notifica y suena una señal. | `FocusService.endFocus(true)` | `src/main/focus.ts` |
 | Contador diario | Pomodoros completados hoy. Se pone a cero en el reinicio diario; no hay historial. | `AppState.focusCount`, `focusCountText()` | `src/shared/contracts.ts`, `src/renderer/view.ts` |
 
@@ -45,7 +45,9 @@ Si cambias un término, un puerto o un servicio, actualiza este glosario y `arqu
 | Bloqueo pendiente | Mensaje que indica que la sección gestionada puede seguir en `/etc/hosts` sin un foco activo: falló el desbloqueo o se encontró un bloqueo anterior. Mientras exista, no se puede iniciar sesión ni editar dominios, y la interfaz solo ofrece **Quitar bloqueo**. | `AppState.blockError` | `src/shared/contracts.ts`, `src/main/focus.ts` |
 | Quitar bloqueo | Reintento de desbloqueo. Usa el mismo camino que terminar el foco. | `RitmoAPI.retryUnblock()`, canal `retry-unblock` → `FocusService.finishFocus()` | `src/shared/contracts.ts`, `src/main/ipc.ts` |
 | Recuperación tras cierre inesperado | Reconciliación al arrancar entre la sesión guardada y `/etc/hosts`: con sección y sin foco, marca bloqueo pendiente; con foco y sin sección, descarta el foco; sin sección, limpia `blockError`. | `FocusService.recover()` | `src/main/focus.ts` |
-| Liberar antes de salir | Al cerrar la app con foco activo o bloqueo pendiente, se intenta desbloquear antes de salir; si falla, la app no se cierra. | `FocusService.mustReleaseBeforeQuit()`, `before-quit` en `app.ts` | `src/main/focus.ts`, `src/main/app.ts` |
+| Liberar antes de salir | Paso del cierre ordenado: con foco activo o bloqueo pendiente, se intenta desbloquear. Si falla, la app sale igualmente con el error en `blockError` y notifica «Bloqueo aún activo»; `recover()` lo resuelve al arrancar. | `FocusService.mustReleaseBeforeQuit()`, `LifecycleService` | `src/main/focus.ts`, `src/main/lifecycle.ts` |
+| Cierre ordenado | Secuencia única de salida para `before-quit` (Cmd+Q), `SIGINT` (Ctrl+C), `SIGTERM` y el apagado de macOS: detiene el tic, deja de aceptar operaciones protegidas, espera la que esté en curso, libera el bloqueo, guarda `state.json` y cierra SQLite. Se ejecuta una sola vez aunque lleguen varios avisos, y después la app sale con `app.exit()`. | `LifecycleService.shutdown()`, `LifecycleService.listen()`, `StateStore.closeWith()` | `src/main/lifecycle.ts`, `src/main/state.ts` |
+| Tiempo máximo del cierre | Límite del cierre ordenado (15 s por defecto). Al vencer, la app sale aunque macOS no haya respondido a la autorización; si aún había que desbloquear, guarda «Ritmo se cerró antes de quitar el bloqueo.» en `blockError` para `recover()`. | `DEFAULT_SHUTDOWN_TIMEOUT_MS`, opción `shutdownTimeoutMs` de `createMainContainer()` | `src/main/lifecycle.ts`, `src/main/container.ts` |
 
 ## Estado y comunicación
 
@@ -55,7 +57,7 @@ Si cambias un término, un puerto o un servicio, actualiza este glosario y `arqu
 | Almacén de estado | Dueño del estado: lo carga, valida, guarda y publica, y ofrece el reloj a los servicios. | `StateStore` | `src/main/state.ts` |
 | Estado público | Lo que recibe el renderer: `AppState` más `busy` y `now`. Se envía por el canal `state` en cada `save()` y al empezar una operación protegida. | `PublicState`, `StateStore.publicState()`, `StateStore.publish()` | `src/shared/contracts.ts`, `src/main/state.ts` |
 | Hora del proceso principal | `now` de `PublicState`: hora del reloj del proceso principal cuando se publicó el estado. El temporizador del renderer usa su propio `Date.now()`. | `PublicState.now` | `src/shared/contracts.ts` |
-| Operación protegida | Operación de foco que no puede solaparse con otra, porque puede esperar la autorización de macOS. Marca `busy`, publica, ejecuta y guarda al terminar, aunque falle. Si ya hay una en curso, falla con «Espera a que termine la operación anterior.». La usan `startFocus`, `finishFocus`, `startBreak`, `finishBreak`, el cierre de una sesión en `tick` y `before-quit`. | `StateStore.guarded()`, `StateStore.busy`, `PublicState.busy` | `src/main/state.ts` |
+| Operación protegida | Operación de foco que no puede solaparse con otra, porque puede esperar la autorización de macOS. Marca `busy`, publica, ejecuta y guarda al terminar, aunque falle. Si ya hay una en curso, falla con «Espera a que termine la operación anterior.», y durante el cierre ordenado, con «Ritmo se está cerrando.». La usan `startFocus`, `finishFocus`, `startBreak`, `finishBreak` y el cierre de una sesión en `tick`; el cierre ordenado ejecuta la última con `closeWith()`, tras esperar la que esté en curso. | `StateStore.guarded()`, `StateStore.closeWith()`, `StateStore.busy`, `StateStore.closing`, `PublicState.busy` | `src/main/state.ts` |
 | API del renderer | Única puerta del renderer al proceso principal, expuesta como `window.ritmo`. Cada método invoca un canal IPC, salvo `onState()`, que escucha el canal `state`. | `RitmoAPI`, `window.ritmo` | `src/shared/contracts.ts`, `src/preload.ts` |
 | Suscripción al estado | Recibe cada estado público publicado; devuelve la función para cancelarla. | `RitmoAPI.onState()`, canal `state` | `src/shared/contracts.ts`, `src/preload.ts` |
 | Canales IPC | Nombres en kebab-case de cada método de `RitmoAPI` (`start-focus`, `get-tasks-for-day`, …). | `registerHandlers()`, `Services` | `src/main/ipc.ts` |
@@ -68,15 +70,17 @@ Interfaces de `src/main/ports.ts` por las que los servicios acceden a efectos ex
 | --- | --- | --- | --- |
 | `SiteBlocker` | Consultar y cambiar la sección gestionada de `/etc/hosts`. | `createSiteBlocker()` en `site-blocker.ts`: `osascript` con privilegios de administrador ejecuta `block-sites.sh`. | `FocusService` |
 | `BlockAction` | Acción de `SiteBlocker.changeBlock()`: `'block'` o `'unblock'`. | — | `FocusService`, `block-sites.sh` |
-| `Notifier` | Notificaciones del sistema. | `createNotifier(notificationApi)` en `notifier.ts`; `app.ts` pasa `Notification` de Electron como `notificationApi`. | `FocusService` |
+| `Notifier` | Notificaciones del sistema. | `createNotifier(notificationApi)` en `notifier.ts`; `app.ts` pasa `Notification` de Electron como `notificationApi`. | `FocusService`, `LifecycleService` |
 | `SoundPlayer` | Señal sonora al completar un pomodoro. | `createSoundPlayer()` en `sound-player.ts`: `afplay` con `Glass.aiff`. | `FocusService` |
 | `Clock` | Hora actual en milisegundos. Los servicios la leen con `store.now()`. | `Date.now`, registrado como `now` en `container.ts` e inyectado en `StateStore` y `TaskRepository`. | `StateStore`, `TaskRepository` |
 | `IdGenerator` | Identificadores de tareas nuevas. | `crypto.randomUUID()`, valor por defecto de `TaskRepository`; `container.ts` no lo registra. | `TaskRepository` |
 | `PublishState` | Envío del estado público al renderer. | Función que `app.ts` pasa a `createMainContainer()` y llama a `window.webContents.send('state', …)`. | `StateStore` |
 | `IpcRegistrar` | Registro de manejadores IPC. | `ipcMain` de Electron, que `app.ts` pasa a `registerHandlers()`. | `registerHandlers()` |
+| `Timers` | Intervalo del tic y tiempo máximo del cierre. | `systemTimers` en `timers.ts` (temporizadores de Node), registrado como `timers` en `container.ts`. | `LifecycleService` |
+| `QuitSignals` | Avisos de que la app debe cerrarse, con su motivo (`QuitReason`: `'before-quit'`, `'SIGINT'`, `'SIGTERM'` o `'shutdown'`). | `createQuitSignals({ app, powerMonitor, process })` en `quit-signals.ts`; cancela `before-quit` y el `shutdown` de `powerMonitor` para terminar el cierre antes de salir. `app.ts` lo pasa a `LifecycleService.listen()`. | `LifecycleService` |
 
 ## Términos que no están en el glosario
 
 - `Window.ritmo` en `contracts.ts` solo declara el tipo global de `window.ritmo`; se describe en «API del renderer».
 - Los métodos de `RitmoAPI` que solo reenvían a un servicio (`addTask`, `toggleTask`, `deleteTask`, `getTasksForDay`, `addDomain`, `removeDomain`, `getState`) se entienden por su nombre y por los términos de tarea, dominio y estado público.
-- Las dependencias de los adaptadores (`SiteBlockerDeps`, `SoundPlayerDeps`, `NotificationApi`) son detalles de prueba de cada adaptador, no términos del dominio.
+- Las dependencias de los adaptadores (`SiteBlockerDeps`, `SoundPlayerDeps`, `NotificationApi`, `QuitSources`) son detalles de prueba de cada adaptador, no términos del dominio.

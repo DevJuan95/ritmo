@@ -40,7 +40,7 @@ Canales: `get-state`, `start-focus`, `finish-focus`, `retry-unblock`, `start-bre
 
 ## 2. Servicios y dependencias
 
-`src/main/app.ts` es la raíz de composición. Crea con `createMainContainer()` (`src/main/container.ts`, Awilix) un contenedor en el que todo es singleton, le pasa lo que viene de Electron (`userData`, `Notification` y la función que publica el estado) y resuelve de él `store` y `focus`. Después registra los manejadores IPC con `ipcMain` y el propio `container.cradle`. Solo `app.ts` y `preload.ts` importan `electron`, y solo `app.ts` y `container.ts` importan Awilix. Los servicios no conocen el contenedor: las fábricas de `container.ts` llaman a sus constructores de forma explícita y los servicios reciben lo de Electron a través de los puertos de `ports.ts`.
+`src/main/app.ts` es la raíz de composición. Crea con `createMainContainer()` (`src/main/container.ts`, Awilix) un contenedor en el que todo es singleton, le pasa lo que viene de Electron (`userData`, `Notification` y la función que publica el estado) y resuelve de él `lifecycle`. Después conecta las vías de salida con el cierre ordenado, registra los manejadores IPC con `ipcMain` y el propio `container.cradle`. Solo `app.ts` y `preload.ts` importan `electron`, y solo `container.ts` importa Awilix. Los servicios no conocen el contenedor: las fábricas de `container.ts` llaman a sus constructores de forma explícita y los servicios reciben lo de Electron a través de los puertos de `ports.ts`.
 
 ```mermaid
 flowchart TB
@@ -52,6 +52,7 @@ flowchart TB
     focus["FocusService<br/>focus.ts"]
     taskService["TaskService<br/>task-service.ts"]
     domainService["DomainService<br/>domains.ts"]
+    lifecycle["LifecycleService<br/>lifecycle.ts"]
     store["StateStore<br/>state.ts"]
     repo["TaskRepository<br/>tasks.ts"]
   end
@@ -60,12 +61,16 @@ flowchart TB
     blocker["createSiteBlocker<br/>site-blocker.ts"]
     notifier["createNotifier<br/>notifier.ts"]
     sound["createSoundPlayer<br/>sound-player.ts"]
+    timers["systemTimers<br/>timers.ts"]
+    quit["createQuitSignals<br/>quit-signals.ts"]
   end
 
   subgraph externos["Efectos externos"]
     ipcMain["ipcMain"]:::electron
     send["webContents.send('state')"]:::electron
     notification["Notification"]:::electron
+    salida["before-quit, powerMonitor 'shutdown'"]:::electron
+    signals["SIGINT, SIGTERM"]
     osascript["osascript con privilegios<br/>→ block-sites.sh"]
     hosts[("/etc/hosts")]
     afplay["afplay Glass.aiff"]
@@ -75,6 +80,8 @@ flowchart TB
 
   app -- "userDataPath, notificationApi, publish" --> container
   app -- "ipcMain, container.cradle" --> ipc
+  app -- "QuitSignals, exit" --> lifecycle
+  app -- "app, powerMonitor, process" --> quit
   container -. "registra singletons" .-> servicios
   container -. "registra singletons" .-> adaptadores
 
@@ -91,6 +98,12 @@ flowchart TB
   taskService --> store
   taskService --> repo
   domainService --> store
+  lifecycle --> store
+  lifecycle --> focus
+  lifecycle --> repo
+  lifecycle -- "Notifier" --> notifier
+  lifecycle -- "Timers" --> timers
+  lifecycle -- "QuitSignals" --> quit
 
   store -- "tasks" --> repo
   store -- "PublishState" --> send
@@ -101,6 +114,8 @@ flowchart TB
   blocker -- "hasManagedBlock: lectura" --> hosts
   notifier --> notification
   sound --> afplay
+  quit --> salida
+  quit --> signals
 
   classDef electron fill:#fde2e2,stroke:#c0392b,color:#000
 ```
@@ -113,16 +128,53 @@ Registros de `createMainContainer()`:
 | --- | --- | --- |
 | `userDataPath`, `publish`, `notificationApi` | Valores que pasa `app.ts`: `app.getPath('userData')`, la función que envía el estado por `webContents.send('state', …)` si la ventana existe, y `Notification` de Electron. | — |
 | `now` | Valor: `options.now`, o `Date.now` si no se pasa (`app.ts` no lo pasa). | — |
+| `timers` | Valor: `options.timers`, o `systemTimers` si no se pasa (`app.ts` no lo pasa). | — |
+| `shutdownTimeoutMs` | Valor: `options.shutdownTimeoutMs`; sin él, `LifecycleService` usa `DEFAULT_SHUTDOWN_TIMEOUT_MS` (15 s). | — |
 | `blocker` | `createSiteBlocker()` | — |
 | `notifier` | `createNotifier(notificationApi)` | — |
 | `sound` | `createSoundPlayer()` | — |
-| `taskRepository` | `new TaskRepository(<userData>/ritmo.db, { now })`; `container.dispose()` lo cierra. | `IdGenerator` (`crypto.randomUUID`) |
+| `taskRepository` | `new TaskRepository(<userData>/ritmo.db, { now })`; lo cierran el cierre ordenado y `container.dispose()` (`close()` es idempotente). | `IdGenerator` (`crypto.randomUUID`) |
 | `store` | `new StateStore(<userData>/state.json, { tasks: taskRepository, publish, now })` | — |
 | `focus` | `new FocusService(store, { blocker, notifier, sound })` | — |
 | `tasks` | `new TaskService(store, taskRepository)` | — |
 | `domains` | `new DomainService(store)` | — |
+| `lifecycle` | `new LifecycleService({ store, focus, notifier, tasks: taskRepository, timers, shutdownTimeoutMs })` | — |
 
-Orden de arranque en `app.ts`: se crea el contenedor y se resuelven `store` y `focus` (con ellos, el repositorio y los adaptadores); después `focus.recover()`, `registerHandlers(ipcMain, container.cradle)`, la ventana y `store.rollDay()`. A continuación se cierra de inmediato un foco que venció con la app cerrada (comparando con `store.now()`) y empieza el intervalo de 1 s que llama a `focus.tick()`. En `before-quit`, si `mustReleaseBeforeQuit()`, la app desbloquea dentro de `guarded` antes de salir. En `will-quit`, `container.dispose()` cierra SQLite y la app termina con `app.exit()`.
+Orden de arranque en `app.ts`: se crea el contenedor y se resuelve `lifecycle` (con él, `store`, `focus`, el repositorio y los adaptadores). `lifecycle.listen()` conecta `createQuitSignals({ app, powerMonitor, process })` con el cierre ordenado; después vienen `registerHandlers(ipcMain, container.cradle)` y la ventana. Por último, `lifecycle.start()` llama a `focus.recover()` y `store.rollDay()`, hace un primer `focus.tick()`, que cierra de inmediato una sesión que venció con la app cerrada, y programa el tic cada segundo con `Timers`.
+
+Cierre ordenado: `before-quit` (Cmd+Q, o `app.quit()` al cerrar la última ventana fuera de macOS), `SIGINT`, `SIGTERM` y el `shutdown` de `powerMonitor` llaman a `LifecycleService.shutdown()`, que se ejecuta una sola vez. `before-quit` y `shutdown` se cancelan para que el cierre termine antes; al acabar, `app.exit()` sale sin volver a emitir `before-quit` ni `will-quit`.
+
+```mermaid
+sequenceDiagram
+  participant Q as QuitSignals
+  participant L as LifecycleService
+  participant S as StateStore
+  participant F as FocusService
+  participant N as Notifier
+  participant R as TaskRepository
+  participant A as app.ts
+
+  Q->>L: before-quit, SIGINT, SIGTERM o shutdown
+  Note over L: Los avisos repetidos reutilizan el mismo cierre
+  L->>L: clearInterval(tic), setTimeout(tiempo máximo)
+  L->>S: closeWith(liberar)
+  S->>S: closing = true, espera la operación en curso
+  alt mustReleaseBeforeQuit()
+    S->>F: endFocus(false)
+    alt falla el desbloqueo
+      L->>S: blockError = mensaje
+      L->>N: notify('Bloqueo aún activo', ...)
+    end
+  end
+  S->>S: busy = false, save()
+  opt vence el tiempo máximo antes
+    L->>S: blockError = «Ritmo se cerró antes de quitar el bloqueo.»
+  end
+  L->>S: save()
+  L->>R: close()
+  L->>A: exit(error?)
+  A->>A: app.exit(0 o 1)
+```
 
 ## 3. Ciclo de una sesión
 
@@ -171,13 +223,13 @@ stateDiagram-v2
 
 `recover()` no toca un descanso guardado. Si además encuentra la sección gestionada, marca `blockError` y la interfaz muestra **Bloqueo pendiente** hasta que se quite. Un foco guardado que venció con la app cerrada se cierra en el primer `tick()` tras el arranque.
 
-Al cerrar la app con **Foco** o **Bloqueo pendiente**, `before-quit` intenta desbloquear. Si lo consigue, la app sale; si no, guarda el error en `blockError`, muestra la ventana y un diálogo, y la app sigue abierta en **Bloqueo pendiente**.
+Al cerrar la app con **Foco** o **Bloqueo pendiente**, el cierre ordenado intenta desbloquear. Si lo consigue, la app sale en **Listo**. Si falla, o si vence el tiempo máximo, la app sale igualmente con `blockError` guardado y el foco, si lo había, en `state.json`. En el siguiente arranque, `recover()` lleva a **Foco** o **Bloqueo pendiente** si la sección gestionada sigue en `/etc/hosts`, y a **Listo** si macOS terminó de quitarla.
 
 Secuencia del cierre de un pomodoro por el tic, con el camino de error:
 
 ```mermaid
 sequenceDiagram
-  participant T as setInterval (app.ts)
+  participant T as Timers (LifecycleService)
   participant F as FocusService
   participant S as StateStore
   participant B as SiteBlocker

@@ -5,6 +5,7 @@ import type { AppState, PublicState } from '../../src/shared/contracts';
 import { DEFAULT_DOMAINS, todayKey } from '../../src/shared/validation';
 import { DomainService } from '../../src/main/domains';
 import { FocusService } from '../../src/main/focus';
+import { LifecycleService } from '../../src/main/lifecycle';
 import { StateStore } from '../../src/main/state';
 import { TaskService } from '../../src/main/task-service';
 import { TaskRepository } from '../../src/main/tasks';
@@ -22,6 +23,8 @@ export interface HarnessOptions {
   /** Estado guardado previamente en state.json. Si se omite, no existe el archivo. */
   saved?: Partial<AppState> & { tasksMigrated?: boolean };
   clock?: FakeClock;
+  /** Tiempo máximo del cierre ordenado de `lifecycle`. */
+  shutdownTimeoutMs?: number;
 }
 
 export interface Harness {
@@ -38,6 +41,8 @@ export interface Harness {
   focus: FocusService;
   tasks: TaskService;
   domains: DomainService;
+  /** Usa `clock` como temporizadores. */
+  lifecycle: LifecycleService;
   /** Vuelve a abrir el estado desde disco con las mismas dependencias. */
   reopen(): StateStore;
   readSaved(): AppState & { tasksMigrated?: boolean };
@@ -59,10 +64,11 @@ export function createHarness(t: TestContext, options: HarnessOptions = {}): Har
   t.after(() => repository.close());
   const open = () => new StateStore(statePath, { tasks: repository, now: clock.now, publish: state => published.push(state) });
   const store = open();
+  const focus = new FocusService(store, { blocker, notifier, sound });
 
   return {
-    directory, statePath, dbPath, clock, blocker, notifier, sound, published, repository, store,
-    focus: new FocusService(store, { blocker, notifier, sound }),
+    directory, statePath, dbPath, clock, blocker, notifier, sound, published, repository, store, focus,
+    lifecycle: new LifecycleService({ store, focus, notifier, tasks: repository, timers: clock, shutdownTimeoutMs: options.shutdownTimeoutMs }),
     tasks: new TaskService(store, repository),
     domains: new DomainService(store),
     reopen: open,
