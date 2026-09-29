@@ -1,66 +1,49 @@
-# Ritmo
+![Ritmo: un bloque de atención a la vez](docs/capturas/banner.png)
 
-Ritmo es una herramienta personal para mejorar mis sesiones de estudio y llevar el seguimiento de ellas. No pretende ser un producto ni competir con otras apps de productividad: existe para cubrir mis propias necesidades al estudiar.
+> Pomodoros, tareas del día y sitios en pausa, en una sola app para macOS.
+> Una herramienta personal para estudiar con foco y llevar la cuenta de cada sesión.
 
-## Para qué sirve
+![Pantalla Hoy: temporizador de 25 minutos, plan del día y sitios en pausa](docs/capturas/hoy.png)
 
-- **Enfocarme**: sesiones de foco de 25 minutos con descansos de 5 o 15, al estilo pomodoro. Al completarse el foco suena una señal y aparece una notificación, aunque Ritmo esté en segundo plano.
-- **Evitar distracciones**: bloquea sitios como redes sociales mientras dura el foco.
-- **Planificar**: tareas organizadas por día, con un planner para moverlas entre fechas.
-- **Hacer seguimiento**: un contador de pomodoros para ver cuántos completé hoy; se reinicia cada día.
+## ✨ Qué hace
 
-La app funciona solo en macOS y guarda todo localmente; no hay cuentas, servidores ni sincronización.
+| Función | Qué hace |
+| --- | --- |
+| ⏱️ **Foco** | Sesiones de 25 minutos con descansos de 5 o 15. Al terminar suena una señal y llega una notificación, aunque Ritmo esté en segundo plano. |
+| 🚫 **Sitios en pausa** | Bloquea redes sociales y cualquier dominio que añadas mientras dura el foco. |
+| 🗓️ **Planner** | Tareas por día y un calendario mensual para completarlas y moverlas de fecha. Las pendientes esperan en su día hasta que las muevas. |
+| ✅ **Seguimiento** | Un contador de pomodoros del día, que vuelve a cero cada día. |
+| 🔒 **Todo local** | Sin cuentas, servidores ni sincronización. |
 
-## Proyecto generado con IA
+![Un descanso en curso y el Planner con el calendario del mes](docs/capturas/descanso-y-planner.png)
 
-Todo el código, las pruebas y la documentación de este repositorio fueron generados con agentes de IA. Mi papel es definir qué quiero, revisar los resultados y decidir qué se integra. Las pautas que siguen los agentes están en [`AGENTS.md`](AGENTS.md).
+## 🚀 Empezar
 
-Por eso conviene leer el código con esa perspectiva: está pensado para mi uso personal y no ha pasado por la revisión que tendría un proyecto mantenido para terceros.
-
-## Iniciar
-
-Necesitas Node.js 24 (ver `.nvmrc`) y npm.
+Necesitas macOS, Node.js 24 (ver `.nvmrc`) y npm.
 
 ```bash
 npm install
 npm start
 ```
 
-El código de Electron, la interfaz y las pruebas está en TypeScript. La interfaz usa React, Tailwind CSS y componentes locales de shadcn/ui; Vite la compila sin CDN. `npm start` compila a `dist/` antes de abrir la app. Para comprobar tipos sin generar archivos usa `npm run typecheck`.
+> 🔐 En el primer pomodoro, macOS pide una autorización de administrador para instalar el helper que bloquea los sitios; después no vuelve a pedirla. Cómo funciona, qué riesgos implica y cómo desinstalarlo: [`docs/bloqueo-de-sitios.md`](docs/bloqueo-de-sitios.md).
 
-## Estructura
+## 🛠️ Desarrollo
 
-- `src/main/`: proceso principal. `app.ts` arranca Electron y `container.ts` arma los servicios; el resto se divide en módulos por contexto: `focus/` (sesiones y temporizador), `tasks/` (tareas en SQLite), `blocking/` (dominios y bloqueo de sitios), `state/` (estado persistente), `lifecycle/` (arranque y cierre), `ipc/` y `common/`.
-- `src/preload.ts`: API limitada que conecta la interfaz con el proceso principal.
-- `src/renderer/`: entrada React, pantallas `screens/`, componentes de la aplicación y lógica de presentación en `view.ts`.
-- `src/components/ui/`: componentes editables de shadcn/ui. `components.json` configura su CLI.
-- `src/shared/`: contratos TypeScript y validaciones compartidas.
+| Comando | Qué hace |
+| --- | --- |
+| `npm start` | Compila a `dist/` y abre la app |
+| `npm run dev:renderer` | Interfaz en Vite con recarga en caliente, sin datos |
+| `npm run typecheck` | Comprueba los tipos sin generar archivos |
+| `npm test` | Compila y ejecuta todas las pruebas |
+| `npm run coverage` | Pruebas con cobertura (c8); falla bajo los umbrales de `.c8rc.json` |
 
-El vocabulario del dominio (sesión, foco, pomodoro, bloqueo pendiente…) está en [`docs/glosario.md`](docs/glosario.md), y los diagramas de procesos, servicios y del ciclo de una sesión, en [`docs/arquitectura.md`](docs/arquitectura.md).
+**Stack:** Electron · React · Tailwind CSS · shadcn/ui · SQLite · TypeScript
 
-`src/main.ts` y `src/preload.ts` son las entradas CommonJS de Electron. `src/renderer/main.tsx` es la entrada de la interfaz. La compilación usa `tsconfig.json` para Electron, pruebas y las funciones puras de `view.ts`; `tsconfig.renderer.json` comprueba el renderer y Vite lo empaqueta como archivos locales. La ventana abre hasta 1280 × 840 píxeles, limitada por el área útil de la pantalla.
+El código está en `src/`: `main/` (proceso principal, en módulos por contexto), `preload.ts` (API limitada para la interfaz), `renderer/` (React) y `shared/` (contratos y validaciones). Cada PR hacia `main` pasa el check `ci` (`npm ci`, `npm run typecheck` y `npm test` en macOS).
 
-El icono de Ritmo se muestra en el Dock al abrir la app. Si quieres regenerarlo, ejecuta `python3 scripts/generate-icon.py`; la compilación copia `assets/icon.png` a `dist/`.
+📚 [Arquitectura](docs/arquitectura.md) · [Glosario](docs/glosario.md) · [Desarrollo](docs/desarrollo.md) · [Bloqueo de sitios](docs/bloqueo-de-sitios.md) · [Pautas para agentes](AGENTS.md)
 
-En el primer pomodoro, macOS pide autorización de administrador para instalar un helper limitado en `/Library/PrivilegedHelperTools/ritmo-block-sites` y una regla por cuenta en `/etc/sudoers.d/ritmo-<usuario>` (si el nombre de la cuenta tiene puntos, en el archivo aparecen como `%`, porque sudo ignora los archivos con punto). Después, Ritmo lo usa sin pedir autorización al iniciar o terminar cada foco. Si el script cambia tras una actualización, o se pierde el permiso de la cuenta, macOS vuelve a pedir autorización para restaurarlo. El helper solo permite modificar la sección identificada de Ritmo en `/etc/hosts`. Si no puede quitar el bloqueo, la app muestra **Quitar bloqueo** para reintentar. Al salir (Cmd+Q, Ctrl+C en `npm start`, `SIGTERM` o apagado de macOS), la app espera la operación en curso, hasta unos 2 minutos y medio por si macOS está pidiendo autorización, e intenta quitar el bloqueo con el helper ya instalado, sin pedirla. Si no lo consigue, sale igualmente, lo avisa con una notificación y ofrece **Quitar bloqueo** al volver a abrirla; el foco interrumpido no cuenta como pomodoro. Si la app se cierra de forma inesperada, al volver a abrirla detecta la sección y permite retirarla.
+## 🤖 Hecho con IA
 
-Contrapartida: la regla de sudoers deja que cualquier proceso que corra con tu cuenta ejecute el helper sin contraseña. El helper fija su propio `PATH` y llama cada orden por su ruta absoluta, y la regla añade `secure_path`, para que ese proceso no pueda colarle programas propios. Además, solo acepta dominios válidos y solo escribe la sección de Ritmo, con cada entrada apuntando a `0.0.0.0` o `::1`, así que lo peor que puede hacer ese proceso es bloquear sitios o quitar el bloqueo. Además, el helper instalado queda como root hasta que lo desinstales: si alguien modificara el `block-sites.sh` de la app, la siguiente solicitud de autorización instalaría esa versión.
-
-Para desinstalar el helper, elimina la regla de tu cuenta en `/etc/sudoers.d/ritmo-<usuario>` y `/Library/PrivilegedHelperTools/ritmo-block-sites` con permisos de administrador, después de quitar cualquier bloqueo activo. Las instalaciones anteriores pueden tener además una regla en `/etc/sudoers.d/ritmo`.
-
-La lista inicial bloquea `facebook.com`, `linkedin.com`, `x.com` y `twitter.com`. Puedes añadir o quitar dominios antes de iniciar el foco. El bloqueo aplica al dominio exacto y a `www.`; `/etc/hosts` no permite bloquear todos los subdominios, y ciertas configuraciones de DNS o red podrían evitarlo. Esta versión funciona en macOS.
-
-Las tareas se guardan localmente en SQLite dentro de los datos de la app. **Hoy** muestra las tareas planificadas para el día actual; **Planner** muestra el mes en un calendario, con el número de tareas de cada día y cuántas están hechas, y permite elegir un día con el ratón o el teclado, crear tareas, editarlas, completarlas y moverlas. Las tareas pendientes permanecen en su fecha original hasta que las muevas. El contador de pomodoros se reinicia cada día.
-
-Los dominios y el estado del temporizador siguen en `state.json`. Al abrir una instalación anterior, Ritmo importa sus tareas a SQLite y conserva una copia del JSON como `state.json.backup`. La app todavía no incluye funciones de IA; quedan para una etapa futura.
-
-## Verificar
-
-```bash
-npm test
-npm run coverage
-```
-
-Cada PR hacia `main` ejecuta el check `ci` de GitHub Actions (`npm ci`, `npm run typecheck` y `npm test` en macOS). `main` está protegida: solo acepta cambios por PR con ese check aprobado.
-
-`npm run coverage` compila, ejecuta todas las pruebas con [c8](https://github.com/bcoe/c8) y muestra la cobertura de cada módulo de `src/`, incluidos los que ninguna prueba carga (aparecen con 0 %). El informe HTML queda en `coverage/index.html`. Falla si la cobertura baja de los umbrales de `.c8rc.json`.
+Todo el código, las pruebas y la documentación los generaron agentes de IA. Mi papel es definir qué quiero, revisar el resultado y decidir qué se integra. Está pensado para mi uso personal y no ha pasado por la revisión de un proyecto mantenido para terceros.
