@@ -4,11 +4,12 @@ Ritmo es una aplicación de productividad para macOS hecha con Electron y TypeSc
 
 ## Mapa del proyecto
 
-- `src/main.ts` inicia el proceso principal. En `src/main/`, `app.ts` es la raíz de composición: crea con `createMainContainer` (`container.ts`, Awilix) el contenedor de singletons, le pasa lo que viene de Electron y resuelve de él los servicios. `lifecycle.ts` (`LifecycleService`) arranca el tic y hace el cierre ordenado de todas las vías de salida (`before-quit`, `SIGINT`, `SIGTERM`, apagado de macOS): espera la operación en curso, quita el bloqueo, guarda el estado y cierra SQLite, con un tiempo máximo. Solo `container.ts` importa Awilix; los servicios reciben sus dependencias por constructor. `state.ts`, `focus.ts`, `task-service.ts`, `domains.ts`, `lifecycle.ts` y `tasks.ts` (repositorio SQLite) no importan Electron. Sus dependencias externas (bloqueo de sitios, notificaciones, sonido, reloj, temporizadores, avisos de salida, IPC, publicación del estado) son interfaces de `ports.ts`, con adaptadores en `site-blocker.ts`, `notifier.ts`, `sound-player.ts`, `timers.ts` y `quit-signals.ts`. `ipc.ts` solo conecta canales con servicios.
+- `src/main.ts` inicia el proceso principal. En `src/main/`, `app.ts` es la raíz de composición: crea con `createMainContainer` (`container.ts`, Awilix) el contenedor de singletons, le pasa lo que viene de Electron y resuelve de él los servicios. `lifecycle.ts` (`LifecycleService`) arranca el tic y hace el cierre ordenado de todas las vías de salida (`before-quit`, `SIGINT`, `SIGTERM`, apagado de macOS): espera la operación en curso, quita el bloqueo, guarda el estado y cierra SQLite, con un tiempo máximo. Solo `container.ts` importa Awilix; los servicios reciben sus dependencias por constructor. `state.ts`, `focus.ts`, `task-service.ts`, `domains.ts`, `lifecycle.ts` y `tasks.ts` (repositorio SQLite) no importan Electron. Sus dependencias externas (bloqueo de sitios, notificaciones, sonido, reloj, temporizadores, avisos de salida, IPC, publicación del estado) son interfaces de `ports.ts`, con adaptadores en `site-blocker.ts`, `notifier.ts`, `sound-player.ts`, `timers.ts` y `quit-signals.ts`. `ipc.ts` solo conecta canales con servicios. `window-size.ts` calcula el tamaño inicial de la ventana a partir del área útil de la pantalla.
 - `src/preload.ts` expone `window.ritmo` al renderer. Mantén el aislamiento de contexto y la API limitada.
 - `src/renderer/main.tsx` inicia React. `src/renderer/screens/` contiene Hoy y Planner; `src/renderer/components/` contiene las piezas de la aplicación y `src/components/ui/` los componentes editables de shadcn/ui. La lógica de presentación sin DOM va en `src/renderer/view.ts`.
 - `src/shared/contracts.ts` define los tipos de estado y la API; `src/shared/validation.ts` valida entradas y define valores por defecto.
-- `src/block-sites.sh` administra una sección identificada en `/etc/hosts`.
+- `src/block-sites.sh` administra una sección identificada en `/etc/hosts`; con `check` solo comprueba que se puede ejecutar. Se instala como helper de root en `/Library/PrivilegedHelperTools/ritmo-block-sites`.
+- `src/install-block-helper.sh` instala ese helper y la regla de sudoers de la cuenta. Lo ejecuta `site-blocker.ts` con `osascript` y privilegios de administrador, solo cuando el helper falta, cambió o perdió el permiso.
 - `test/` está organizado por nivel; ver «Pruebas».
 - `src/styles.css` usa Tailwind CSS y los tokens de shadcn/ui. Vite compila la interfaz a `dist/src/`; `dist/` es generado y está ignorado por Git.
 
@@ -21,7 +22,7 @@ Ritmo es una aplicación de productividad para macOS hecha con Electron y TypeSc
 - `npm run coverage`: compila y ejecuta todas las pruebas con c8. Informa por archivo de `src/` (también los que no carga ninguna prueba) y falla por debajo de los umbrales de `.c8rc.json`. El HTML queda en `coverage/`.
 - `npm run build`: genera la app en `dist/`.
 - `npm start`: compila y abre Electron; requiere macOS para probar el bloqueo real.
-- `npm run dev:renderer`: abre el servidor de Vite para trabajar en la interfaz; las funciones IPC requieren abrirla desde Electron.
+- `npm run dev:renderer`: abre el servidor de Vite, con recarga en caliente, para trabajar en la estructura y los estilos. En el navegador no hay `window.ritmo`, así que no hay datos ni acciones; para eso usa `npm start`. El servidor quita la CSP de `index.html`, que la compilación conserva.
 
 ## Al cambiar código
 
