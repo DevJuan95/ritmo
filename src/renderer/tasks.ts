@@ -10,14 +10,14 @@ export function renderTasks(): void {
   for (const task of state.tasks) {
     const row = document.createElement('li');
     const check = document.createElement('input');
-    check.type = 'checkbox'; check.className = 'checkbox checkbox-secondary checkbox-sm task-check'; check.checked = task.done;
+    check.type = 'checkbox'; check.className = 'checkbox checkbox-primary checkbox-sm task-check'; check.checked = task.done;
     check.setAttribute('aria-label', `Completar ${task.title}`);
     check.addEventListener('change', () => action(() => window.ritmo.toggleTask(task.id)));
     const title = document.createElement('span');
     title.className = `task-title${task.done ? ' done' : ''}`;
     title.textContent = task.title;
     const remove = document.createElement('button');
-    remove.type = 'button'; remove.className = 'btn btn-ghost btn-xs btn-square icon-button'; remove.textContent = '×';
+    remove.type = 'button'; remove.className = 'btn btn-ghost btn-xs btn-square task-remove'; remove.textContent = '×';
     remove.setAttribute('aria-label', `Eliminar ${task.title}`);
     remove.addEventListener('click', () => action(() => window.ritmo.deleteTask(task.id)));
     row.append(check, title, remove);

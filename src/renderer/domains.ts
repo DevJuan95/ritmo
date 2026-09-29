@@ -7,9 +7,9 @@ export function renderDomains(): void {
   list.replaceChildren();
   const locked = domainsLocked(state);
   for (const domain of state.domains) {
-    const chip = document.createElement('span'); chip.className = 'badge badge-soft badge-secondary domain-chip';
+    const chip = document.createElement('span'); chip.className = 'badge domain-chip';
     const label = document.createElement('span'); label.textContent = domain;
-    const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'btn btn-ghost btn-xs btn-circle'; remove.textContent = '×';
+    const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'btn btn-ghost btn-xs btn-circle domain-remove'; remove.textContent = '×';
     remove.disabled = locked;
     remove.setAttribute('aria-label', `Quitar ${domain}`);
     remove.addEventListener('click', () => action(() => window.ritmo.removeDomain(domain)));

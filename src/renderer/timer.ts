@@ -8,12 +8,13 @@ export function renderTimer(): void {
   const state = getState();
   const view = timerView(state, Date.now());
   $('#timer-value').textContent = view.value;
-  $('#timer-ring').style.setProperty('--progress', view.progress);
+  const beats = $('#timer-beats');
+  beats.style.setProperty('--progress', view.progress);
+  beats.style.setProperty('--beats', String(view.beats));
+  $('#timer-panel').dataset.mode = view.mode;
   $('#timer-kind').textContent = view.kind;
   $('#timer-caption').textContent = view.caption;
-  const status = $('#timer-status');
-  status.textContent = view.status;
-  status.className = view.statusClass;
+  $('#timer-status').textContent = view.status;
   if (view.actionsKey === lastActionsKey) return;
   lastActionsKey = view.actionsKey;
   $('#timer-actions').replaceChildren(...timerActions(state).map(item => button(item.label, item.style, () => item.run(window.ritmo), state.busy)));

@@ -25,7 +25,7 @@ function show(view: 'today' | 'planner'): void {
 function taskRow(task: Task): HTMLLIElement {
   const row = document.createElement('li');
   const check = document.createElement('input');
-  check.type = 'checkbox'; check.className = 'checkbox checkbox-secondary checkbox-sm task-check';
+  check.type = 'checkbox'; check.className = 'checkbox checkbox-primary checkbox-sm task-check';
   check.checked = task.done;
   check.setAttribute('aria-label', `Completar ${task.title}`);
   check.addEventListener('change', () => action(() => window.ritmo.updateTask(task.id, { done: check.checked })));
@@ -37,18 +37,18 @@ function taskRow(task: Task): HTMLLIElement {
   const actions = document.createElement('div');
   actions.className = 'planner-actions';
   const edit = document.createElement('button');
-  edit.type = 'button'; edit.className = 'btn btn-ghost btn-xs'; edit.textContent = 'Editar';
+  edit.type = 'button'; edit.className = 'btn btn-ghost btn-xs row-action'; edit.textContent = 'Editar';
   edit.setAttribute('aria-label', `Editar ${task.title}`);
   edit.addEventListener('click', () => {
     const form = document.createElement('form');
     form.className = 'planner-edit-form';
     const input = document.createElement('input');
-    input.type = 'text'; input.className = 'input input-bordered'; input.value = task.title; input.maxLength = 160;
+    input.type = 'text'; input.className = 'input input-bordered input-sm'; input.value = task.title; input.maxLength = 160;
     input.setAttribute('aria-label', `Nuevo título de ${task.title}`);
     const save = document.createElement('button');
-    save.type = 'submit'; save.className = 'btn btn-secondary btn-xs'; save.textContent = 'Guardar';
+    save.type = 'submit'; save.className = 'btn btn-primary btn-xs'; save.textContent = 'Guardar';
     const cancel = document.createElement('button');
-    cancel.type = 'button'; cancel.className = 'btn btn-ghost btn-xs'; cancel.textContent = 'Cancelar';
+    cancel.type = 'button'; cancel.className = 'btn btn-ghost btn-xs row-action'; cancel.textContent = 'Cancelar';
     cancel.addEventListener('click', () => form.replaceWith(title));
     form.addEventListener('submit', event => {
       event.preventDefault();
@@ -62,12 +62,12 @@ function taskRow(task: Task): HTMLLIElement {
   });
 
   const move = document.createElement('input');
-  move.type = 'date'; move.className = 'input input-bordered'; move.value = task.plannedDate;
+  move.type = 'date'; move.className = 'input input-bordered input-xs row-date'; move.value = task.plannedDate;
   move.setAttribute('aria-label', `Mover ${task.title} a otro día`);
   move.addEventListener('change', () => action(() => window.ritmo.updateTask(task.id, { plannedDate: move.value })));
 
   const remove = document.createElement('button');
-  remove.type = 'button'; remove.className = 'btn btn-ghost btn-xs'; remove.textContent = 'Eliminar';
+  remove.type = 'button'; remove.className = 'btn btn-ghost btn-xs row-action row-action-danger'; remove.textContent = 'Eliminar';
   remove.setAttribute('aria-label', `Eliminar ${task.title}`);
   remove.addEventListener('click', () => action(() => window.ritmo.deleteTask(task.id)));
   actions.append(edit, move, remove);

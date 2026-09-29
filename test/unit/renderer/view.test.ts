@@ -36,7 +36,7 @@ test('bloquea la edición de sitios durante el foco, con bloqueo pendiente o en 
 test('sin sesión muestra 25:00 listo para empezar', () => {
   assert.deepEqual(timerView(publicState(), now), {
     value: '25:00', progress: '0%', kind: 'Tiempo de foco', caption: 'Sin distracciones',
-    status: 'Listo para empezar', statusClass: 'badge badge-soft status-pill badge-secondary', actionsKey: 'ready:false'
+    status: 'Listo para empezar', mode: 'ready', beats: 25, actionsKey: 'ready:false'
   });
 });
 
@@ -46,21 +46,21 @@ test('durante el foco cuenta hacia atrás redondeando hacia arriba', () => {
   assert.equal(view.progress, `${(899 / 1500) * 100}%`);
   assert.equal(view.status, 'En foco');
   assert.equal(view.caption, 'Tus sitios están en pausa');
-  assert.match(view.statusClass, /badge-warning/);
+  assert.equal(view.mode, 'focus');
   assert.equal(view.actionsKey, 'focus:false');
 });
 
 test('los descansos usan su propia duración y no bajan de 00:00', () => {
   const short = timerView(publicState({ session: { kind: 'shortBreak', endsAt: now + 60000 } }), now);
-  assert.deepEqual([short.value, short.progress, short.kind, short.status], ['01:00', '80%', 'Descanso', 'Descansando']);
+  assert.deepEqual([short.value, short.progress, short.kind, short.status, short.mode, short.beats], ['01:00', '80%', 'Descanso', 'Descansando', 'break', 5]);
   const long = timerView(publicState({ session: { kind: 'longBreak', endsAt: now - 5000 } }, true), now);
-  assert.deepEqual([long.value, long.progress, long.caption, long.actionsKey], ['00:00', '100%', 'Respira y recarga', 'longBreak:true']);
+  assert.deepEqual([long.value, long.progress, long.caption, long.actionsKey, long.beats], ['00:00', '100%', 'Respira y recarga', 'longBreak:true', 15]);
 });
 
 test('un bloqueo pendiente tiene prioridad en el estado', () => {
   const view = timerView(publicState({ blockError: 'pendiente' }), now);
   assert.equal(view.status, 'Bloqueo pendiente');
-  assert.match(view.statusClass, /badge-error/);
+  assert.equal(view.mode, 'blocked');
   assert.equal(view.actionsKey, 'blocked:false');
 });
 

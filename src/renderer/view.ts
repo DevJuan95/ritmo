@@ -17,13 +17,18 @@ export function domainsLocked(state: PublicState): boolean {
   return state.session?.kind === 'focus' || !!state.blockError || state.busy;
 }
 
+export type TimerMode = 'ready' | 'focus' | 'break' | 'blocked';
+
 export interface TimerView {
   value: string;
   progress: string;
   kind: string;
   caption: string;
   status: string;
-  statusClass: string;
+  /** Estado visual del temporizador; el CSS colorea el panel según este valor. */
+  mode: TimerMode;
+  /** Una marca por minuto de la sesión en curso (o del foco, si no hay sesión). */
+  beats: number;
   /** Cambia solo cuando cambian los botones, para no recrearlos en cada tic. */
   actionsKey: string;
 }
@@ -33,7 +38,8 @@ export function timerView(state: PublicState, now: number): TimerView {
   const kind = session?.kind;
   const focus = kind === 'focus';
   const breakTime = kind === 'shortBreak' || kind === 'longBreak';
-  const total = MINUTES[kind ?? 'focus'] * 60;
+  const minutesTotal = MINUTES[kind ?? 'focus'];
+  const total = minutesTotal * 60;
   const remaining = session ? Math.max(0, Math.ceil((session.endsAt - now) / 1000)) : total;
   const minutes = String(Math.floor(remaining / 60)).padStart(2, '0');
   const seconds = String(remaining % 60).padStart(2, '0');
@@ -43,7 +49,8 @@ export function timerView(state: PublicState, now: number): TimerView {
     kind: breakTime ? 'Descanso' : 'Tiempo de foco',
     caption: focus ? 'Tus sitios están en pausa' : breakTime ? 'Respira y recarga' : 'Sin distracciones',
     status: state.blockError ? 'Bloqueo pendiente' : focus ? 'En foco' : breakTime ? 'Descansando' : 'Listo para empezar',
-    statusClass: `badge badge-soft status-pill ${state.blockError ? 'badge-error' : focus ? 'badge-warning' : 'badge-secondary'}`,
+    mode: state.blockError ? 'blocked' : focus ? 'focus' : breakTime ? 'break' : 'ready',
+    beats: minutesTotal,
     actionsKey: `${state.blockError ? 'blocked' : kind || 'ready'}:${state.busy}`
   };
 }

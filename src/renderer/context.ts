@@ -38,9 +38,9 @@ export function button(text: string, style: ButtonStyle, work: () => Promise<voi
   const element = document.createElement('button');
   element.type = 'button';
   const styles = {
-    primary: 'btn btn-primary timer-button-primary',
-    secondary: 'btn btn-outline timer-button-secondary',
-    ghost: 'btn btn-ghost timer-button-ghost'
+    primary: 'btn btn-primary timer-button timer-button-primary',
+    secondary: 'btn btn-outline timer-button timer-button-secondary',
+    ghost: 'btn btn-ghost timer-button timer-button-ghost'
   };
   element.className = styles[style];
   element.textContent = text;
