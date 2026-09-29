@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { BLOCK_MARKER, createSiteBlocker, type SiteBlockerDeps } from '../../../src/main/site-blocker';
+import { BLOCK_MARKER, createSiteBlocker, HELPER_TIMEOUT_MS, INSTALL_TIMEOUT_MS, type SiteBlockerDeps } from '../../../src/main/site-blocker';
 import { tempDir } from '../../helpers/temp';
 
 function blockerWith(overrides: Partial<SiteBlockerDeps> = {}) {
@@ -107,6 +107,31 @@ test('no pide autorización dos veces si el helper recién instalado falla', asy
   });
   await assert.rejects(blocker.changeBlock('block', ['x.com']), /No se pudo activar el bloqueo/);
   assert.deepEqual(calls.map(call => call.file), ['/usr/bin/osascript', '/usr/bin/sudo']);
+});
+
+test('sin autorización no instala ni reinstala el helper', async () => {
+  const outdated = blockerWith({ readFile: file => file === '/app/block-sites.sh' ? 'helper version 2' : 'helper version 1' });
+  await assert.rejects(outdated.blocker.changeBlock('unblock', [], { authorize: false }), /No se pudo quitar el bloqueo/);
+  assert.deepEqual(outdated.calls, []);
+
+  const { blocker, calls } = blockerWith({
+    exec: async (file, args) => {
+      calls.push({ file, args });
+      throw new Error('sudo: a password is required');
+    }
+  });
+  await assert.rejects(blocker.changeBlock('unblock', [], { authorize: false }), /No se pudo quitar el bloqueo/);
+  assert.deepEqual(calls.map(call => call.file), ['/usr/bin/sudo']);
+});
+
+test('limita la espera de sudo y deja al diálogo de administrador su propio tiempo', async () => {
+  const timeouts: Array<[string, number]> = [];
+  const { blocker } = blockerWith({
+    readFile: () => { throw new Error('ENOENT'); },
+    exec: async (file, _args, options) => { timeouts.push([file, options.timeout]); }
+  });
+  await blocker.changeBlock('block', ['x.com']);
+  assert.deepEqual(timeouts, [['/usr/bin/osascript', INSTALL_TIMEOUT_MS], ['/usr/bin/sudo', HELPER_TIMEOUT_MS]]);
 });
 
 test('informa si la recuperación del permiso se cancela o falla el segundo intento', async () => {

@@ -1,22 +1,22 @@
 import type { FocusService } from './focus';
-import type { Notifier, QuitSignals, TimerHandle, Timers } from './ports';
+import type { Notifier, QuitSignals, TaskRepositoryPort, TimerHandle, Timers } from './ports';
 import type { StateStore } from './state';
-import type { TaskRepository } from './tasks';
 
 /**
  * Tiempo máximo de cada fase del cierre ordenado si no se configura otro: la espera de la operación
- * en curso y el desbloqueo. Supera el límite de 120 s de `osascript` en `site-blocker.ts`, para que
- * el usuario pueda responder al diálogo de administrador de cada fase y, si no lo hace, el cierre siga
- * por el camino de fallo del desbloqueo.
+ * en curso y el desbloqueo. Una operación en curso puede estar reinstalando el helper en
+ * `site-blocker.ts`: un diálogo de `osascript` (hasta 120 s) y hasta tres llamadas a `sudo` (hasta
+ * 10 s cada una). El desbloqueo al salir no pide autorización, así que solo usa `sudo`.
+ * Si se agota, el cierre sigue por el camino de fallo del desbloqueo.
  */
-export const DEFAULT_SHUTDOWN_TIMEOUT_MS = 125000;
+export const DEFAULT_SHUTDOWN_TIMEOUT_MS = 160000;
 export const TICK_INTERVAL_MS = 1000;
 
 export interface LifecycleDeps {
   store: StateStore;
   focus: FocusService;
   notifier: Notifier;
-  tasks: TaskRepository;
+  tasks: TaskRepositoryPort;
   timers: Timers;
   shutdownTimeoutMs?: number;
 }
@@ -26,7 +26,7 @@ export class LifecycleService {
   private readonly store: StateStore;
   private readonly focus: FocusService;
   private readonly notifier: Notifier;
-  private readonly tasks: TaskRepository;
+  private readonly tasks: TaskRepositoryPort;
   private readonly timers: Timers;
   private readonly timeoutMs: number;
   private ticker?: TimerHandle;
@@ -102,7 +102,9 @@ export class LifecycleService {
 
   private async release(): Promise<void> {
     if (!this.focus.mustReleaseBeforeQuit()) return;
-    try { await this.focus.endFocus(false); }
+    // Sin autorización: nadie responde a tiempo a un diálogo de administrador mientras la app sale.
+    // Si hace falta reinstalar el helper, el bloqueo queda pendiente para `recover()`.
+    try { await this.focus.endFocus(false, { authorize: false }); }
     catch (error) { this.leavePending(error instanceof Error ? error.message : String(error)); }
   }
 

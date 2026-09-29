@@ -2,9 +2,14 @@ import type { PublicState, Task } from '../shared/contracts';
 
 export type BlockAction = 'block' | 'unblock';
 
+/** `authorize: false` no pide autorización de administrador: al salir no hay quien la conceda a tiempo. */
+export interface ChangeBlockOptions {
+  authorize?: boolean;
+}
+
 export interface SiteBlocker {
   hasManagedBlock(): boolean;
-  changeBlock(action: BlockAction, domains: string[]): Promise<void>;
+  changeBlock(action: BlockAction, domains: string[], options?: ChangeBlockOptions): Promise<void>;
 }
 
 export interface Notifier {
@@ -23,6 +28,7 @@ export interface TaskRepositoryPort {
   update(id: string, patch: TaskPatch): Task;
   delete(id: string): void;
   importLegacy(tasks: ReadonlyArray<{ id: string; title: string; done: boolean }>, day: string): void;
+  close(): void;
 }
 
 export type Clock = () => number;

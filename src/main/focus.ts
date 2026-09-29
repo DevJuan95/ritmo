@@ -1,5 +1,5 @@
 import { MINUTES } from '../shared/validation';
-import type { Notifier, SiteBlocker, SoundPlayer } from './ports';
+import type { ChangeBlockOptions, Notifier, SiteBlocker, SoundPlayer } from './ports';
 import { StateStore } from './state';
 
 export interface FocusDeps {
@@ -31,10 +31,10 @@ export class FocusService {
     return this.store.state.session?.kind === 'focus' || !!this.store.state.blockError;
   }
 
-  async endFocus(completed: boolean): Promise<void> {
+  async endFocus(completed: boolean, options: ChangeBlockOptions = {}): Promise<void> {
     const state = this.store.state;
     if (state.session?.kind !== 'focus' && !state.blockError) return;
-    await this.blocker.changeBlock('unblock', state.domains);
+    await this.blocker.changeBlock('unblock', state.domains, options);
     state.session = null;
     state.blockError = null;
     if (completed) {

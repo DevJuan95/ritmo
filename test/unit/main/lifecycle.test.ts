@@ -63,6 +63,7 @@ test('cierre con foco: quita el bloqueo y persiste el estado sin sesión', async
   await focus.startFocus();
   await lifecycle.shutdown();
   assert.deepEqual(blocker.calls.map(call => call.action), ['block', 'unblock']);
+  assert.equal(blocker.calls[1].authorize, false, 'al salir no se pide autorización');
   assert.equal(blocker.blocked, false);
   assert.equal(harness.readSaved().session, null);
   assert.equal(harness.readSaved().blockError, null);
