@@ -46,7 +46,7 @@ button:disabled { cursor:not-allowed; opacity:.55; }
 .brand-mark i { width:3px; border-radius:4px; background:var(--yellow); display:block; }
 .brand-mark i:nth-child(1),.brand-mark i:nth-child(3) { height:9px; }.brand-mark i:nth-child(2) { height:17px; }
 .sidebar-nav { display:grid; gap:7px; margin-top:45px; }
-.nav-button { width:100%; border:0; border-radius:9px; padding:12px 14px; background:transparent; color:#b9c7d8; text-align:left; font-size:14px; font-weight:700; }
+.nav-button { display:block; width:100%; border:0; border-radius:9px; padding:12px 14px; background:transparent; color:#b9c7d8; text-align:left; text-decoration:none; font-size:14px; font-weight:700; }
 .nav-button:hover,.nav-button.active { background:#273e59; color:#fff; }
 .today-label { color:#f8d57b; font-size:13px; font-weight:750; margin-bottom:8px; }
 .sidebar-date { font-size:23px; font-weight:700; line-height:1.2; text-transform:capitalize; }
