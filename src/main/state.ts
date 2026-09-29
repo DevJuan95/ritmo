@@ -1,3 +1,4 @@
+import { PENDING_BLOCK_MESSAGE, PublicError } from '../shared/contracts';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { AppState, PublicState } from '../shared/contracts';
@@ -75,7 +76,9 @@ export class StateStore {
     }
   }
 
-  publicState(): PublicState { return { ...this.state, busy: this.busy, now: this.now() }; }
+  publicState(): PublicState {
+    return { ...this.state, blockError: this.state.blockError ? PENDING_BLOCK_MESSAGE : null, busy: this.busy, now: this.now() };
+  }
 
   publish(): void { this.publishState(this.publicState()); }
 
@@ -97,8 +100,8 @@ export class StateStore {
   }
 
   async guarded<T>(work: () => Promise<T>): Promise<T> {
-    if (this.closing) throw new Error('Ritmo se está cerrando.');
-    if (this.busy) throw new Error('Espera a que termine la operación anterior.');
+    if (this.closing) throw new PublicError('Ritmo se está cerrando.');
+    if (this.busy) throw new PublicError('Espera a que termine la operación anterior.');
     return this.run(work);
   }
 

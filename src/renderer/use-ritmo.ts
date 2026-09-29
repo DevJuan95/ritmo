@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { PublicState } from '../shared/contracts';
+import { errorMessage } from './view';
 
 export function useRitmo() {
   const [state, setState] = useState<PublicState>();
   const [error, setError] = useState('');
 
   const showError = useCallback((reason: unknown) => {
-    setError(reason instanceof Error ? reason.message : String(reason));
+    setError(errorMessage(reason));
   }, []);
 
   useEffect(() => {

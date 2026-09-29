@@ -1,4 +1,5 @@
 import type { BlockAction, ChangeBlockOptions, IpcRegistrar, Notifier, QuitReason, QuitSignals, SiteBlocker, SoundPlayer, TimerHandle, Timers } from '../../src/main/ports';
+import type { IpcResult } from '../../src/shared/contracts';
 
 /** Bloqueador en memoria: registra llamadas, puede fallar a demanda o quedarse esperando. */
 export class FakeBlocker implements SiteBlocker {
@@ -119,6 +120,12 @@ export class FakeIpc implements IpcRegistrar {
   }
 
   async invoke(channel: string, ...args: unknown[]): Promise<unknown> {
+    const result = await this.invokeRaw(channel, ...args) as IpcResult<unknown>;
+    if (result.ok) return result.value;
+    throw new Error(result.error.kind === 'expected' ? result.error.message : 'Error inesperado.');
+  }
+
+  async invokeRaw(channel: string, ...args: unknown[]): Promise<unknown> {
     const handler = this.handlers.get(channel);
     if (!handler) throw new Error(`No hay manejador para ${channel}.`);
     return handler({}, ...args);

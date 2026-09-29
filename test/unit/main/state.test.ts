@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { StateStore } from '../../../src/main/state';
+import { PENDING_BLOCK_MESSAGE } from '../../../src/shared/contracts';
 import { DEFAULT_DOMAINS, todayKey } from '../../../src/shared/validation';
 import { FakeClock } from '../../helpers/fakes';
 import { createHarness } from '../../helpers/harness';
@@ -22,6 +23,12 @@ test('descarta sesiones y errores de bloqueo guardados con forma inválida', t =
   const { store } = createHarness(t, { saved: { session: { kind: 'shortBreak', endsAt: 123 }, blockError: 'pendiente' } });
   assert.deepEqual(store.state.session, { kind: 'shortBreak', endsAt: 123 });
   assert.equal(store.state.blockError, 'pendiente');
+});
+
+test('el estado publicado conserva el bloqueo pendiente sin publicar detalles guardados', t => {
+  const { store } = createHarness(t, { saved: { blockError: 'sudo: /private/secret/hosts falló' } });
+  assert.equal(store.state.blockError, 'sudo: /private/secret/hosts falló');
+  assert.equal(store.publicState().blockError, PENDING_BLOCK_MESSAGE);
 });
 
 test('rechaza un state.json corrupto o inválido sin sobrescribirlo ni importar tareas', t => {

@@ -2,8 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import Module from 'node:module';
 import path from 'node:path';
-import type { PublicState, RitmoAPI } from '../../src/shared/contracts';
+import { GENERIC_ERROR_MESSAGE, PublicError, type PublicState, type RitmoAPI } from '../../src/shared/contracts';
 import { registerHandlers } from '../../src/main/ipc';
+import { errorMessage } from '../../src/renderer/view';
 import { FakeIpc } from '../helpers/fakes';
 import { createHarness } from '../helpers/harness';
 import { distRoot } from '../helpers/paths';
@@ -15,14 +16,17 @@ interface LoadedPreload {
 }
 
 /** Carga el preload compilado con un módulo `electron` falso para ver qué canales usa. */
-function loadPreload(): LoadedPreload {
+function loadPreload(invoke?: (channel: string, ...args: unknown[]) => Promise<unknown>): LoadedPreload {
   const invocations: LoadedPreload['invocations'] = [];
   const listeners: LoadedPreload['listeners'] = new Map();
   let api: RitmoAPI | undefined;
   const electron = {
     contextBridge: { exposeInMainWorld: (name: string, value: RitmoAPI) => { if (name === 'ritmo') api = value; } },
     ipcRenderer: {
-      invoke: async (channel: string, ...args: unknown[]) => { invocations.push({ channel, args }); },
+      invoke: async (channel: string, ...args: unknown[]) => {
+        invocations.push({ channel, args });
+        return invoke ? invoke(channel, ...args) : { ok: true, value: undefined };
+      },
       on: (channel: string, listener: (...args: unknown[]) => void) => {
         if (!listeners.has(channel)) listeners.set(channel, new Set());
         listeners.get(channel)!.add(listener);
@@ -107,4 +111,48 @@ test('los manejadores conectan con los servicios reales', async t => {
   await ipc.invoke('retry-unblock');
   assert.equal(harness.store.state.session, null);
   assert.equal(harness.blocker.blocked, false);
+});
+
+test('preload y renderer conservan un error esperado sin exponer el canal', async t => {
+  const ipc = new FakeIpc();
+  registerHandlers(ipc, createHarness(t));
+  const { api } = loadPreload((channel, ...args) => ipc.invokeRaw(channel, ...args));
+  const reason = await api.addDomain('no es dominio').catch(error => error);
+  assert.deepEqual(reason, { kind: 'ritmo-api-error', message: 'Escribe un dominio válido, por ejemplo instagram.com.' });
+  assert.equal(errorMessage(reason), 'Escribe un dominio válido, por ejemplo instagram.com.');
+});
+
+test('preload y renderer ocultan fallos inesperados y el detalle queda en el proceso principal', async t => {
+  const ipc = new FakeIpc();
+  const harness = createHarness(t);
+  registerHandlers(ipc, harness);
+  const detail = new Error('sqlite /private/secret.db add-task');
+  t.mock.method(harness.tasks, 'add', () => { throw detail; });
+  const logged: unknown[][] = [];
+  t.mock.method(console, 'error', (...args: unknown[]) => { logged.push(args); });
+  const { api } = loadPreload((channel, ...args) => ipc.invokeRaw(channel, ...args));
+  const reason = await api.addTask('Tarea').catch(error => error);
+  assert.equal(errorMessage(reason), GENERIC_ERROR_MESSAGE);
+  assert.deepEqual(reason, { kind: 'ritmo-api-error', message: GENERIC_ERROR_MESSAGE });
+  assert.equal(logged[0]?.[1], detail);
+});
+
+test('un rechazo del transporte IPC no llega al banner', async () => {
+  const { api } = loadPreload(async () => { throw new Error('Error invoking remote method add-domain'); });
+  const reason = await api.addDomain('x.com').catch(error => error);
+  assert.equal(errorMessage(reason), GENERIC_ERROR_MESSAGE);
+});
+
+test('el proceso principal registra la causa técnica de un error público', async t => {
+  const ipc = new FakeIpc();
+  const harness = createHarness(t);
+  registerHandlers(ipc, harness);
+  const cause = new Error('sudo /private/secret');
+  t.mock.method(harness.focus, 'startFocus', async () => { throw new PublicError('No se pudo activar el bloqueo.', { cause }); });
+  const logged: unknown[][] = [];
+  t.mock.method(console, 'error', (...args: unknown[]) => { logged.push(args); });
+  const { api } = loadPreload((channel, ...args) => ipc.invokeRaw(channel, ...args));
+  const reason = await api.startFocus().catch(error => error);
+  assert.equal(errorMessage(reason), 'No se pudo activar el bloqueo.');
+  assert.equal(logged[0]?.[1], cause);
 });

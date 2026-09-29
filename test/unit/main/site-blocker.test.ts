@@ -65,7 +65,7 @@ test('traduce errores de instalación y ejecución', async () => {
   const failingInstall = (error: Error & { stderr?: string }) => blockerWith({ ...missing, exec: async () => { throw error; } }).blocker;
   await assert.rejects(failingInstall(new Error('execution error: User canceled. (-128)')).changeBlock('block', ['x.com']), /^Error: Se canceló la autorización de macOS\.$/);
   await assert.rejects(failingInstall(Object.assign(new Error('Command failed'), { stderr: '(-128)' })).changeBlock('unblock', []), /Se canceló/);
-  await assert.rejects(failingInstall(new Error('boom')).changeBlock('block', ['x.com']), /No se pudo instalar el helper/);
+  await assert.rejects(failingInstall(new Error('boom')).changeBlock('block', ['x.com']), /No se pudo preparar el bloqueo de sitios/);
   const failingRun = blockerWith({ exec: async (file, args) => { if (file === '/usr/bin/sudo' && args[3] !== 'check') throw new Error('helper failed'); } }).blocker;
   await assert.rejects(failingRun.changeBlock('block', ['x.com']), /No se pudo activar el bloqueo/);
   await assert.rejects(failingRun.changeBlock('unblock', []), /No se pudo quitar el bloqueo/);

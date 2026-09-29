@@ -1,10 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import type { AppState, PublicState, RitmoAPI, Task } from '../../../src/shared/contracts';
-import { calendarRange, completionText, dateLabel, dayButtonLabel, dayIndicator, dayToDate, domainsLocked, focusCountText, isPlannableDate, monthOf, plannedDateToSave, tasksRevision, timerActions, timerView } from '../../../src/renderer/view';
+import { GENERIC_ERROR_MESSAGE, type AppState, type PublicState, type RitmoAPI, type Task } from '../../../src/shared/contracts';
+import { calendarRange, completionText, dateLabel, dayButtonLabel, dayIndicator, dayToDate, domainsLocked, errorMessage, focusCountText, isPlannableDate, monthOf, plannedDateToSave, tasksRevision, timerActions, timerView } from '../../../src/renderer/view';
 import { buildState } from '../../helpers/harness';
 
 const now = new Date(2026, 8, 29, 9, 0, 0).getTime();
+
+test('el banner solo acepta errores públicos de la API', () => {
+  assert.equal(errorMessage({ kind: 'ritmo-api-error', message: 'Fecha inválida.' }), 'Fecha inválida.');
+  assert.equal(errorMessage(new Error('Error invoking remote method add-task')), GENERIC_ERROR_MESSAGE);
+  assert.equal(errorMessage('ruta /private/secret'), GENERIC_ERROR_MESSAGE);
+});
 
 function publicState(overrides: Partial<AppState> = {}, busy = false): PublicState {
   return { ...buildState(overrides), busy, now };

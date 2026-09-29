@@ -1,3 +1,4 @@
+import { PublicError } from '../shared/contracts';
 import type { Task, TaskSummary } from '../shared/contracts';
 import { safePlannedDate } from '../shared/validation';
 import type { TaskPatch, TaskRepositoryPort } from './ports';
@@ -34,18 +35,18 @@ export class TaskService {
   summarize(from: unknown, to: unknown): TaskSummary {
     const first = safePlannedDate(from);
     const last = safePlannedDate(to);
-    if (first > last) throw new Error('Rango de fechas inválido.');
+    if (first > last) throw new PublicError('Rango de fechas inválido.');
     return this.repository.summarizeRange(first, last);
   }
 
   update(id: unknown, patch: unknown): void {
-    if (typeof id !== 'string' || !patch || typeof patch !== 'object' || Array.isArray(patch)) throw new Error('Cambio de tarea inválido.');
+    if (typeof id !== 'string' || !patch || typeof patch !== 'object' || Array.isArray(patch)) throw new PublicError('Cambio de tarea inválido.');
     this.repository.update(id, patch as TaskPatch);
     this.refreshToday();
   }
 
   private requireId(id: unknown): string {
-    if (typeof id !== 'string') throw new Error('Identificador de tarea inválido.');
+    if (typeof id !== 'string') throw new PublicError('Identificador de tarea inválido.');
     return id;
   }
 

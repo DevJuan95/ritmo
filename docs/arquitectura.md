@@ -6,7 +6,7 @@ Si cambias un puerto, un servicio, su registro en `src/main/container.ts`, su ca
 
 ## 1. Procesos
 
-El renderer no tiene acceso a Node ni a Electron. Todo pasa por `window.ritmo`, que `preload.ts` expone con `contextBridge`. Cada método, salvo `onState()`, invoca un canal IPC; `ipc.ts` lo conecta con un servicio, que valida la entrada. El estado vuelve por un solo canal, `state`, que `onState()` escucha, cada vez que `StateStore` guarda o empieza una operación protegida.
+El renderer no tiene acceso a Node ni a Electron. Todo pasa por `window.ritmo`, que `preload.ts` expone con `contextBridge`. Cada método, salvo `onState()`, invoca un canal IPC; `ipc.ts` lo conecta con un servicio, que valida la entrada. Los handlers devuelven `IpcResult`: los errores `PublicError` conservan un mensaje útil; las excepciones inesperadas se registran en el proceso principal y cruzan IPC sin detalle. Preload convierte los fallos, incluidos los de `ipcRenderer.invoke`, en `ApiError`; el renderer solo muestra esos mensajes. El estado vuelve por un solo canal, `state`, que `onState()` escucha, cada vez que `StateStore` guarda o empieza una operación protegida. `StateStore.publicState()` reemplaza cualquier `blockError` guardado por una indicación fija con la acción de recuperación.
 
 ```mermaid
 flowchart LR
@@ -31,7 +31,7 @@ flowchart LR
 
   ui -- "llamadas a window.ritmo" --> api
   api -- "ipcRenderer.invoke(canal, ...args)" --> ipc
-  ipc -. "respuesta o error" .-> api
+  ipc -. "IpcResult" .-> api
   store -- "PublishState:<br/>webContents.send('state')" --> api
   api -- "onState(callback)" --> ui
 ```

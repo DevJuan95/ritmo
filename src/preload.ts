@@ -1,21 +1,31 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { PublicState, RitmoAPI } from './shared/contracts';
+import { GENERIC_ERROR_MESSAGE, type ApiError, type IpcResult, type PublicState, type RitmoAPI } from './shared/contracts';
+
+async function invoke<T>(channel: string, ...args: unknown[]): Promise<T> {
+  let result: IpcResult<T>;
+  try { result = await ipcRenderer.invoke(channel, ...args) as IpcResult<T>; }
+  catch { throw { kind: 'ritmo-api-error', message: GENERIC_ERROR_MESSAGE } satisfies ApiError; }
+  if (result?.ok === true) return result.value;
+  const message = result?.ok === false && result.error?.kind === 'expected' && typeof result.error.message === 'string'
+    ? result.error.message : GENERIC_ERROR_MESSAGE;
+  throw { kind: 'ritmo-api-error', message } satisfies ApiError;
+}
 
 const ritmo: RitmoAPI = {
-  getState: () => ipcRenderer.invoke('get-state'),
-  startFocus: () => ipcRenderer.invoke('start-focus'),
-  finishFocus: () => ipcRenderer.invoke('finish-focus'),
-  startBreak: kind => ipcRenderer.invoke('start-break', kind),
-  finishBreak: () => ipcRenderer.invoke('finish-break'),
-  addTask: (title, date) => ipcRenderer.invoke('add-task', title, date),
-  toggleTask: id => ipcRenderer.invoke('toggle-task', id),
-  deleteTask: id => ipcRenderer.invoke('delete-task', id),
-  getTasksForDay: date => ipcRenderer.invoke('get-tasks-for-day', date),
-  getTaskSummary: (from, to) => ipcRenderer.invoke('get-task-summary', from, to),
-  updateTask: (id, patch) => ipcRenderer.invoke('update-task', id, patch),
-  addDomain: domain => ipcRenderer.invoke('add-domain', domain),
-  removeDomain: domain => ipcRenderer.invoke('remove-domain', domain),
-  retryUnblock: () => ipcRenderer.invoke('retry-unblock'),
+  getState: () => invoke('get-state'),
+  startFocus: () => invoke('start-focus'),
+  finishFocus: () => invoke('finish-focus'),
+  startBreak: kind => invoke('start-break', kind),
+  finishBreak: () => invoke('finish-break'),
+  addTask: (title, date) => invoke('add-task', title, date),
+  toggleTask: id => invoke('toggle-task', id),
+  deleteTask: id => invoke('delete-task', id),
+  getTasksForDay: date => invoke('get-tasks-for-day', date),
+  getTaskSummary: (from, to) => invoke('get-task-summary', from, to),
+  updateTask: (id, patch) => invoke('update-task', id, patch),
+  addDomain: domain => invoke('add-domain', domain),
+  removeDomain: domain => invoke('remove-domain', domain),
+  retryUnblock: () => invoke('retry-unblock'),
   onState: callback => {
     const listener = (_event: Electron.IpcRendererEvent, state: PublicState) => callback(state);
     ipcRenderer.on('state', listener);

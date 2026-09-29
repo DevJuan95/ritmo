@@ -1,7 +1,13 @@
-import type { DaySummary, PublicState, RitmoAPI, Task } from '../shared/contracts.js';
+import { GENERIC_ERROR_MESSAGE, type DaySummary, type PublicState, type RitmoAPI, type Task } from '../shared/contracts.js';
 import { FIRST_PLANNED_DATE, LAST_PLANNED_DATE, MINUTES, safePlannedDate, todayKey } from '../shared/validation.js';
 
 // Lógica de presentación sin DOM: los módulos de render solo copian estos valores a la página.
+
+export function errorMessage(reason: unknown): string {
+  if (reason && typeof reason === 'object' && 'kind' in reason && reason.kind === 'ritmo-api-error' &&
+      'message' in reason && typeof reason.message === 'string') return reason.message;
+  return GENERIC_ERROR_MESSAGE;
+}
 
 export function completionText(tasks: Task[], empty: string): string {
   const done = tasks.filter(task => task.done).length;
