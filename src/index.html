@@ -1,63 +1,13 @@
 <!doctype html>
-<html lang="es" data-theme="ritmo">
+<html lang="es">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'">
   <title>Ritmo</title>
-  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="app-shell">
-    <aside class="sidebar">
-      <div class="brand"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span><span class="brand-name">ritmo</span></div>
-      <nav class="sidebar-nav" aria-label="Secciones"><button id="nav-today" class="nav-button active" type="button" aria-current="page">Hoy</button><button id="nav-planner" class="nav-button" type="button">Planner</button></nav>
-      <p class="sidebar-note">Un bloque de atención a la vez.</p>
-    </aside>
-    <main class="main-content">
-      <header class="topbar">
-        <h1 id="date-label" class="page-date"></h1>
-        <div id="focus-count" class="focus-count"></div>
-      </header>
-
-      <div id="error" class="alert error-banner" role="alert" hidden></div>
-
-      <div id="today-view" class="dashboard">
-        <section id="timer-panel" class="timer-panel" data-mode="ready" aria-labelledby="timer-heading">
-          <div class="timer-head"><h2 id="timer-heading">Pomodoro</h2><span id="timer-status" class="status-pill">Listo para empezar</span></div>
-          <span id="timer-kind" class="timer-kind">Tiempo de foco</span>
-          <span id="timer-value" class="timer-value">25:00</span>
-          <span id="timer-caption" class="timer-caption">Sin distracciones</span>
-          <div id="timer-beats" class="timer-beats" aria-hidden="true"></div>
-          <div id="timer-actions" class="timer-actions"></div>
-          <p class="timer-note">Al iniciar el foco, macOS pedirá permiso para bloquear los sitios de tu lista.</p>
-        </section>
-
-        <div class="side-column">
-          <section class="sheet tasks-panel" aria-labelledby="tasks-heading">
-            <div class="sheet-head"><h2 id="tasks-heading">Plan de hoy</h2><p id="task-progress" class="section-subtitle">Elige lo que importa.</p></div>
-            <form id="task-form" class="inline-form"><label class="sr-only" for="task-input">Nueva tarea</label><input id="task-input" class="input" type="text" maxlength="160" placeholder="Añadir una tarea…" autocomplete="off"><button class="btn btn-primary btn-square" type="submit" aria-label="Añadir tarea">+</button></form>
-            <ul id="task-list" class="task-list"></ul>
-            <p id="task-empty" class="empty-state">Anota una tarea para empezar el día con intención.</p>
-          </section>
-
-          <section class="sheet sites-panel" aria-labelledby="sites-heading">
-            <div class="sheet-head"><h2 id="sites-heading">Sitios en pausa</h2><p class="section-subtitle">Se bloquean mientras corre el pomodoro.</p></div>
-            <div id="domain-list" class="domain-list"></div>
-            <form id="domain-form" class="inline-form"><label class="sr-only" for="domain-input">Añadir sitio</label><input id="domain-input" class="input" type="text" placeholder="Añadir dominio, ej. instagram.com" autocomplete="off" inputmode="url"><button class="btn btn-primary btn-square" type="submit" aria-label="Añadir sitio">+</button></form>
-            <p class="sites-note">El bloqueo cubre cada dominio y su versión con www. Necesita permiso de administrador para activarse y retirarse.</p>
-          </section>
-        </div>
-      </div>
-      <section id="planner-view" class="sheet planner-panel" aria-labelledby="planner-heading" hidden>
-        <div class="planner-header"><div class="sheet-head"><h2 id="planner-heading">Planner</h2><p class="section-subtitle">Tus tareas permanecen en el día que elegiste hasta que las muevas.</p></div><label class="planner-date-label" for="planner-date">Día <input id="planner-date" class="input" type="date"></label></div>
-        <form id="planner-form" class="inline-form planner-form"><label class="sr-only" for="planner-task-input">Nueva tarea para el día elegido</label><input id="planner-task-input" class="input" type="text" maxlength="160" placeholder="Añadir tarea para este día…" autocomplete="off"><button class="btn btn-primary" type="submit">Añadir</button></form>
-        <p id="planner-progress" class="section-subtitle"></p>
-        <ul id="planner-list" class="task-list planner-list"></ul>
-        <p id="planner-empty" class="empty-state">No hay tareas para este día.</p>
-      </section>
-    </main>
-  </div>
-  <script src="renderer.js"></script>
+  <div id="root"></div>
+  <script type="module" src="/renderer/main.tsx"></script>
 </body>
 </html>

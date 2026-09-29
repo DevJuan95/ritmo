@@ -6,11 +6,11 @@ Ritmo es una aplicación de productividad para macOS hecha con Electron y TypeSc
 
 - `src/main.ts` inicia el proceso principal. En `src/main/`, `app.ts` es la raíz de composición: crea con `createMainContainer` (`container.ts`, Awilix) el contenedor de singletons, le pasa lo que viene de Electron y resuelve de él los servicios. `lifecycle.ts` (`LifecycleService`) arranca el tic y hace el cierre ordenado de todas las vías de salida (`before-quit`, `SIGINT`, `SIGTERM`, apagado de macOS): espera la operación en curso, quita el bloqueo, guarda el estado y cierra SQLite, con un tiempo máximo. Solo `container.ts` importa Awilix; los servicios reciben sus dependencias por constructor. `state.ts`, `focus.ts`, `task-service.ts`, `domains.ts`, `lifecycle.ts` y `tasks.ts` (repositorio SQLite) no importan Electron. Sus dependencias externas (bloqueo de sitios, notificaciones, sonido, reloj, temporizadores, avisos de salida, IPC, publicación del estado) son interfaces de `ports.ts`, con adaptadores en `site-blocker.ts`, `notifier.ts`, `sound-player.ts`, `timers.ts` y `quit-signals.ts`. `ipc.ts` solo conecta canales con servicios.
 - `src/preload.ts` expone `window.ritmo` al renderer. Mantén el aislamiento de contexto y la API limitada.
-- `src/renderer/app.ts` inicia la interfaz; los módulos de `src/renderer/` renderizan el temporizador, las tareas y los dominios. No hay framework de interfaz. La lógica de presentación sin DOM (textos, estado del temporizador, botones disponibles) va en `src/renderer/view.ts`.
+- `src/renderer/main.tsx` inicia React. `src/renderer/screens/` contiene Hoy y Planner; `src/renderer/components/` contiene las piezas de la aplicación y `src/components/ui/` los componentes editables de shadcn/ui. La lógica de presentación sin DOM va en `src/renderer/view.ts`.
 - `src/shared/contracts.ts` define los tipos de estado y la API; `src/shared/validation.ts` valida entradas y define valores por defecto.
 - `src/block-sites.sh` administra una sección identificada en `/etc/hosts`.
 - `test/` está organizado por nivel; ver «Pruebas».
-- `src/styles.css` usa Tailwind CSS y daisyUI. `dist/` es generado y está ignorado por Git.
+- `src/styles.css` usa Tailwind CSS y los tokens de shadcn/ui. Vite compila la interfaz a `dist/src/`; `dist/` es generado y está ignorado por Git.
 
 ## Comandos
 
@@ -21,7 +21,7 @@ Ritmo es una aplicación de productividad para macOS hecha con Electron y TypeSc
 - `npm run coverage`: compila y ejecuta todas las pruebas con c8. Informa por archivo de `src/` (también los que no carga ninguna prueba) y falla por debajo de los umbrales de `.c8rc.json`. El HTML queda en `coverage/`.
 - `npm run build`: genera la app en `dist/`.
 - `npm start`: compila y abre Electron; requiere macOS para probar el bloqueo real.
-- `npm run watch:css`: recompila estilos durante cambios de interfaz.
+- `npm run dev:renderer`: abre el servidor de Vite para trabajar en la interfaz; las funciones IPC requieren abrirla desde Electron.
 
 ## Al cambiar código
 
@@ -54,5 +54,5 @@ Ritmo es una aplicación de productividad para macOS hecha con Electron y TypeSc
 - `test/helpers/`: piezas reutilizables. `fakes.ts` tiene `FakeBlocker`, `FakeNotifier`, `FakeSoundPlayer`, `FakeClock` (también implementa `Timers`), `FakeQuitSignals`, `FakeIpc` y `sequentialIds`. `harness.ts` tiene `createHarness(t, { saved, clock, shutdownTimeoutMs })`, que arma store, repositorio y servicios (también `lifecycle`, con `clock` como temporizadores) con dobles, y `buildState`. `temp.ts` tiene `tempDir(t)`, que se limpia sola. Reutilízalas en lugar de crear dobles ad hoc en cada archivo.
 - Controla el tiempo con `FakeClock` (`advance`, `advanceMinutes`, `nextDay`, que también disparan sus temporizadores), no con esperas reales.
 - Para documentar un defecto conocido sin romper la suite, usa `test(..., { todo: 'motivo' }, ...)`. Quita el `todo` cuando lo corrijas.
-- Las pruebas no tienen DOM. En el renderer, lleva la lógica a funciones puras de `view.ts` y pruébalas en `test/unit/renderer/`; los módulos que solo copian valores al DOM quedan sin cubrir.
-- Cobertura: los servicios de `src/main/`, `src/shared/`, `preload.ts` y `view.ts` están al 100 %. Quedan fuera, a propósito, `src/main.ts`, `src/main/app.ts` (raíz de composición con Electron) y los módulos DOM del renderer. `block-sites.sh` no se mide; sus ramas las cubre `test/integration/`. Si añades lógica, añade su prueba en lugar de bajar los umbrales.
+- Las pruebas no tienen DOM. En el renderer, lleva la lógica a funciones puras de `view.ts` y pruébalas en `test/unit/renderer/`; los componentes visuales de React quedan sin cubrir.
+- Cobertura: los servicios de `src/main/`, `src/shared/`, `preload.ts` y `view.ts` están al 100 %. Quedan fuera, a propósito, `src/main.ts`, `src/main/app.ts` (raíz de composición con Electron) y el paquete de React. `block-sites.sh` no se mide; sus ramas las cubre `test/integration/`. Si añades lógica, añade su prueba en lugar de bajar los umbrales.

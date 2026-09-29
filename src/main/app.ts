@@ -1,8 +1,9 @@
-import { app, BrowserWindow, ipcMain, Notification, powerMonitor } from 'electron';
+import { app, BrowserWindow, ipcMain, Notification, powerMonitor, screen } from 'electron';
 import path from 'node:path';
 import { createMainContainer } from './container';
 import { registerHandlers } from './ipc';
 import { createQuitSignals } from './quit-signals';
+import { initialWindowSize } from './window-size';
 
 const resources = path.join(__dirname, '..');
 const iconPath = path.join(resources, 'icon.png');
@@ -10,7 +11,7 @@ let window: BrowserWindow | undefined;
 
 function createWindow(): void {
   window = new BrowserWindow({
-    width: 1100, height: 760, minWidth: 850, minHeight: 620,
+    ...initialWindowSize(screen.getPrimaryDisplay().workAreaSize),
     title: 'Ritmo', icon: iconPath, backgroundColor: '#f1f4f8',
     webPreferences: { preload: path.join(resources, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true }
   });

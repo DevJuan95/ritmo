@@ -26,18 +26,19 @@ npm install
 npm start
 ```
 
-El código de Electron, la interfaz y las pruebas está en TypeScript. La interfaz usa Tailwind CSS y daisyUI con un tema propio; el CSS se compila localmente y no necesita CDN. `npm start` compila a `dist/` antes de abrir la app. Para comprobar tipos sin generar archivos usa `npm run typecheck`. Durante cambios de estilos puedes ejecutar `npm run watch:css` en otra terminal.
+El código de Electron, la interfaz y las pruebas está en TypeScript. La interfaz usa React, Tailwind CSS y componentes locales de shadcn/ui; Vite la compila sin CDN. `npm start` compila a `dist/` antes de abrir la app. Para comprobar tipos sin generar archivos usa `npm run typecheck`.
 
 ## Estructura
 
 - `src/main/`: arranque de Electron, SQLite para las tareas, estado del temporizador, sesiones de foco, bloqueo de sitios e IPC.
 - `src/preload.ts`: API limitada que conecta la interfaz con el proceso principal.
-- `src/renderer/`: interfaz organizada por temporizador, tareas y dominios; esbuild la empaqueta en un archivo local sin framework.
+- `src/renderer/`: entrada React, pantallas `screens/`, componentes de la aplicación y lógica de presentación en `view.ts`.
+- `src/components/ui/`: componentes editables de shadcn/ui. `components.json` configura su CLI.
 - `src/shared/`: contratos TypeScript y validaciones compartidas.
 
 El vocabulario del dominio (sesión, foco, pomodoro, bloqueo pendiente…) está en [`docs/glosario.md`](docs/glosario.md), y los diagramas de procesos, servicios y del ciclo de una sesión, en [`docs/arquitectura.md`](docs/arquitectura.md).
 
-`src/main.ts` y `src/preload.ts` son las entradas CommonJS de Electron. `src/renderer/app.ts` es la entrada de la interfaz. La compilación usa `tsconfig.json` para Electron y pruebas (también compila los módulos del renderer a CommonJS para probarlos), y `tsconfig.renderer.json` para comprobar los tipos de la interfaz, que esbuild empaqueta.
+`src/main.ts` y `src/preload.ts` son las entradas CommonJS de Electron. `src/renderer/main.tsx` es la entrada de la interfaz. La compilación usa `tsconfig.json` para Electron, pruebas y las funciones puras de `view.ts`; `tsconfig.renderer.json` comprueba el renderer y Vite lo empaqueta como archivos locales. La ventana abre hasta 1280 × 840 píxeles, limitada por el área útil de la pantalla.
 
 El icono de Ritmo se muestra en el Dock al abrir la app. Si quieres regenerarlo, ejecuta `python3 scripts/generate-icon.py`; la compilación copia `assets/icon.png` a `dist/`.
 
