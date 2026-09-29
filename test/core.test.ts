@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeDomain, normalizeDomains, todayKey, safeTaskTitle } from '../src/core';
+import { normalizeDomain, normalizeDomains, todayKey, safeTaskTitle } from '../src/shared/validation';
 
 test('normaliza dominios sin aceptar comandos ni rutas', () => {
   assert.equal(normalizeDomain(' HTTPS://LinkedIn.com/jobs '), 'linkedin.com');

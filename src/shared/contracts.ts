@@ -1,18 +1,21 @@
-type SessionKind = 'focus' | 'shortBreak' | 'longBreak';
-type BreakKind = Exclude<SessionKind, 'focus'>;
+export type SessionKind = 'focus' | 'shortBreak' | 'longBreak';
+export type BreakKind = Exclude<SessionKind, 'focus'>;
 
-interface Task {
+export interface Task {
   id: string;
   title: string;
   done: boolean;
+  plannedDate: string;
+  createdAt: string;
+  completedAt: string | null;
 }
 
-interface Session {
+export interface Session {
   kind: SessionKind;
   endsAt: number;
 }
 
-interface AppState {
+export interface AppState {
   day: string;
   tasks: Task[];
   domains: string[];
@@ -21,26 +24,30 @@ interface AppState {
   blockError: string | null;
 }
 
-interface PublicState extends AppState {
+export interface PublicState extends AppState {
   busy: boolean;
   now: number;
 }
 
-interface RitmoAPI {
+export interface RitmoAPI {
   getState(): Promise<PublicState>;
   startFocus(): Promise<void>;
   finishFocus(): Promise<void>;
   startBreak(kind: BreakKind): Promise<void>;
   finishBreak(): Promise<void>;
-  addTask(title: string): Promise<void>;
+  addTask(title: string, date?: string): Promise<void>;
   toggleTask(id: string): Promise<void>;
   deleteTask(id: string): Promise<void>;
+  getTasksForDay(date: string): Promise<Task[]>;
+  updateTask(id: string, patch: { title?: string; plannedDate?: string; done?: boolean }): Promise<void>;
   addDomain(domain: string): Promise<void>;
   removeDomain(domain: string): Promise<void>;
   retryUnblock(): Promise<void>;
   onState(callback: (state: PublicState) => void): () => void;
 }
 
-interface Window {
-  ritmo: RitmoAPI;
+declare global {
+  interface Window {
+    ritmo: RitmoAPI;
+  }
 }

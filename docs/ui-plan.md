@@ -6,7 +6,7 @@
 
 Adoptar **Tailwind CSS 4 + daisyUI 5** en el renderer de Electron. Mantener HTML y TypeScript sin incorporar React. Usar daisyUI para botones, entradas, tarjetas, insignias y alertas; usar utilidades de Tailwind para distribución y espaciado. Conservar CSS propio para el anillo del temporizador y detalles de identidad visual.
 
-La decisión busca reducir CSS repetido y dar consistencia a los controles sin reescribir la lógica del producto. La interfaz actual es pequeña: un solo documento HTML, `src/renderer.ts` que actualiza el DOM y `src/styles.css` con los estilos. El proceso principal y la API de `preload` pueden permanecer como están.
+La decisión busca reducir CSS repetido y dar consistencia a los controles sin reescribir la lógica del producto. La interfaz sigue siendo pequeña: un solo documento HTML, módulos TypeScript en `src/renderer/` que actualizan el DOM y `src/styles.css` con los estilos. El proceso principal y la API de `preload` conservan sus responsabilidades.
 
 ## Alternativas evaluadas
 

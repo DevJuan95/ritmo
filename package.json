@@ -5,18 +5,20 @@
   "description": "Pomodoro, tareas diarias y bloqueo de distracciones para macOS",
   "main": "dist/src/main.js",
   "scripts": {
-    "build": "tsc && cp src/index.html src/block-sites.sh assets/icon.png dist/src/ && npm run build:css",
+    "build": "npm run clean && tsc && tsc -p tsconfig.renderer.json --noEmit && esbuild src/renderer/app.ts --bundle --platform=browser --format=iife --outfile=dist/src/renderer.js && cp src/index.html src/block-sites.sh assets/icon.png dist/src/ && npm run build:css",
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
     "build:css": "tailwindcss -i ./src/styles.css -o ./dist/src/styles.css --minify",
     "watch:css": "tailwindcss -i ./src/styles.css -o ./dist/src/styles.css --watch",
     "start": "npm run build && electron .",
     "test": "npm run build && node --test dist/test/*.test.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.renderer.json --noEmit"
   },
   "devDependencies": {
     "@tailwindcss/cli": "^4.3.3",
     "@types/node": "^24.0.0",
     "daisyui": "^5.7.46",
     "electron": "^44.4.5",
+    "esbuild": "^0.25.12",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.9.0"
   }

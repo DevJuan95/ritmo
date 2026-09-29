@@ -10,7 +10,9 @@
 <body class="bg-base-200 text-base-content">
   <div class="app-shell">
     <aside class="sidebar">
-      <div class="brand"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span><span>ritmo<span class="brand-dot">.</span></span></div>
+      <div><div class="brand"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span><span>ritmo<span class="brand-dot">.</span></span></div>
+        <nav class="sidebar-nav" aria-label="Secciones"><button id="nav-today" class="nav-button active" type="button" aria-current="page">Hoy</button><button id="nav-planner" class="nav-button" type="button">Planner</button></nav>
+      </div>
       <div class="sidebar-bottom">
         <div class="today-label">Hoy</div>
         <div id="date-label" class="sidebar-date"></div>
@@ -26,7 +28,7 @@
 
       <div id="error" class="alert alert-error error-banner" role="alert" hidden></div>
 
-      <div class="dashboard">
+      <div id="today-view" class="dashboard">
         <section class="card timer-panel" aria-labelledby="timer-heading">
           <div class="flex items-start justify-between gap-2.5"><h2 id="timer-heading">Pomodoro</h2><span id="timer-status" class="badge badge-soft badge-secondary status-pill">Listo para empezar</span></div>
           <div class="timer-stage">
@@ -58,6 +60,13 @@
           </section>
         </div>
       </div>
+      <section id="planner-view" class="card planner-panel" aria-labelledby="planner-heading" hidden>
+        <div class="planner-header"><div><h2 id="planner-heading">Planner</h2><p class="section-subtitle">Tus tareas permanecen en el día que elegiste hasta que las muevas.</p></div><label class="planner-date-label" for="planner-date">Día <input id="planner-date" class="input input-bordered" type="date"></label></div>
+        <form id="planner-form" class="inline-form planner-form"><label class="sr-only" for="planner-task-input">Nueva tarea para el día elegido</label><input id="planner-task-input" class="input input-bordered" type="text" maxlength="160" placeholder="Añadir tarea para este día…" autocomplete="off"><button class="btn btn-secondary" type="submit">Añadir</button></form>
+        <p id="planner-progress" class="section-subtitle"></p>
+        <ul id="planner-list" class="task-list planner-list"></ul>
+        <p id="planner-empty" class="empty-state">No hay tareas para este día.</p>
+      </section>
     </main>
   </div>
   <script src="renderer.js"></script>

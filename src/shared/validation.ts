@@ -21,8 +21,17 @@ export function todayKey(date = new Date()): string {
   return `${y}-${m}-${d}`;
 }
 
+export function safePlannedDate(value: unknown): string {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Error('Fecha inválida.');
+  const [year, month, day] = value.split('-').map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  if (parsed.getUTCFullYear() !== year || parsed.getUTCMonth() + 1 !== month || parsed.getUTCDate() !== day) throw new Error('Fecha inválida.');
+  return value;
+}
+
 export function safeTaskTitle(value: unknown): string {
   const title = String(value || '').trim().replace(/\s+/g, ' ');
   if (!title || title.length > 160) throw new Error('La tarea debe tener entre 1 y 160 caracteres.');
   return title;
 }
+import type { SessionKind } from './contracts';
