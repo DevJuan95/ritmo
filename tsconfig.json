@@ -4,7 +4,6 @@
     "module": "CommonJS",
     "moduleResolution": "Node",
     "baseUrl": ".",
-    "paths": { "@/*": ["src/*"] },
     "lib": ["ES2022", "DOM"],
     "types": ["node"],
     "strict": true,
@@ -14,5 +13,5 @@
     "outDir": "dist",
     "sourceMap": true
   },
-  "include": ["src/main.ts", "src/preload.ts", "src/main/**/*.ts", "src/renderer/view.ts", "src/shared/**/*.ts", "test/**/*.ts"]
+  "include": ["src/main/**/*.ts", "src/preload/**/*.ts", "src/renderer/src/view.ts", "src/shared/**/*.ts", "test/**/*.ts"]
 }

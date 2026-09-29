@@ -3,12 +3,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { BLOCK_MARKER, createSiteBlocker, HELPER_TIMEOUT_MS, INSTALL_TIMEOUT_MS, type SiteBlockerDeps } from '../../../../src/main/blocking/site-blocker';
-import { distRoot } from '../../../helpers/paths';
 import { tempDir } from '../../../helpers/temp';
 
 function blockerWith(overrides: Partial<SiteBlockerDeps> = {}) {
   const calls: Array<{ file: string; args: string[] }> = [];
-  const blocker = createSiteBlocker({
+  const blocker = createSiteBlocker('/app/resources', {
     platform: 'darwin',
     helperPath: '/app/block-sites.sh',
     installerPath: '/app/install-block-helper.sh',
@@ -197,22 +196,22 @@ test('detecta la sección de Ritmo en hosts y tolera errores de lectura', () => 
 
 test('por defecto lee el archivo hosts configurado', t => {
   const hostsPath = path.join(tempDir(t), 'hosts');
-  const blocker = createSiteBlocker({ hostsPath });
+  const blocker = createSiteBlocker('/app/resources', { hostsPath });
   assert.equal(blocker.hasManagedBlock(), false, 'sin archivo no hay bloqueo');
   fs.writeFileSync(hostsPath, `127.0.0.1 localhost\n${BLOCK_MARKER}\n`);
   assert.equal(blocker.hasManagedBlock(), true);
 });
 
-test('por defecto usa los scripts que la compilación copia junto al proceso principal', async () => {
+test('por defecto usa los scripts de la carpeta de recursos', async () => {
   const read: string[] = [];
   const calls: Array<{ file: string; args: string[] }> = [];
-  const blocker = createSiteBlocker({
+  const blocker = createSiteBlocker('/app/resources', {
     platform: 'darwin',
     readFile: file => { read.push(file); throw new Error('sin helper instalado'); },
     exec: async (file, args) => { calls.push({ file, args }); }
   });
   await blocker.changeBlock('unblock', []);
-  const scripts = path.join(distRoot, 'src');
+  const scripts = '/app/resources';
   assert.equal(read[0], path.join(scripts, 'block-sites.sh'));
   assert.deepEqual(calls[0].args.slice(2, 4), [path.join(scripts, 'install-block-helper.sh'), path.join(scripts, 'block-sites.sh')]);
 });

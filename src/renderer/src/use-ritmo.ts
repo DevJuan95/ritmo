@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { PublicState } from '../shared/contracts';
+import type { PublicState } from '../../shared/contracts';
 import { errorMessage } from './view';
 
 export function useRitmo() {

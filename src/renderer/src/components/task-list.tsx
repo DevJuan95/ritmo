@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import type { Task } from '../../shared/contracts';
-import { Button } from '../../components/ui/button';
-import { Checkbox } from '../../components/ui/checkbox';
-import { Input } from '../../components/ui/input';
-import { FIRST_PLANNED_DATE, LAST_PLANNED_DATE } from '../../shared/validation';
+import type { Task } from '../../../shared/contracts';
+import { Button } from './ui/button';
+import { Checkbox } from './ui/checkbox';
+import { Input } from './ui/input';
+import { FIRST_PLANNED_DATE, LAST_PLANNED_DATE } from '../../../shared/validation';
 import type { RunAction } from '../use-ritmo';
 import { plannedDateToSave } from '../view';
 

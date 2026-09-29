@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { GENERIC_ERROR_MESSAGE, type AppState, type PublicState, type RitmoAPI, type Task } from '../../../src/shared/contracts';
-import { calendarRange, completionText, dateLabel, dayButtonLabel, dayIndicator, dayToDate, domainsLocked, errorMessage, focusCountText, isPlannableDate, monthOf, plannedDateToSave, tasksRevision, timerActions, timerView } from '../../../src/renderer/view';
-import { buildState } from '../../helpers/harness';
+import { GENERIC_ERROR_MESSAGE, type AppState, type PublicState, type RitmoAPI, type Task } from '../../../../src/shared/contracts';
+import { calendarRange, completionText, dateLabel, dayButtonLabel, dayIndicator, dayToDate, domainsLocked, errorMessage, focusCountText, isPlannableDate, monthOf, plannedDateToSave, tasksRevision, timerActions, timerView } from '../../../../src/renderer/src/view';
+import { buildState } from '../../../helpers/harness';
 
 const now = new Date(2026, 8, 29, 9, 0, 0).getTime();
 

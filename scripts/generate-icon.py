@@ -8,7 +8,7 @@ import zlib
 
 SIZE = 512
 SAMPLES = 2
-OUTPUT = Path(__file__).resolve().parent.parent / "assets" / "icon.png"
+OUTPUT = Path(__file__).resolve().parent.parent / "resources" / "icon.png"
 ANGLE = radians(28)
 
 

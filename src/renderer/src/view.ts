@@ -1,5 +1,5 @@
-import { GENERIC_ERROR_MESSAGE, type DaySummary, type PublicState, type RitmoAPI, type Task } from '../shared/contracts.js';
-import { FIRST_PLANNED_DATE, LAST_PLANNED_DATE, MINUTES, safePlannedDate, todayKey } from '../shared/validation.js';
+import { GENERIC_ERROR_MESSAGE, type DaySummary, type PublicState, type RitmoAPI, type Task } from '../../shared/contracts.js';
+import { FIRST_PLANNED_DATE, LAST_PLANNED_DATE, MINUTES, safePlannedDate, todayKey } from '../../shared/validation.js';
 
 // Lógica de presentación sin DOM: los módulos de render solo copian estos valores a la página.
 

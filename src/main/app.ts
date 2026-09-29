@@ -5,17 +5,21 @@ import { registerHandlers } from './ipc/handlers';
 import { createQuitSignals } from './lifecycle/quit-signals';
 import { initialWindowSize } from './window-size';
 
-const resources = path.join(__dirname, '..');
-const iconPath = path.join(resources, 'icon.png');
+// `app.getAppPath()` es la raíz del proyecto, que contiene `resources/` y la salida `out/`.
+const resourcesPath = path.join(app.getAppPath(), 'resources');
+const iconPath = path.join(resourcesPath, 'icon.png');
 let window: BrowserWindow | undefined;
 
 function createWindow(): void {
   window = new BrowserWindow({
     ...initialWindowSize(screen.getPrimaryDisplay().workAreaSize),
     title: 'Ritmo', icon: iconPath, backgroundColor: '#f1f4f8',
-    webPreferences: { preload: path.join(resources, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true }
+    webPreferences: { preload: path.join(__dirname, '../preload/index.js'), contextIsolation: true, nodeIntegration: false, sandbox: true }
   });
-  window.loadFile(path.join(resources, 'index.html'));
+  // `electron-vite dev` sirve el renderer con recarga en caliente; la app compilada carga sus archivos.
+  const devServer = app.isPackaged ? undefined : process.env.ELECTRON_RENDERER_URL;
+  if (devServer) window.loadURL(devServer);
+  else window.loadFile(path.join(__dirname, '../renderer/index.html'));
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
 }
 
@@ -24,6 +28,7 @@ app.whenReady().then(() => {
   if (process.platform === 'darwin') app.dock?.setIcon(iconPath);
   const container = createMainContainer({
     userDataPath: app.getPath('userData'),
+    resourcesPath,
     notificationApi: Notification,
     publish: state => { if (window && !window.isDestroyed()) window.webContents.send('state', state); }
   });

@@ -29,13 +29,14 @@ export interface SiteBlockerDeps {
   hostsPath: string;
 }
 
-export function createSiteBlocker(overrides: Partial<SiteBlockerDeps> = {}): SiteBlocker {
+/** `resourcesPath` es la carpeta `resources/` de la app, donde están el helper y su instalador. */
+export function createSiteBlocker(resourcesPath: string, overrides: Partial<SiteBlockerDeps> = {}): SiteBlocker {
   const deps: SiteBlockerDeps = {
     exec: promisify(execFile),
     readFile: file => fs.readFileSync(file, 'utf8'),
     platform: process.platform,
-    helperPath: path.join(__dirname, '..', '..', 'block-sites.sh'),
-    installerPath: path.join(__dirname, '..', '..', 'install-block-helper.sh'),
+    helperPath: path.join(resourcesPath, 'block-sites.sh'),
+    installerPath: path.join(resourcesPath, 'install-block-helper.sh'),
     installedHelperPath: INSTALLED_HELPER,
     account: os.userInfo().username,
     hostsPath: '/etc/hosts',
