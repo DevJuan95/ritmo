@@ -1,6 +1,21 @@
 # Ritmo
 
-App de productividad para macOS hecha con Electron. Incluye pomodoros de 25 minutos, descansos de 5 o 15 minutos, tareas organizadas por día y bloqueo de sitios durante el foco.
+Ritmo es una herramienta personal para mejorar mis sesiones de estudio y llevar el seguimiento de ellas. No pretende ser un producto ni competir con otras apps de productividad: existe para cubrir mis propias necesidades al estudiar.
+
+## Para qué sirve
+
+- **Enfocarme**: sesiones de foco de 25 minutos con descansos de 5 o 15, al estilo pomodoro.
+- **Evitar distracciones**: bloquea sitios como redes sociales mientras dura el foco.
+- **Planificar**: tareas organizadas por día, con un planner para moverlas entre fechas.
+- **Hacer seguimiento**: un contador diario de pomodoros para ver cuánto estudié cada día.
+
+La app funciona solo en macOS y guarda todo localmente; no hay cuentas, servidores ni sincronización.
+
+## Proyecto generado con IA
+
+Todo el código, las pruebas y la documentación de este repositorio fueron generados con agentes de IA. Mi papel es definir qué quiero, revisar los resultados y decidir qué se integra. Las pautas que siguen los agentes están en [`AGENTS.md`](AGENTS.md).
+
+Por eso conviene leer el código con esa perspectiva: está pensado para mi uso personal y no ha pasado por la revisión que tendría un proyecto mantenido para terceros.
 
 ## Iniciar
 
@@ -30,7 +45,7 @@ La lista inicial bloquea `facebook.com`, `linkedin.com`, `x.com` y `twitter.com`
 
 Las tareas se guardan localmente en SQLite dentro de los datos de la app. **Hoy** muestra las tareas planificadas para el día actual; **Planner** permite elegir otro día, crear tareas, editarlas, completarlas y moverlas. Las tareas pendientes permanecen en su fecha original hasta que las muevas. El contador de pomodoros se reinicia cada día.
 
-Los dominios y el estado del temporizador siguen en `state.json`. Al abrir una instalación anterior, Ritmo importa sus tareas a SQLite y conserva una copia del JSON como `state.json.backup`. No hay integración con IA todavía; el proyecto deja esa función para una etapa futura.
+Los dominios y el estado del temporizador siguen en `state.json`. Al abrir una instalación anterior, Ritmo importa sus tareas a SQLite y conserva una copia del JSON como `state.json.backup`. La app todavía no incluye funciones de IA; quedan para una etapa futura.
 
 ## Verificar
 
