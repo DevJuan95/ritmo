@@ -1,3 +1,4 @@
+import { PublicError } from '../shared/contracts';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -74,18 +75,18 @@ export class TaskRepository implements TaskRepositoryPort {
 
   update(id: string, patch: TaskPatch): Task {
     const existing = this.find(id);
-    if (!existing) throw new Error('La tarea no existe.');
-    if (!patch || typeof patch !== 'object' || !Object.keys(patch).length || Object.keys(patch).some(key => !['title', 'plannedDate', 'done'].includes(key))) throw new Error('Cambio de tarea inválido.');
+    if (!existing) throw new PublicError('La tarea no existe.');
+    if (!patch || typeof patch !== 'object' || !Object.keys(patch).length || Object.keys(patch).some(key => !['title', 'plannedDate', 'done'].includes(key))) throw new PublicError('Cambio de tarea inválido.');
     const title = patch.title === undefined ? existing.title : safeTaskTitle(patch.title);
     const plannedDate = patch.plannedDate === undefined ? existing.plannedDate : safePlannedDate(patch.plannedDate);
-    if (patch.done !== undefined && typeof patch.done !== 'boolean') throw new Error('Estado de tarea inválido.');
+    if (patch.done !== undefined && typeof patch.done !== 'boolean') throw new PublicError('Estado de tarea inválido.');
     const completedAt = patch.done === undefined ? existing.completedAt : patch.done ? existing.completedAt || this.timestamp() : null;
     this.db.prepare('UPDATE tasks SET title = ?, planned_date = ?, completed_at = ? WHERE id = ?').run(title, plannedDate, completedAt, id);
     return { ...existing, title, plannedDate, completedAt, done: completedAt !== null };
   }
 
   delete(id: string): void {
-    if (typeof id !== 'string' || !id) throw new Error('Identificador de tarea inválido.');
+    if (typeof id !== 'string' || !id) throw new PublicError('Identificador de tarea inválido.');
     this.db.prepare('DELETE FROM tasks WHERE id = ?').run(id);
   }
 
@@ -110,7 +111,7 @@ export class TaskRepository implements TaskRepositoryPort {
   private timestamp(): string { return new Date(this.now()).toISOString(); }
 
   private find(id: string): Task | undefined {
-    if (typeof id !== 'string' || !id) throw new Error('Identificador de tarea inválido.');
+    if (typeof id !== 'string' || !id) throw new PublicError('Identificador de tarea inválido.');
     const row = this.db.prepare('SELECT * FROM tasks WHERE id = ?').get(id) as TaskRow | undefined;
     return row && taskFromRow(row);
   }

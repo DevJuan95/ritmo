@@ -1,3 +1,4 @@
+import { PublicError } from '../shared/contracts';
 import { MINUTES } from '../shared/validation';
 import type { ChangeBlockOptions, Notifier, SiteBlocker, SoundPlayer } from './ports';
 import { StateStore } from './state';
@@ -47,8 +48,8 @@ export class FocusService {
   startFocus(): Promise<void> {
     return this.store.guarded(async () => {
       const state = this.store.state;
-      if (state.session || state.blockError) throw new Error('Termina la sesión actual o quita el bloqueo pendiente.');
-      if (!state.domains.length) throw new Error('Añade al menos un sitio para bloquear.');
+      if (state.session || state.blockError) throw new PublicError('Termina la sesión actual o quita el bloqueo pendiente.');
+      if (!state.domains.length) throw new PublicError('Añade al menos un sitio para bloquear.');
       await this.blocker.changeBlock('block', state.domains);
       state.blockError = null;
       state.session = { kind: 'focus', endsAt: this.store.now() + MINUTES.focus * 60000 };
@@ -59,9 +60,9 @@ export class FocusService {
 
   startBreak(kind: unknown): Promise<void> {
     return this.store.guarded(async () => {
-      if (kind !== 'shortBreak' && kind !== 'longBreak') throw new Error('Tipo de descanso inválido.');
+      if (kind !== 'shortBreak' && kind !== 'longBreak') throw new PublicError('Tipo de descanso inválido.');
       const state = this.store.state;
-      if (state.session || state.blockError) throw new Error('Termina la sesión actual primero.');
+      if (state.session || state.blockError) throw new PublicError('Termina la sesión actual primero.');
       state.session = { kind, endsAt: this.store.now() + MINUTES[kind] * 60000 };
     });
   }

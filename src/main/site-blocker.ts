@@ -1,3 +1,4 @@
+import { PublicError } from '../shared/contracts';
 import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -51,8 +52,8 @@ export function createSiteBlocker(overrides: Partial<SiteBlockerDeps> = {}): Sit
       await deps.exec('/usr/bin/osascript', ['-e', appleScript, deps.installerPath, deps.helperPath, deps.account], { timeout: INSTALL_TIMEOUT_MS });
     } catch (error) {
       const detail = error as Error & { stderr?: string };
-      if (/User canceled|(-128)/i.test(`${detail.message} ${detail.stderr || ''}`)) throw new Error('Se canceló la autorización de macOS.');
-      throw new Error('No se pudo instalar el helper de Ritmo. Revisa los permisos de administrador.');
+      if (/User canceled|(-128)/i.test(`${detail.message} ${detail.stderr || ''}`)) throw new PublicError('Se canceló la autorización de macOS.', { cause: error });
+      throw new PublicError('No se pudo preparar el bloqueo de sitios. Revisa los permisos de administrador.', { cause: error });
     }
   }
 
@@ -66,7 +67,7 @@ export function createSiteBlocker(overrides: Partial<SiteBlockerDeps> = {}): Sit
   }
 
   function blockError(action: BlockAction, cause: unknown): Error {
-    return new Error(`No se pudo ${action === 'block' ? 'activar' : 'quitar'} el bloqueo. Revisa la instalación del helper de Ritmo.`, { cause });
+    return new PublicError(`No se pudo ${action === 'block' ? 'activar' : 'quitar'} el bloqueo de sitios. Inténtalo de nuevo.`, { cause });
   }
 
   return {
@@ -76,7 +77,7 @@ export function createSiteBlocker(overrides: Partial<SiteBlockerDeps> = {}): Sit
     },
 
     async changeBlock(action, domains, { authorize = true } = {}) {
-      if (deps.platform !== 'darwin') throw new Error('El bloqueo de sitios de esta versión requiere macOS.');
+      if (deps.platform !== 'darwin') throw new PublicError('El bloqueo de sitios de esta versión requiere macOS.');
       const domainList = action === 'block' ? domains.join('\n') : '';
       const installed = needsInstall();
       if (installed && !authorize) throw blockError(action, new Error('Hay que reinstalar el helper y no se puede pedir autorización.'));

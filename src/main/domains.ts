@@ -1,3 +1,4 @@
+import { PublicError } from '../shared/contracts';
 import { normalizeDomain, normalizeDomains } from '../shared/validation';
 import { StateStore } from './state';
 
@@ -17,6 +18,6 @@ export class DomainService {
   }
 
   private assertEditable(): void {
-    if (this.store.state.session?.kind === 'focus' || this.store.state.blockError) throw new Error('Edita los sitios cuando termine el foco.');
+    if (this.store.state.session?.kind === 'focus' || this.store.state.blockError) throw new PublicError('Edita los sitios cuando termine el foco.');
   }
 }
