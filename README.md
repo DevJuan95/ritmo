@@ -7,7 +7,7 @@ Ritmo es una herramienta personal para mejorar mis sesiones de estudio y llevar 
 - **Enfocarme**: sesiones de foco de 25 minutos con descansos de 5 o 15, al estilo pomodoro.
 - **Evitar distracciones**: bloquea sitios como redes sociales mientras dura el foco.
 - **Planificar**: tareas organizadas por día, con un planner para moverlas entre fechas.
-- **Hacer seguimiento**: un contador diario de pomodoros para ver cuánto estudié cada día.
+- **Hacer seguimiento**: un contador de pomodoros para ver cuántos completé hoy; se reinicia cada día.
 
 La app funciona solo en macOS y guarda todo localmente; no hay cuentas, servidores ni sincronización.
 
