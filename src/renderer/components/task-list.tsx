@@ -12,13 +12,13 @@ function TaskRow({ task, planner, run }: { task: Task; planner: boolean; run: Ru
     <Checkbox className="task-check" checked={task.done} aria-label={`Completar ${task.title}`} onCheckedChange={checked => void run(() => planner ? window.ritmo.updateTask(task.id, { done: checked === true }) : window.ritmo.toggleTask(task.id))} />
     {editing ? <form className="planner-edit-form" onSubmit={async event => { event.preventDefault(); if (await run(() => window.ritmo.updateTask(task.id, { title }))) setEditing(false); }}>
       <Input value={title} maxLength={160} autoFocus aria-label={`Nuevo título de ${task.title}`} onChange={event => setTitle(event.target.value)} onKeyDown={event => { if (event.key === 'Escape') setEditing(false); }} />
-      <Button size="sm" variant="secondary" type="submit">Guardar</Button><Button size="sm" variant="ghost" type="button" onClick={() => setEditing(false)}>Cancelar</Button>
+      <Button size="sm" type="submit">Guardar</Button><Button size="sm" variant="ghost" className="row-action" type="button" onClick={() => setEditing(false)}>Cancelar</Button>
     </form> : <span className={`task-title ${task.done ? 'done' : ''}`}>{task.title}</span>}
     {planner ? <div className="planner-actions">
-      <Button size="sm" variant="ghost" aria-label={`Editar ${task.title}`} onClick={() => { setTitle(task.title); setEditing(true); }}>Editar</Button>
-      <Input type="date" value={task.plannedDate} aria-label={`Mover ${task.title} a otro día`} onChange={event => void run(() => window.ritmo.updateTask(task.id, { plannedDate: event.target.value }))} />
-      <Button size="sm" variant="ghost" aria-label={`Eliminar ${task.title}`} onClick={() => void run(() => window.ritmo.deleteTask(task.id))}>Eliminar</Button>
-    </div> : <Button size="icon" variant="ghost" className="icon-button" aria-label={`Eliminar ${task.title}`} onClick={() => void run(() => window.ritmo.deleteTask(task.id))}>×</Button>}
+      <Button size="sm" variant="ghost" className="row-action" aria-label={`Editar ${task.title}`} onClick={() => { setTitle(task.title); setEditing(true); }}>Editar</Button>
+      <Input type="date" className="row-date" value={task.plannedDate} aria-label={`Mover ${task.title} a otro día`} onChange={event => void run(() => window.ritmo.updateTask(task.id, { plannedDate: event.target.value }))} />
+      <Button size="sm" variant="ghost" className="row-action row-action-danger" aria-label={`Eliminar ${task.title}`} onClick={() => void run(() => window.ritmo.deleteTask(task.id))}>Eliminar</Button>
+    </div> : <Button size="icon" variant="ghost" className="task-remove" aria-label={`Eliminar ${task.title}`} onClick={() => void run(() => window.ritmo.deleteTask(task.id))}>×</Button>}
   </li>;
 }
 
