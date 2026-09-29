@@ -36,7 +36,8 @@ export class FocusService implements FocusServicePort, FocusLifecyclePort {
 
   /**
    * Cancela el cambio de bloqueo en curso: termina el `osascript` o el `sudo` que esté esperando.
-   * La operación que lo pidió falla sin cambiar el estado.
+   * La operación que lo pidió falla sin cambiar el estado. Si el helper ya estaba escribiendo
+   * `/etc/hosts`, termina la escritura: el cambio puede quedar aplicado y `recover()` lo reconcilia.
    */
   abortBlockChange(): void {
     if (!this.pending) return;
