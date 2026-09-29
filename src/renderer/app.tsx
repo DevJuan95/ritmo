@@ -13,12 +13,12 @@ export function App() {
   const [plannerDate, setPlannerDate] = useState<string>();
   const [plannerTitle, setPlannerTitle] = useState('');
   const { state, error, run, showError } = useRitmo();
-  const bannerMessage = error || state?.blockError;
   return <div className="app-shell">
     <Sidebar />
     <main className="main-content">
       <header className="topbar"><h1 className="page-date">{dateLabel(today)}</h1><div className="focus-count">{state ? focusCountText(state.focusCount) : ''}</div></header>
-      {bannerMessage && <div className="error-banner" role="alert">{bannerMessage}</div>}
+      {state?.blockError && <div className="error-banner" role="alert">{state.blockError}</div>}
+      {error && error !== state?.blockError && <div className="error-banner" role="alert">{error}</div>}
       <Routes>
         <Route path="/" element={state && <TodayScreen state={state} run={run} />} />
         <Route path="/planner" element={state && <PlannerScreen state={state} run={run} showError={showError} today={today} date={plannerDate ?? today} onDateChange={date => setPlannerDate(date === today ? undefined : date)} title={plannerTitle} onTitleChange={setPlannerTitle} />} />
