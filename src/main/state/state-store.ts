@@ -18,6 +18,8 @@ export class StateStore implements StateStorePort, PublicStatePort, StateShutdow
   busy = false;
   /** Tras `closeWith`, ya no se aceptan operaciones protegidas. */
   closing = false;
+  /** Tras `seal`, el estado en disco es el definitivo: una operación que termine tarde ya no lo cambia. */
+  private sealed = false;
   private running?: Promise<unknown>;
   private migrated = false;
   readonly now: Clock;
@@ -85,11 +87,18 @@ export class StateStore implements StateStorePort, PublicStatePort, StateShutdow
   publish(): void { this.publishState(this.publicState()); }
 
   save(): void {
+    if (this.sealed) return;
     fs.mkdirSync(path.dirname(this.statePath), { recursive: true });
     const temporary = `${this.statePath}.${process.pid}.tmp`;
     fs.writeFileSync(temporary, JSON.stringify({ ...this.state, tasksMigrated: this.migrated }, null, 2));
     fs.renameSync(temporary, this.statePath);
     this.publish();
+  }
+
+  /** Guarda por última vez; los `save()` posteriores no escriben. Lo usa el cierre ordenado. */
+  seal(): void {
+    this.save();
+    this.sealed = true;
   }
 
   rollDay(): void {

@@ -88,7 +88,7 @@ export class LifecycleService implements LifecycleServicePort {
       if (this.expired && this.focus.mustReleaseBeforeQuit()) {
         this.leavePending(this.store.state.blockError ?? 'Ritmo se cerró antes de quitar el bloqueo.');
       }
-      try { this.store.save(); }
+      try { this.store.seal(); }
       finally { this.tasks.close(); }
     }
   }

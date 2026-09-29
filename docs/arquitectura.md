@@ -175,11 +175,11 @@ sequenceDiagram
   S->>S: busy = false, save()
   opt vence el tiempo máximo de drain() o de closeWith()
     L->>F: abortBlockChange()
-    Note over F: aborta el signal de changeBlock(): execFile mata el osascript o el sudo en curso
+    Note over F: aborta el signal de changeBlock(): execFile mata el osascript o el sudo en curso; si era el desbloqueo del tic, el tic no avisa
     L->>S: blockError ??= «Ritmo se cerró antes de quitar el bloqueo.», session = null
     L->>N: notify('Bloqueo aún activo', ...)
   end
-  L->>S: save()
+  L->>S: seal(): último save(); los posteriores no escriben
   L->>R: close()
   L->>A: exit(error?)
   A->>A: app.exit(0 o 1)

@@ -17,6 +17,8 @@ export class FocusService implements FocusServicePort, FocusLifecyclePort {
   private readonly sound: SoundPlayer;
   /** Cancela el cambio de bloqueo en curso. Solo hay uno a la vez: todos pasan por `guarded` o `closeWith`. */
   private pending?: AbortController;
+  /** El cierre ordenado canceló un cambio de bloqueo; el aviso lo da el cierre, no el tic. */
+  private aborted = false;
 
   constructor(private readonly store: StateStorePort, deps: FocusDeps) {
     this.blocker = deps.blocker;
@@ -37,7 +39,9 @@ export class FocusService implements FocusServicePort, FocusLifecyclePort {
    * La operación que lo pidió falla sin cambiar el estado.
    */
   abortBlockChange(): void {
-    this.pending?.abort();
+    if (!this.pending) return;
+    this.aborted = true;
+    this.pending.abort();
   }
 
   private async changeBlock(action: BlockAction, options: ChangeBlockOptions = {}): Promise<void> {
@@ -99,6 +103,7 @@ export class FocusService implements FocusServicePort, FocusLifecyclePort {
       if (kind === 'focus') {
         try { await this.endFocus(true); }
         catch (error) {
+          if (this.aborted) return;
           state.blockError = error instanceof Error ? error.message : String(error);
           state.session = null;
           this.notifier.notify('Bloqueo aún activo', 'Abre Ritmo y usa “Quitar bloqueo”.');

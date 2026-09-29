@@ -21,7 +21,9 @@ if [ "$(/usr/bin/id -u)" -ne 0 ] && [ -n "${RITMO_TEST_HOSTS:-}" ]; then
   esac
 fi
 temporary=$(/usr/bin/mktemp /tmp/ritmo-hosts.XXXXXX)
-trap '/bin/rm -f "$temporary"' EXIT HUP INT TERM
+# Una señal debe terminar el script: si siguiera sin el temporal, vaciaría hosts.
+trap '/bin/rm -f "$temporary"' EXIT
+trap 'exit 1' HUP INT TERM
 
 # Remove only the section managed by this app. Leave every other entry intact.
 /usr/bin/awk -v start="$start" -v end="$end" '

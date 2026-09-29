@@ -304,6 +304,30 @@ test('al agotarse el tiempo del desbloqueo lo cancela y avisa una sola vez', asy
   assert.deepEqual(notifier.titles(), ['Bloqueo aún activo']);
 });
 
+test('al agotarse el tiempo durante el desbloqueo del tic avisa una sola vez y no reescribe el estado', async t => {
+  const harness = createHarness(t, { shutdownTimeoutMs: 10 });
+  const { lifecycle, focus, blocker, clock, notifier, store } = harness;
+  await focus.startFocus();
+  clock.advanceMinutes(25);
+  blocker.hold();
+  const ticking = focus.tick();
+  const closing = lifecycle.shutdown();
+  clock.advance(10);
+  await closing;
+  await ticking;
+  assert.deepEqual(blocker.calls.map(call => call.action), ['block', 'unblock']);
+  assert.deepEqual(notifier.titles(), ['Bloqueo aún activo']);
+  const saved = harness.readSaved();
+  assert.equal(saved.blockError, 'Ritmo se cerró antes de quitar el bloqueo.');
+  assert.equal(saved.session, null);
+  assert.equal(saved.focusCount, 0);
+
+  // Lo que cambie después del guardado final no llega a disco.
+  store.state.focusCount = 9;
+  store.save();
+  assert.equal(harness.readSaved().focusCount, 0);
+});
+
 test('al agotarse el tiempo sin nada que desbloquear no inventa un bloqueo pendiente', async t => {
   const harness = createHarness(t, { shutdownTimeoutMs: 10 });
   const { store, lifecycle, clock } = harness;
