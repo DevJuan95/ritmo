@@ -6,8 +6,8 @@ Ritmo es una aplicación de productividad para macOS hecha con Electron y TypeSc
 
 - `src/main.ts` inicia el proceso principal. En `src/main/`, `app.ts` es la raíz de composición: crea con `createMainContainer` (`container.ts`, Awilix) el contenedor de singletons, le pasa lo que viene de Electron y resuelve de él los servicios. Solo `container.ts` importa Awilix y construye las clases de servicio; los servicios reciben sus dependencias por constructor y no importan Electron. `window-size.ts` calcula el tamaño inicial de la ventana a partir del área útil de la pantalla. El resto se divide en módulos por contexto, cada uno con su servicio, sus adaptadores y un `ports.ts` con la interfaz del servicio y sus puertos de salida:
   - `common/`: `Clock`, `Timers`, `Notifier` y sus adaptadores (`timers.ts`, `notifier.ts`).
-  - `state/`: `StateStore` (`state-store.ts`, `StateStorePort`), dueño del estado, su persistencia y las operaciones protegidas; `PublishState`.
-  - `focus/`: `FocusService` (`focus-service.ts`, `FocusServicePort`), sesiones de foco y descanso y el tic; `SoundPlayer` y `sound-player.ts`.
+  - `state/`: `StateStore` (`state-store.ts`; `StateStorePort` para los servicios, `PublicStatePort` para IPC y `StateShutdownPort` para el cierre), dueño del estado, su persistencia y las operaciones protegidas; `PublishState`.
+  - `focus/`: `FocusService` (`focus-service.ts`; `FocusServicePort` para IPC y `FocusLifecyclePort` para el ciclo de vida), sesiones de foco y descanso y el tic; `SoundPlayer` y `sound-player.ts`.
   - `blocking/`: `DomainService` (`domain-service.ts`, `DomainServicePort`), los dominios bloqueados; `SiteBlocker` y `site-blocker.ts`.
   - `tasks/`: `TaskService` (`task-service.ts`, `TaskServicePort`) y el repositorio SQLite (`task-repository.ts`, `TaskRepositoryPort`).
   - `lifecycle/`: `LifecycleService` (`lifecycle-service.ts`, `LifecycleServicePort`) arranca el tic y hace el cierre ordenado de todas las vías de salida (`before-quit`, `SIGINT`, `SIGTERM`, apagado de macOS): espera la operación en curso, quita el bloqueo, guarda el estado y cierra SQLite, con un tiempo máximo; `QuitSignals` y `quit-signals.ts`.
@@ -25,7 +25,7 @@ Ritmo es una aplicación de productividad para macOS hecha con Electron y TypeSc
 - `npm install`: instala dependencias. El proyecto usa Node 24 (`.nvmrc`, `engines` de `package.json`).
 - `npm run typecheck`: comprueba los tipos del proceso principal y del renderer sin generar archivos.
 - `npm test`: compila todo y ejecuta todas las pruebas con `node --test`.
-- `npm run test:unit`, `npm run test:contract`, `npm run test:integration`: compilan con `tsc` y ejecutan un solo nivel.
+- `npm run test:unit`, `npm run test:contract`, `npm run test:integration`: borran `dist/`, compilan con `tsc` y ejecutan un solo nivel. Borrar `dist/` evita ejecutar pruebas compiladas de archivos que ya no existen.
 - `npm run coverage`: compila y ejecuta todas las pruebas con c8. Informa por archivo de `src/` (también los que no carga ninguna prueba) y falla por debajo de los umbrales de `.c8rc.json`. El HTML queda en `coverage/`.
 - `npm run build`: genera la app en `dist/`.
 - `npm start`: compila y abre Electron; requiere macOS para probar el bloqueo real.
@@ -41,7 +41,7 @@ Ritmo es una aplicación de productividad para macOS hecha con Electron y TypeSc
 - No edites `dist/` ni `node_modules/` directamente. Respeta los cambios locales existentes que no pertenezcan a la tarea.
 - Si cambias un puerto, un servicio o su interfaz, un módulo, su registro en `src/main/container.ts` o su cableado en `src/main/app.ts`, el ciclo de una sesión o un término del dominio (tipos de `src/shared/contracts.ts` o de un `ports.ts` de `src/main/`), actualiza `docs/glosario.md` y `docs/arquitectura.md` en el mismo cambio.
 - Inyecta las dependencias nuevas con efectos externos (Electron, procesos, reloj, red) como un puerto en el `ports.ts` del módulo que la usa, o en `common/ports.ts` si la usan varios; si no encaja en ningún módulo, crea uno nuevo con su `ports.ts`.
-- Cada servicio implementa (`implements`) la interfaz declarada en el `ports.ts` de su módulo, con solo lo que usan sus consumidores. Los consumidores, `MainCradle` incluido, dependen de la interfaz y la importan con `import type`; entre módulos solo se importa `ports.ts`, y solo `container.ts` (y las pruebas) importan las clases de servicio. Regístralas en `src/main/container.ts` y pasa desde `src/main/app.ts` lo que dependa de Electron. Los servicios no deben importar `electron` ni usar `Date.now()` directamente; usan `store.now()`.
+- Cada servicio implementa (`implements`) las interfaces declaradas en el `ports.ts` de su módulo. Cada consumidor recibe una interfaz con solo lo que usa; si dos consumidores usan partes distintas, sepáralas en dos interfaces. Los consumidores, `MainCradle` incluido, dependen de la interfaz y la importan con `import type`; entre módulos solo se importa `ports.ts`, y solo `container.ts` (y las pruebas) importan las clases de servicio. Regístralas en `src/main/container.ts` y pasa desde `src/main/app.ts` lo que dependa de Electron. Los servicios no deben importar `electron` ni usar `Date.now()` directamente; usan `store.now()`.
 
 ## Flujo de trabajo con worktrees
 

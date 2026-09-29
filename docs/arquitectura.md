@@ -42,7 +42,7 @@ Canales: `get-state`, `start-focus`, `finish-focus`, `retry-unblock`, `start-bre
 
 `src/main/app.ts` es la raíz de composición. Crea con `createMainContainer()` (`src/main/container.ts`, Awilix) un contenedor en el que todo es singleton, le pasa lo que viene de Electron (`userData`, `Notification` y la función que publica el estado) y resuelve de él `lifecycle`. Después conecta las vías de salida con el cierre ordenado, registra los manejadores IPC con `ipcMain` y el propio `container.cradle`. Solo `app.ts` y `preload.ts` importan `electron`, y solo `container.ts` importa Awilix. Los servicios no conocen el contenedor: las fábricas de `container.ts` llaman a sus constructores de forma explícita y los servicios reciben lo de Electron a través de puertos.
 
-`src/main/` está dividido en módulos por contexto (`common/`, `state/`, `focus/`, `blocking/`, `tasks/`, `lifecycle/` e `ipc/`; ver «Módulos» en el [glosario](glosario.md)). Cada módulo declara en su `ports.ts` los puertos de salida que necesita y la interfaz de su servicio (`StateStorePort`, `FocusServicePort`, `TaskServicePort`, `DomainServicePort`, `LifecycleServicePort`), que la clase implementa. Los consumidores, `MainCradle` incluido, dependen solo de esas interfaces, y los módulos se importan entre sí solo a través de `ports.ts`: `container.ts` es el único que construye las clases de servicio.
+`src/main/` está dividido en módulos por contexto (`common/`, `state/`, `focus/`, `blocking/`, `tasks/`, `lifecycle/` e `ipc/`; ver «Módulos» en el [glosario](glosario.md)). Cada módulo declara en su `ports.ts` los puertos de salida que necesita y las interfaces de su servicio (`StateStorePort`, `PublicStatePort`, `StateShutdownPort`, `FocusServicePort`, `FocusLifecyclePort`, `TaskServicePort`, `DomainServicePort`, `LifecycleServicePort`), que la clase implementa. Cada consumidor recibe solo la interfaz con lo que usa. Los consumidores, `MainCradle` incluido, dependen solo de esas interfaces, y los módulos se importan entre sí solo a través de `ports.ts`: `container.ts` es el único que construye las clases de servicio.
 
 ```mermaid
 flowchart TB
@@ -89,7 +89,7 @@ flowchart TB
   container -. "registra singletons" .-> adaptadores
 
   ipc -- "IpcRegistrar" --> ipcMain
-  ipc -- "StateStorePort" --> store
+  ipc -- "PublicStatePort" --> store
   ipc -- "FocusServicePort" --> focus
   ipc -- "TaskServicePort" --> taskService
   ipc -- "DomainServicePort" --> domainService
@@ -101,8 +101,8 @@ flowchart TB
   taskService -- "StateStorePort" --> store
   taskService -- "TaskRepositoryPort" --> repo
   domainService -- "StateStorePort" --> store
-  lifecycle -- "StateStorePort" --> store
-  lifecycle -- "FocusServicePort" --> focus
+  lifecycle -- "StateStorePort,<br/>StateShutdownPort" --> store
+  lifecycle -- "FocusLifecyclePort" --> focus
   lifecycle -- "TaskRepositoryPort" --> repo
   lifecycle -- "Notifier" --> notifier
   lifecycle -- "Timers" --> timers
@@ -126,7 +126,7 @@ flowchart TB
 
 En rojo, lo que depende de Electron. Las flechas continuas son dependencias en tiempo de ejecución, rotuladas con el puerto o la interfaz de servicio por la que pasan; las discontinuas indican que `container.ts` registra el módulo. `registerHandlers()` no está en el contenedor: lo llama `app.ts`.
 
-Registros de `createMainContainer()`. En `MainCradle`, los servicios y el repositorio se tipan con su interfaz: `taskRepository` como `TaskRepositoryPort`, `store` como `StateStorePort`, `focus` como `FocusServicePort`, `tasks` como `TaskServicePort`, `domains` como `DomainServicePort` y `lifecycle` como `LifecycleServicePort`.
+Registros de `createMainContainer()`. En `MainCradle`, los servicios y el repositorio se tipan con su interfaz: `taskRepository` como `TaskRepositoryPort`, `store` como `StateStorePort & PublicStatePort & StateShutdownPort`, `focus` como `FocusServicePort & FocusLifecyclePort`, `tasks` como `TaskServicePort`, `domains` como `DomainServicePort` y `lifecycle` como `LifecycleServicePort`.
 
 | Registro | Fábrica | Puertos sin inyectar |
 | --- | --- | --- |

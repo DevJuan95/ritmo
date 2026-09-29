@@ -3,7 +3,7 @@ import { MINUTES } from '../../shared/validation';
 import type { ChangeBlockOptions, SiteBlocker } from '../blocking/ports';
 import type { Notifier } from '../common/ports';
 import type { StateStorePort } from '../state/ports';
-import type { FocusServicePort, SoundPlayer } from './ports';
+import type { FocusLifecyclePort, FocusServicePort, SoundPlayer } from './ports';
 
 export interface FocusDeps {
   blocker: SiteBlocker;
@@ -11,7 +11,7 @@ export interface FocusDeps {
   sound: SoundPlayer;
 }
 
-export class FocusService implements FocusServicePort {
+export class FocusService implements FocusServicePort, FocusLifecyclePort {
   private readonly blocker: SiteBlocker;
   private readonly notifier: Notifier;
   private readonly sound: SoundPlayer;

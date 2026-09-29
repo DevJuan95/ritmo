@@ -5,7 +5,7 @@ import type { AppState, PublicState } from '../../shared/contracts';
 import { DEFAULT_DOMAINS, normalizeDomains, safePlannedDate, safeTaskTitle, todayKey } from '../../shared/validation';
 import type { Clock } from '../common/ports';
 import type { TaskRepositoryPort } from '../tasks/ports';
-import type { PublishState, StateStorePort } from './ports';
+import type { PublicStatePort, PublishState, StateShutdownPort, StateStorePort } from './ports';
 
 export interface StateStoreDeps {
   publish?: PublishState;
@@ -13,7 +13,7 @@ export interface StateStoreDeps {
   tasks?: TaskRepositoryPort;
 }
 
-export class StateStore implements StateStorePort {
+export class StateStore implements StateStorePort, PublicStatePort, StateShutdownPort {
   state: AppState;
   busy = false;
   /** Tras `closeWith`, ya no se aceptan operaciones protegidas. */
