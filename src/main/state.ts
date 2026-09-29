@@ -14,6 +14,9 @@ export interface StateStoreDeps {
 export class StateStore {
   state: AppState;
   busy = false;
+  /** Tras `closeWith`, ya no se aceptan operaciones protegidas. */
+  closing = false;
+  private running?: Promise<unknown>;
   private migrated = false;
   readonly now: Clock;
   readonly tasks?: TaskRepository;
@@ -95,10 +98,26 @@ export class StateStore {
   }
 
   async guarded<T>(work: () => Promise<T>): Promise<T> {
+    if (this.closing) throw new Error('Ritmo se está cerrando.');
     if (this.busy) throw new Error('Espera a que termine la operación anterior.');
+    return this.run(work);
+  }
+
+  /** Deja de aceptar operaciones protegidas, espera la que esté en curso y ejecuta `work` como la última. */
+  async closeWith<T>(work: () => Promise<T>): Promise<T> {
+    this.closing = true;
+    await this.running?.catch(() => {});
+    return this.run(work);
+  }
+
+  private run<T>(work: () => Promise<T>): Promise<T> {
     this.busy = true;
     this.publish();
-    try { return await work(); }
-    finally { this.busy = false; this.save(); }
+    const running = (async () => {
+      try { return await work(); }
+      finally { this.busy = false; this.save(); }
+    })();
+    this.running = running;
+    return running;
   }
 }

@@ -22,3 +22,21 @@ export type PublishState = (state: PublicState) => void;
 export interface IpcRegistrar {
   handle(channel: string, listener: (event: unknown, ...args: any[]) => unknown): void;
 }
+
+export type TimerHandle = unknown;
+
+/** Temporizadores del proceso: el intervalo del tic y el tiempo máximo del cierre. */
+export interface Timers {
+  setInterval(callback: () => void, ms: number): TimerHandle;
+  clearInterval(handle: TimerHandle): void;
+  setTimeout(callback: () => void, ms: number): TimerHandle;
+  clearTimeout(handle: TimerHandle): void;
+}
+
+/** Motivo por el que se pide salir: `before-quit`, una señal del proceso o el apagado de macOS. */
+export type QuitReason = 'before-quit' | 'SIGINT' | 'SIGTERM' | 'shutdown';
+
+/** Avisos de que la app debe cerrarse. Cada aviso puede llegar varias veces. */
+export interface QuitSignals {
+  subscribe(listener: (reason: QuitReason) => void): void;
+}

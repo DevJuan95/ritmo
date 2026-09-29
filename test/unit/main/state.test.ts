@@ -115,6 +115,29 @@ test('guarded serializa operaciones y siempre libera busy y guarda', async t => 
   assert.equal(published.at(-1)?.busy, false);
 });
 
+test('closeWith espera la operación en curso, rechaza nuevas y se ejecuta la última', async t => {
+  const harness = createHarness(t);
+  const { store } = harness;
+  const order: string[] = [];
+  let release!: () => void;
+  const first = store.guarded(() => new Promise<void>(resolve => { release = () => { order.push('primera'); resolve(); }; }));
+  const last = store.closeWith(async () => { order.push('cierre'); store.state.focusCount = 3; });
+  assert.equal(store.closing, true);
+  await assert.rejects(store.guarded(async () => {}), /se está cerrando/);
+  release();
+  await Promise.all([first, last]);
+  assert.deepEqual(order, ['primera', 'cierre']);
+  assert.equal(store.busy, false);
+  assert.equal(harness.readSaved().focusCount, 3);
+});
+
+test('closeWith continúa aunque la operación en curso falle', async t => {
+  const { store } = createHarness(t);
+  const failing = store.guarded(async () => { throw new Error('falló'); });
+  await store.closeWith(async () => {});
+  await assert.rejects(failing, /falló/);
+});
+
 test('propaga los errores de lectura que no son archivo inexistente', t => {
   const harness = createHarness(t);
   fs.mkdirSync(harness.statePath);

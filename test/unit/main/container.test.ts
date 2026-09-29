@@ -7,6 +7,7 @@ import type { PublicState } from '../../../src/shared/contracts';
 import { createMainContainer } from '../../../src/main/container';
 import type { NotificationApi } from '../../../src/main/notifier';
 import { FakeBlocker, FakeClock, FakeSoundPlayer } from '../../helpers/fakes';
+import { systemTimers } from '../../../src/main/timers';
 import { tempDir } from '../../helpers/temp';
 
 function fakeNotificationApi(shown: string[]): NotificationApi {
@@ -56,6 +57,7 @@ test('usa el reloj del sistema y el bloqueador real por defecto', t => {
   const container = createMainContainer({ userDataPath: tempDir(t), publish: () => {}, notificationApi: fakeNotificationApi([]) });
   t.after(() => container.dispose());
   assert.equal(container.cradle.now, Date.now);
+  assert.equal(container.cradle.timers, systemTimers);
   assert.equal(typeof container.cradle.blocker.hasManagedBlock, 'function');
 });
 
@@ -66,4 +68,19 @@ test('dispose cierra la conexión SQLite', async t => {
   await container.dispose();
   assert.equal(close.mock.callCount(), 1);
   assert.equal((repository as unknown as { closed: boolean }).closed, true);
+});
+
+test('registra el ciclo de vida con los temporizadores y el tiempo máximo del cierre', async t => {
+  const clock = new FakeClock();
+  const container = createMainContainer({
+    userDataPath: tempDir(t), publish: () => {}, notificationApi: fakeNotificationApi([]),
+    now: clock.now, timers: clock, shutdownTimeoutMs: 10
+  });
+  t.after(() => container.dispose());
+  const { lifecycle, store, taskRepository } = container.cradle;
+  store.guarded(() => new Promise<void>(() => {})).catch(() => {});
+  const closing = lifecycle.shutdown();
+  clock.advance(10);
+  await closing;
+  assert.equal((taskRepository as unknown as { closed: boolean }).closed, true);
 });

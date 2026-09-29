@@ -1,4 +1,4 @@
-import type { BlockAction, IpcRegistrar, Notifier, SiteBlocker, SoundPlayer } from '../../src/main/ports';
+import type { BlockAction, IpcRegistrar, Notifier, QuitReason, QuitSignals, SiteBlocker, SoundPlayer, TimerHandle, Timers } from '../../src/main/ports';
 
 /** Bloqueador en memoria: registra llamadas, puede fallar a demanda o quedarse esperando. */
 export class FakeBlocker implements SiteBlocker {
@@ -46,13 +46,64 @@ export class FakeSoundPlayer implements SoundPlayer {
   }
 }
 
-/** Reloj controlable. Por defecto: 29 de septiembre de 2026, 09:00 hora local. */
-export class FakeClock {
+interface ScheduledTimer {
+  at: number;
+  callback: () => void;
+  every?: number;
+}
+
+/**
+ * Reloj controlable que también hace de `Timers`: `advance` ejecuta en orden los temporizadores que
+ * vencen. Por defecto: 29 de septiembre de 2026, 09:00 hora local.
+ */
+export class FakeClock implements Timers {
+  private readonly scheduled = new Map<number, ScheduledTimer>();
+  private nextTimer = 0;
   constructor(public current = new Date(2026, 8, 29, 9, 0, 0).getTime()) {}
   readonly now = (): number => this.current;
-  advance(ms: number): void { this.current += ms; }
+
+  advance(ms: number): void {
+    const target = this.current + ms;
+    for (let next = this.due(target); next; next = this.due(target)) {
+      const [id, timer] = next;
+      this.current = timer.at;
+      if (timer.every) timer.at += timer.every;
+      else this.scheduled.delete(id);
+      timer.callback();
+    }
+    this.current = target;
+  }
+
   advanceMinutes(minutes: number): void { this.advance(minutes * 60000); }
   nextDay(): void { this.advance(24 * 60 * 60000); }
+
+  /** Temporizadores programados y sin cancelar. */
+  get pendingTimers(): number { return this.scheduled.size; }
+
+  setTimeout(callback: () => void, ms: number): TimerHandle { return this.schedule({ at: this.current + ms, callback }); }
+  setInterval(callback: () => void, ms: number): TimerHandle { return this.schedule({ at: this.current + ms, callback, every: ms }); }
+  clearTimeout(handle: TimerHandle): void { this.scheduled.delete(handle as number); }
+  clearInterval(handle: TimerHandle): void { this.scheduled.delete(handle as number); }
+
+  private schedule(timer: ScheduledTimer): number {
+    this.scheduled.set(++this.nextTimer, timer);
+    return this.nextTimer;
+  }
+
+  private due(target: number): [number, ScheduledTimer] | undefined {
+    let found: [number, ScheduledTimer] | undefined;
+    for (const entry of this.scheduled) {
+      if (entry[1].at <= target && (!found || entry[1].at < found[1].at)) found = entry;
+    }
+    return found;
+  }
+}
+
+/** Vías de salida simuladas: `emit` avisa a los oyentes como lo haría una señal o `before-quit`. */
+export class FakeQuitSignals implements QuitSignals {
+  private readonly listeners: Array<(reason: QuitReason) => void> = [];
+  subscribe(listener: (reason: QuitReason) => void): void { this.listeners.push(listener); }
+  emit(reason: QuitReason): void { this.listeners.forEach(listener => listener(reason)); }
 }
 
 type Listener = (event: unknown, ...args: any[]) => unknown;
