@@ -17,7 +17,8 @@ export function App() {
     <Sidebar />
     <main className="main-content">
       <header className="topbar"><h1 className="page-date">{dateLabel(today)}</h1><div className="focus-count">{state ? focusCountText(state.focusCount) : ''}</div></header>
-      {(state?.blockError || error) && <div className="error-banner" role="alert">{state?.blockError || error}</div>}
+      {state?.blockError && <div className="error-banner" role="alert">{state.blockError}</div>}
+      {error && error !== state?.blockError && <div className="error-banner" role="alert">{error}</div>}
       <Routes>
         <Route path="/" element={state && <TodayScreen state={state} run={run} />} />
         <Route path="/planner" element={state && <PlannerScreen state={state} run={run} showError={showError} date={plannerDate ?? today} onDateChange={date => setPlannerDate(date === today ? undefined : date)} title={plannerTitle} onTitleChange={setPlannerTitle} />} />
