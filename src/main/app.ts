@@ -1,21 +1,17 @@
 import { app, BrowserWindow, dialog, ipcMain, Notification } from 'electron';
 import path from 'node:path';
-import { DomainService } from './domains';
-import { FocusService } from './focus';
+import type { AwilixContainer } from 'awilix';
+import { createMainContainer, type MainCradle } from './container';
+import type { FocusService } from './focus';
 import { registerHandlers } from './ipc';
-import { createNotifier } from './notifier';
-import { createSiteBlocker } from './site-blocker';
-import { createSoundPlayer } from './sound-player';
-import { StateStore } from './state';
-import { TaskService } from './task-service';
-import { TaskRepository } from './tasks';
+import type { StateStore } from './state';
 
 const resources = path.join(__dirname, '..');
 const iconPath = path.join(resources, 'icon.png');
 let window: BrowserWindow | undefined;
 let store: StateStore;
 let focus: FocusService;
-let tasks: TaskRepository;
+let container: AwilixContainer<MainCradle> | undefined;
 let timer: NodeJS.Timeout | undefined;
 let quitting = false;
 
@@ -32,17 +28,17 @@ function createWindow(): void {
 app.whenReady().then(async () => {
   app.setName('Ritmo');
   if (process.platform === 'darwin') app.dock?.setIcon(iconPath);
-  tasks = new TaskRepository(path.join(app.getPath('userData'), 'ritmo.db'));
-  store = new StateStore(path.join(app.getPath('userData'), 'state.json'), {
-    tasks,
+  container = createMainContainer({
+    userDataPath: app.getPath('userData'),
+    notificationApi: Notification,
     publish: state => { if (window && !window.isDestroyed()) window.webContents.send('state', state); }
   });
-  focus = new FocusService(store, { blocker: createSiteBlocker(), notifier: createNotifier(Notification), sound: createSoundPlayer() });
+  ({ store, focus } = container.cradle);
   focus.recover();
-  registerHandlers(ipcMain, { store, focus, tasks: new TaskService(store, tasks), domains: new DomainService(store) });
+  registerHandlers(ipcMain, container.cradle);
   createWindow();
   store.rollDay();
-  if (store.state.session?.kind === 'focus' && Date.now() >= store.state.session.endsAt) await focus.tick();
+  if (store.state.session?.kind === 'focus' && store.now() >= store.state.session.endsAt) await focus.tick();
   timer = setInterval(() => { focus.tick().catch(console.error); }, 1000);
 });
 
@@ -62,4 +58,11 @@ app.on('before-quit', event => {
 
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
-app.on('will-quit', () => { if (timer) clearInterval(timer); tasks?.close(); });
+app.on('will-quit', event => {
+  if (timer) clearInterval(timer);
+  if (!container) return;
+  // Awilix ejecuta los disposers (cierre de SQLite) de forma asíncrona. Se sale al terminar con
+  // `app.exit`, porque `app.quit` no vuelve a emitir `will-quit` una vez cancelado.
+  event.preventDefault();
+  container.dispose().catch(console.error).finally(() => app.exit());
+});

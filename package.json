@@ -27,5 +27,8 @@
     "esbuild": "^0.25.12",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.9.0"
+  },
+  "dependencies": {
+    "awilix": "^13.0.5"
   }
 }

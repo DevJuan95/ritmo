@@ -4,7 +4,7 @@ Ritmo es una aplicación de productividad para macOS hecha con Electron y TypeSc
 
 ## Mapa del proyecto
 
-- `src/main.ts` inicia el proceso principal. En `src/main/`, `app.ts` es la raíz de composición: crea las implementaciones reales y las inyecta. `state.ts`, `focus.ts`, `task-service.ts`, `domains.ts` y `tasks.ts` (repositorio SQLite) no importan Electron. Sus dependencias externas (bloqueo de sitios, notificaciones, sonido, reloj, IPC, publicación del estado) son interfaces de `ports.ts`, con adaptadores en `site-blocker.ts`, `notifier.ts` y `sound-player.ts`. `ipc.ts` solo conecta canales con servicios.
+- `src/main.ts` inicia el proceso principal. En `src/main/`, `app.ts` es la raíz de composición: crea con `createMainContainer` (`container.ts`, Awilix) el contenedor de singletons, le pasa lo que viene de Electron y resuelve de él los servicios; al salir, `container.dispose()` cierra SQLite. Solo `container.ts` y `app.ts` importan Awilix; los servicios reciben sus dependencias por constructor. `state.ts`, `focus.ts`, `task-service.ts`, `domains.ts` y `tasks.ts` (repositorio SQLite) no importan Electron. Sus dependencias externas (bloqueo de sitios, notificaciones, sonido, reloj, IPC, publicación del estado) son interfaces de `ports.ts`, con adaptadores en `site-blocker.ts`, `notifier.ts` y `sound-player.ts`. `ipc.ts` solo conecta canales con servicios.
 - `src/preload.ts` expone `window.ritmo` al renderer. Mantén el aislamiento de contexto y la API limitada.
 - `src/renderer/app.ts` inicia la interfaz; los módulos de `src/renderer/` renderizan el temporizador, las tareas y los dominios. No hay framework de interfaz. La lógica de presentación sin DOM (textos, estado del temporizador, botones disponibles) va en `src/renderer/view.ts`.
 - `src/shared/contracts.ts` define los tipos de estado y la API; `src/shared/validation.ts` valida entradas y define valores por defecto.
@@ -31,7 +31,7 @@ Ritmo es una aplicación de productividad para macOS hecha con Electron y TypeSc
 - En el bloqueo de sitios, preserva las entradas ajenas a la sección de Ritmo y la recuperación tras un cierre inesperado. No ejecutes pruebas contra el `/etc/hosts` real: la prueba del script usa `RITMO_TEST_HOSTS` con un archivo temporal.
 - Antes de cerrar un cambio de código, ejecuta `npm run typecheck` y las pruebas pertinentes. Si cambias la compilación o recursos copiados a `dist/`, ejecuta también `npm run build`.
 - No edites `dist/` ni `node_modules/` directamente. Respeta los cambios locales existentes que no pertenezcan a la tarea.
-- Inyecta las dependencias nuevas con efectos externos (Electron, procesos, reloj, red) como un puerto en `src/main/ports.ts`, y cablea la implementación real en `src/main/app.ts`. Los servicios no deben importar `electron` ni usar `Date.now()` directamente; usan `store.now()`.
+- Inyecta las dependencias nuevas con efectos externos (Electron, procesos, reloj, red) como un puerto en `src/main/ports.ts`, regístralas en `src/main/container.ts` y pasa desde `src/main/app.ts` lo que dependa de Electron. Los servicios no deben importar `electron` ni usar `Date.now()` directamente; usan `store.now()`.
 
 ## Flujo de trabajo con worktrees
 
