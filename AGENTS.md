@@ -40,7 +40,7 @@ Ritmo es una aplicación de productividad para macOS hecha con Electron y TypeSc
 - Si el worktree lo creó Orca, usa su rama tal como está; no crees otro para la misma feature.
 - Antes de crear el worktree, confirma que `main` no tiene cambios sin commitear que la feature necesite. Si los tiene, commitéalos primero en `main`; no los copies al worktree.
 - Trabaja, ejecuta `npm run typecheck` y `npm test` y commitea en la rama del worktree.
-- Para traerlo a `main`: desde el checkout principal, `git merge --ff-only feature/<nombre>` (si no es posible, rebasa la rama sobre `main` y resuelve allí). Verifica `npm test` en `main`. Luego elimina el worktree y la rama: `git worktree remove ~/orca/workspaces/ritmo/<nombre>` y `git branch -d feature/<nombre>`.
+- Para traerlo a `main`, ejecuta `scripts/integrar-feature.sh` desde el worktree (skill `integrar-feature`). Hace fast-forward de la rama en `main`, verifica `npm test`, sube `main`, borra la rama remota y elimina el worktree y la rama local con `orca worktree rm`, lo que también cierra la sesión del agente en Orca. Si no admite fast-forward, rebasa la rama sobre `main` y resuelve allí. Si el worktree tiene cambios sin commitear, el script se detiene; `--force` los descarta, y solo debe usarse con confirmación del usuario. Ejecútalo como última acción de la sesión.
 - No dejes worktrees abiertos de features ya integradas. `git worktree list` debe mostrar solo `main` y el trabajo en curso.
 
 ## Pruebas
