@@ -1,6 +1,6 @@
 import { PublicError } from '../../shared/contracts';
 import { MINUTES } from '../../shared/validation';
-import type { ChangeBlockOptions, SiteBlocker } from '../blocking/ports';
+import type { BlockAction, ChangeBlockOptions, SiteBlocker } from '../blocking/ports';
 import type { Notifier } from '../common/ports';
 import type { StateStorePort } from '../state/ports';
 import type { FocusLifecyclePort, FocusServicePort, SoundPlayer } from './ports';
@@ -15,6 +15,8 @@ export class FocusService implements FocusServicePort, FocusLifecyclePort {
   private readonly blocker: SiteBlocker;
   private readonly notifier: Notifier;
   private readonly sound: SoundPlayer;
+  /** Cancela el cambio de bloqueo en curso. Solo hay uno a la vez: todos pasan por `guarded` o `closeWith`. */
+  private pending?: AbortController;
 
   constructor(private readonly store: StateStorePort, deps: FocusDeps) {
     this.blocker = deps.blocker;
@@ -30,6 +32,21 @@ export class FocusService implements FocusServicePort, FocusLifecyclePort {
     if (!blocked) state.blockError = null;
   }
 
+  /**
+   * Cancela el cambio de bloqueo en curso: termina el `osascript` o el `sudo` que esté esperando.
+   * La operación que lo pidió falla sin cambiar el estado.
+   */
+  abortBlockChange(): void {
+    this.pending?.abort();
+  }
+
+  private async changeBlock(action: BlockAction, options: ChangeBlockOptions = {}): Promise<void> {
+    const controller = new AbortController();
+    this.pending = controller;
+    try { await this.blocker.changeBlock(action, this.store.state.domains, { ...options, signal: controller.signal }); }
+    finally { this.pending = undefined; }
+  }
+
   mustReleaseBeforeQuit(): boolean {
     return this.store.state.session?.kind === 'focus' || !!this.store.state.blockError;
   }
@@ -37,7 +54,7 @@ export class FocusService implements FocusServicePort, FocusLifecyclePort {
   async endFocus(completed: boolean, options: ChangeBlockOptions = {}): Promise<void> {
     const state = this.store.state;
     if (state.session?.kind !== 'focus' && !state.blockError) return;
-    await this.blocker.changeBlock('unblock', state.domains, options);
+    await this.changeBlock('unblock', options);
     state.session = null;
     state.blockError = null;
     if (completed) {
@@ -52,7 +69,7 @@ export class FocusService implements FocusServicePort, FocusLifecyclePort {
       const state = this.store.state;
       if (state.session || state.blockError) throw new PublicError('Termina la sesión actual o quita el bloqueo pendiente.');
       if (!state.domains.length) throw new PublicError('Añade al menos un sitio para bloquear.');
-      await this.blocker.changeBlock('block', state.domains);
+      await this.changeBlock('block');
       state.blockError = null;
       state.session = { kind: 'focus', endsAt: this.store.now() + MINUTES.focus * 60000 };
     });

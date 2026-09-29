@@ -190,7 +190,7 @@ test('al agotarse el tiempo máximo sale dejando blockError para recover() y lo 
   stillBlocked.focus.recover();
   assert.match(stillBlocked.store.state.blockError ?? '', /bloqueo anterior/);
 
-  // Si macOS termina de desbloquear después, recover() lo reconcilia en el siguiente arranque.
+  // Si el helper llegó a desbloquear antes de cancelarse, recover() lo reconcilia en el siguiente arranque.
   release();
   await settle();
   const reopened = createHarness(t, { saved });
@@ -265,28 +265,43 @@ test('al agotarse el tiempo, las señales llaman a exit una sola vez y sin error
   assert.equal(harness.readSaved().blockError, 'Ritmo se cerró antes de quitar el bloqueo.');
 });
 
-test('al agotarse el tiempo mientras se inicia un foco no marca bloqueo; recover() lo reconcilia', async t => {
+test('al agotarse el tiempo mientras se inicia un foco cancela el bloqueo y no marca nada pendiente', async t => {
   const harness = createHarness(t, { shutdownTimeoutMs: 10 });
   const { lifecycle, focus, blocker, clock, notifier } = harness;
-  const release = blocker.hold();
+  blocker.hold();
   const starting = focus.startFocus();
   const closing = lifecycle.shutdown();
   clock.advance(10);
   await closing;
-  assert.equal(harness.readSaved().blockError, null);
-  assert.equal(harness.readSaved().session, null);
+  await assert.rejects(starting, /Se canceló el cambio del bloqueo/);
+  assert.equal(blocker.blocked, false);
+  assert.deepEqual(blocker.calls.map(call => call.action), ['block']);
+  const saved = harness.readSaved();
+  assert.equal(saved.blockError, null);
+  assert.equal(saved.session, null);
   assert.deepEqual(notifier.sent, []);
 
-  // Si macOS aplica el bloqueo después, la operación lo guarda y recover() mantiene el foco.
-  release();
-  await starting;
-  const saved = harness.readSaved();
-  assert.equal(saved.session?.kind, 'focus');
+  // Si el bloqueo llegó a escribirse antes de cancelarse, recover() lo deja pendiente al reabrir.
   const reopened = createHarness(t, { saved });
   reopened.blocker.blocked = true;
   reopened.focus.recover();
-  assert.equal(reopened.store.state.session?.kind, 'focus');
-  assert.equal(reopened.store.state.blockError, null);
+  assert.match(reopened.store.state.blockError ?? '', /bloqueo anterior/);
+});
+
+test('al agotarse el tiempo del desbloqueo lo cancela y avisa una sola vez', async t => {
+  const harness = createHarness(t, { shutdownTimeoutMs: 10 });
+  const { lifecycle, focus, blocker, clock, notifier } = harness;
+  await focus.startFocus();
+  blocker.hold();
+  const closing = lifecycle.shutdown();
+  await settle();
+  clock.advance(10);
+  await closing;
+  await settle();
+  assert.deepEqual(blocker.calls.map(call => call.action), ['block', 'unblock']);
+  assert.equal(blocker.blocked, true);
+  assert.equal(harness.readSaved().blockError, 'Ritmo se cerró antes de quitar el bloqueo.');
+  assert.deepEqual(notifier.titles(), ['Bloqueo aún activo']);
 });
 
 test('al agotarse el tiempo sin nada que desbloquear no inventa un bloqueo pendiente', async t => {

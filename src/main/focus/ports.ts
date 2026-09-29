@@ -19,4 +19,6 @@ export interface FocusLifecyclePort {
   tick(): Promise<void>;
   mustReleaseBeforeQuit(): boolean;
   endFocus(completed: boolean, options?: ChangeBlockOptions): Promise<void>;
+  /** Cancela el cambio de bloqueo en curso, si lo hay. */
+  abortBlockChange(): void;
 }

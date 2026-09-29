@@ -52,6 +52,9 @@ case "$action" in
   *) echo 'Acción inválida.' >&2; exit 2 ;;
 esac
 
+# Si Ritmo cancela el cambio al salir, sudo reenvía la señal: desde aquí se termina la escritura
+# para no dejar hosts a medias. El trap de EXIT sigue borrando el temporal.
+trap '' HUP INT TERM
 /bin/cat "$temporary" > "$hosts"
 /usr/bin/dscacheutil -flushcache || true
 /usr/bin/killall -HUP mDNSResponder >/dev/null 2>&1 || true

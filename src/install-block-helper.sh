@@ -34,5 +34,7 @@ trap 'rm -f "$temporary_rule" "$temporary_helper"' EXIT HUP INT TERM
 /bin/chmod 440 "$temporary_rule"
 /usr/sbin/visudo -cf "$temporary_rule" >/dev/null
 /usr/bin/install -o root -g wheel -m 755 "$source_script" "$temporary_helper"
+# Una cancelación a partir de aquí no debe dejar la regla nueva con el helper antiguo.
+trap '' HUP INT TERM
 /bin/mv -f "$temporary_rule" "$rule"
 /bin/mv -f "$temporary_helper" "$helper"
