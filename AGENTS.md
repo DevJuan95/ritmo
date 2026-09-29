@@ -34,11 +34,13 @@ Ritmo es una aplicación de productividad para macOS hecha con Electron y TypeSc
 
 ## Flujo de trabajo con worktrees
 
-- Cada feature o cambio se desarrolla en su propio worktree y rama, nunca directamente en `main`:
-  `git worktree add -b feature/<nombre> ../ritmo-<nombre> main`, y después `npm ci` dentro del worktree.
+- Cada feature o cambio se desarrolla en su propio worktree y rama, nunca directamente en `main`.
+- Los worktrees viven en `~/orca/workspaces/ritmo/<nombre>`, la carpeta que usa Orca (`workspaceDir` con `nestWorkspaces`). Así quedan juntos los creados desde Orca y los creados con git:
+  `git worktree add -b feature/<nombre> ~/orca/workspaces/ritmo/<nombre> main`, y después `npm ci` dentro del worktree.
+- Si el worktree lo creó Orca, usa su rama tal como está; no crees otro para la misma feature.
 - Antes de crear el worktree, confirma que `main` no tiene cambios sin commitear que la feature necesite. Si los tiene, commitéalos primero en `main`; no los copies al worktree.
 - Trabaja, ejecuta `npm run typecheck` y `npm test` y commitea en la rama del worktree.
-- Para traerlo a `main`: desde el checkout principal, `git merge --ff-only feature/<nombre>` (si no es posible, rebasa la rama sobre `main` y resuelve allí). Verifica `npm test` en `main`. Luego elimina el worktree y la rama: `git worktree remove ../ritmo-<nombre>` y `git branch -d feature/<nombre>`.
+- Para traerlo a `main`: desde el checkout principal, `git merge --ff-only feature/<nombre>` (si no es posible, rebasa la rama sobre `main` y resuelve allí). Verifica `npm test` en `main`. Luego elimina el worktree y la rama: `git worktree remove ~/orca/workspaces/ritmo/<nombre>` y `git branch -d feature/<nombre>`.
 - No dejes worktrees abiertos de features ya integradas. `git worktree list` debe mostrar solo `main` y el trabajo en curso.
 
 ## Pruebas
