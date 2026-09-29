@@ -1,5 +1,7 @@
 #!/bin/sh
 set -eu
+PATH=/usr/bin:/bin:/usr/sbin:/sbin
+export PATH
 
 source_script=${1:-}
 account=${2:-}
@@ -24,7 +26,11 @@ rule=/etc/sudoers.d/ritmo-$(printf '%s' "$account" | tr . %)
 temporary_rule=$(mktemp "$rule.XXXXXX")
 temporary_helper=$(mktemp /Library/PrivilegedHelperTools/ritmo.XXXXXX)
 trap 'rm -f "$temporary_rule" "$temporary_helper"' EXIT HUP INT TERM
-printf '%s ALL=(root) NOPASSWD: %s\n' "$account" "$helper" > "$temporary_rule"
+# secure_path es una segunda defensa: sudo no pasa al helper el PATH de quien lo llama.
+{
+  printf 'Defaults!%s secure_path="/usr/bin:/bin:/usr/sbin:/sbin"\n' "$helper"
+  printf '%s ALL=(root) NOPASSWD: %s\n' "$account" "$helper"
+} > "$temporary_rule"
 /bin/chmod 440 "$temporary_rule"
 /usr/sbin/visudo -cf "$temporary_rule" >/dev/null
 /usr/bin/install -o root -g wheel -m 755 "$source_script" "$temporary_helper"

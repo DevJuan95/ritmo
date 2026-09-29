@@ -30,6 +30,20 @@ test('el bloqueo añade y retira solo su sección de hosts', { skip: asRoot }, t
   assert.equal(read().trim(), original.trim());
 });
 
+test('el helper ignora el PATH de quien lo llama', { skip: asRoot }, t => {
+  const { hosts, read } = hostsFile(t);
+  // Órdenes falsas primero en el PATH: si el script las usara, dejarían una marca.
+  const fakes = tempDir(t);
+  const marker = path.join(fakes, 'usado');
+  for (const command of ['id', 'mktemp', 'awk', 'cat', 'rm', 'dscacheutil', 'killall']) {
+    fs.writeFileSync(path.join(fakes, command), `#!/bin/sh\necho ${command} >> '${marker}'\nexit 1\n`, { mode: 0o755 });
+  }
+  const env = { ...process.env, RITMO_TEST_HOSTS: hosts, PATH: `${fakes}:${process.env.PATH}` };
+  assert.equal(spawnSync('/bin/sh', [script, 'block', 'x.com'], { env, encoding: 'utf8' }).status, 0);
+  assert.match(read(), /0\.0\.0\.0 x\.com/);
+  assert.equal(fs.existsSync(marker), false);
+});
+
 test('bloquear dos veces reemplaza la sección en lugar de duplicarla', { skip: asRoot }, t => {
   const { run, read } = hostsFile(t);
   assert.equal(run('block', 'facebook.com').status, 0);
