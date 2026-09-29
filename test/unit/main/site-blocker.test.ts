@@ -10,25 +10,48 @@ function blockerWith(overrides: Partial<SiteBlockerDeps> = {}) {
   const blocker = createSiteBlocker({
     platform: 'darwin',
     helperPath: '/app/block-sites.sh',
+    installerPath: '/app/install-block-helper.sh',
+    installedHelperPath: '/Library/PrivilegedHelperTools/ritmo-block-sites',
+    account: 'student',
+    readFile: () => 'helper version 1',
     exec: async (file, args) => { calls.push({ file, args }); },
     ...overrides
   });
   return { blocker, calls };
 }
 
-test('bloquear envía la lista de dominios al script mediante osascript', async () => {
+test('bloquear usa el helper instalado sin pedir autorización', async () => {
   const { blocker, calls } = blockerWith();
   await blocker.changeBlock('block', ['x.com', 'facebook.com']);
   assert.equal(calls.length, 1);
-  assert.equal(calls[0].file, '/usr/bin/osascript');
-  assert.deepEqual(calls[0].args.slice(2), ['/app/block-sites.sh', 'block', 'x.com\nfacebook.com']);
-  assert.match(calls[0].args[1], /with administrator privileges/);
+  assert.equal(calls[0].file, '/usr/bin/sudo');
+  assert.deepEqual(calls[0].args, ['-n', '/Library/PrivilegedHelperTools/ritmo-block-sites', 'block', 'x.com\nfacebook.com']);
 });
 
 test('desbloquear no envía dominios', async () => {
   const { blocker, calls } = blockerWith();
   await blocker.changeBlock('unblock', ['x.com']);
-  assert.deepEqual(calls[0].args.slice(3), ['unblock', '']);
+  assert.deepEqual(calls[0].args.slice(2), ['unblock', '']);
+});
+
+test('instala el helper cuando falta o su versión cambió', async () => {
+  for (const installed of [undefined, 'helper version 0']) {
+    const { blocker, calls } = blockerWith({
+      readFile: file => {
+        if (file === '/Library/PrivilegedHelperTools/ritmo-block-sites') {
+          if (!installed) throw new Error('ENOENT');
+          return installed;
+        }
+        return 'helper version 1';
+      }
+    });
+    await blocker.changeBlock('block', ['x.com']);
+    assert.equal(calls.length, 2);
+    assert.equal(calls[0].file, '/usr/bin/osascript');
+    assert.deepEqual(calls[0].args.slice(2), ['/app/install-block-helper.sh', '/app/block-sites.sh', 'student']);
+    assert.match(calls[0].args[1], /with administrator privileges/);
+    assert.equal(calls[1].file, '/usr/bin/sudo');
+  }
 });
 
 test('fuera de macOS falla sin ejecutar nada', async () => {
@@ -37,12 +60,15 @@ test('fuera de macOS falla sin ejecutar nada', async () => {
   assert.equal(calls.length, 0);
 });
 
-test('traduce la cancelación de macOS y otros errores a mensajes claros', async () => {
-  const failing = (error: Error & { stderr?: string }) => blockerWith({ exec: async () => { throw error; } }).blocker;
-  await assert.rejects(failing(new Error('execution error: User canceled. (-128)')).changeBlock('block', ['x.com']), /^Error: Se canceló la autorización de macOS\.$/);
-  await assert.rejects(failing(Object.assign(new Error('Command failed'), { stderr: '(-128)' })).changeBlock('unblock', []), /Se canceló/);
-  await assert.rejects(failing(new Error('boom')).changeBlock('block', ['x.com']), /No se pudo activar el bloqueo/);
-  await assert.rejects(failing(new Error('boom')).changeBlock('unblock', []), /No se pudo quitar el bloqueo/);
+test('traduce errores de instalación y ejecución', async () => {
+  const missing = { readFile: () => { throw new Error('ENOENT'); } };
+  const failingInstall = (error: Error & { stderr?: string }) => blockerWith({ ...missing, exec: async () => { throw error; } }).blocker;
+  await assert.rejects(failingInstall(new Error('execution error: User canceled. (-128)')).changeBlock('block', ['x.com']), /^Error: Se canceló la autorización de macOS\.$/);
+  await assert.rejects(failingInstall(Object.assign(new Error('Command failed'), { stderr: '(-128)' })).changeBlock('unblock', []), /Se canceló/);
+  await assert.rejects(failingInstall(new Error('boom')).changeBlock('block', ['x.com']), /No se pudo instalar el helper/);
+  const failingRun = blockerWith({ exec: async () => { throw new Error('sudo failed'); } }).blocker;
+  await assert.rejects(failingRun.changeBlock('block', ['x.com']), /No se pudo activar el bloqueo/);
+  await assert.rejects(failingRun.changeBlock('unblock', []), /No se pudo quitar el bloqueo/);
 });
 
 test('detecta la sección de Ritmo en hosts y tolera errores de lectura', () => {

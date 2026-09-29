@@ -7,6 +7,7 @@ import { distRoot, repoRoot } from '../helpers/paths';
 import { tempDir } from '../helpers/temp';
 
 const script = path.join(repoRoot, 'src', 'block-sites.sh');
+const installer = path.join(repoRoot, 'src', 'install-block-helper.sh');
 const original = '127.0.0.1 localhost\n1.2.3.4 ejemplo.local\n';
 const asRoot = process.getuid?.() === 0;
 
@@ -62,7 +63,7 @@ test('entradas inválidas terminan con error y no modifican hosts', { skip: asRo
   }
 });
 
-test('rechaza dominios con mayúsculas', { skip: asRoot, todo: 'el rango [a-z] de sh depende del locale y en macOS acepta mayúsculas' }, t => {
+test('rechaza dominios con mayúsculas', { skip: asRoot }, t => {
   const { run, read } = hostsFile(t);
   assert.equal(run('block', 'X.com').status, 2);
   assert.equal(read(), original);
@@ -75,4 +76,10 @@ test('rechaza rutas de prueba fuera de /tmp', { skip: asRoot }, t => {
   assert.equal(result.status, 2);
   assert.match(result.stderr, /Ruta de prueba inválida/);
   assert.equal(fs.readFileSync(outside, 'utf8'), original);
+});
+
+test('el instalador rechaza la ejecución sin privilegios', { skip: asRoot }, () => {
+  const result = spawnSync('/bin/sh', [installer, script, 'student'], { encoding: 'utf8' });
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /Instalación inválida/);
 });

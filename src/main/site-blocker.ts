@@ -1,22 +1,27 @@
 import { execFile } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import type { BlockAction, SiteBlocker } from './ports';
 
 export const BLOCK_MARKER = '# >>> RITMO FOCUS BLOCK >>>';
 const appleScript = `on run argv
-  set helperPath to item 1 of argv
-  set actionName to item 2 of argv
-  set domainList to item 3 of argv
-  do shell script "/bin/sh " & quoted form of helperPath & " " & quoted form of actionName & " " & quoted form of domainList with administrator privileges
+  set installerPath to item 1 of argv
+  set helperPath to item 2 of argv
+  set accountName to item 3 of argv
+  do shell script "/bin/sh " & quoted form of installerPath & " " & quoted form of helperPath & " " & quoted form of accountName with administrator privileges
 end run`;
+const INSTALLED_HELPER = '/Library/PrivilegedHelperTools/ritmo-block-sites';
 
 export interface SiteBlockerDeps {
   exec: (file: string, args: string[], options: { timeout: number }) => Promise<unknown>;
   readFile: (file: string) => string;
   platform: NodeJS.Platform;
   helperPath: string;
+  installerPath: string;
+  installedHelperPath: string;
+  account: string;
   hostsPath: string;
 }
 
@@ -26,9 +31,17 @@ export function createSiteBlocker(overrides: Partial<SiteBlockerDeps> = {}): Sit
     readFile: file => fs.readFileSync(file, 'utf8'),
     platform: process.platform,
     helperPath: path.join(__dirname, '..', 'block-sites.sh'),
+    installerPath: path.join(__dirname, '..', 'install-block-helper.sh'),
+    installedHelperPath: INSTALLED_HELPER,
+    account: os.userInfo().username,
     hostsPath: '/etc/hosts',
     ...overrides
   };
+
+  function needsInstall(): boolean {
+    try { return deps.readFile(deps.helperPath) !== deps.readFile(deps.installedHelperPath); }
+    catch { return true; }
+  }
 
   return {
     hasManagedBlock() {
@@ -39,14 +52,20 @@ export function createSiteBlocker(overrides: Partial<SiteBlockerDeps> = {}): Sit
     async changeBlock(action, domains) {
       if (deps.platform !== 'darwin') throw new Error('El bloqueo de sitios de esta versión requiere macOS.');
       const domainList = action === 'block' ? domains.join('\n') : '';
+      if (needsInstall()) {
+        try {
+          await deps.exec('/usr/bin/osascript', ['-e', appleScript, deps.installerPath, deps.helperPath, deps.account], { timeout: 120000 });
+        } catch (error) {
+          const detail = error as Error & { stderr?: string };
+          if (/User canceled|(-128)/i.test(`${detail.message} ${detail.stderr || ''}`)) throw new Error('Se canceló la autorización de macOS.');
+          throw new Error('No se pudo instalar el helper de Ritmo. Revisa los permisos de administrador.');
+        }
+      }
       try {
-        await deps.exec('/usr/bin/osascript', ['-e', appleScript, deps.helperPath, action, domainList], { timeout: 120000 });
+        await deps.exec('/usr/bin/sudo', ['-n', deps.installedHelperPath, action, domainList], { timeout: 120000 });
       } catch (error) {
-        const detail = error as Error & { stderr?: string };
-        if (/User canceled|(-128)/i.test(`${detail.message} ${detail.stderr || ''}`)) throw new Error('Se canceló la autorización de macOS.');
-        throw new Error(`No se pudo ${action === 'block' ? 'activar' : 'quitar'} el bloqueo. Revisa los permisos de administrador.`);
+        throw new Error(`No se pudo ${action === 'block' ? 'activar' : 'quitar'} el bloqueo. Revisa la instalación del helper de Ritmo.`, { cause: error });
       }
     }
   };
 }
-
