@@ -129,7 +129,7 @@ Registros de `createMainContainer()`:
 | `userDataPath`, `publish`, `notificationApi` | Valores que pasa `app.ts`: `app.getPath('userData')`, la función que envía el estado por `webContents.send('state', …)` si la ventana existe, y `Notification` de Electron. | — |
 | `now` | Valor: `options.now`, o `Date.now` si no se pasa (`app.ts` no lo pasa). | — |
 | `timers` | Valor: `options.timers`, o `systemTimers` si no se pasa (`app.ts` no lo pasa). | — |
-| `shutdownTimeoutMs` | Valor: `options.shutdownTimeoutMs`; sin él, `LifecycleService` usa `DEFAULT_SHUTDOWN_TIMEOUT_MS` (15 s). | — |
+| `shutdownTimeoutMs` | Valor: `options.shutdownTimeoutMs`; sin él, `LifecycleService` usa `DEFAULT_SHUTDOWN_TIMEOUT_MS` (125 s). | — |
 | `blocker` | `createSiteBlocker()` | — |
 | `notifier` | `createNotifier(notificationApi)` | — |
 | `sound` | `createSoundPlayer()` | — |
@@ -162,13 +162,14 @@ sequenceDiagram
   alt mustReleaseBeforeQuit()
     S->>F: endFocus(false)
     alt falla el desbloqueo
-      L->>S: blockError = mensaje
+      L->>S: blockError = mensaje, session = null
       L->>N: notify('Bloqueo aún activo', ...)
     end
   end
   S->>S: busy = false, save()
   opt vence el tiempo máximo antes
-    L->>S: blockError = «Ritmo se cerró antes de quitar el bloqueo.»
+    L->>S: blockError ??= «Ritmo se cerró antes de quitar el bloqueo.», session = null
+    L->>N: notify('Bloqueo aún activo', ...)
   end
   L->>S: save()
   L->>R: close()
@@ -223,7 +224,7 @@ stateDiagram-v2
 
 `recover()` no toca un descanso guardado. Si además encuentra la sección gestionada, marca `blockError` y la interfaz muestra **Bloqueo pendiente** hasta que se quite. Un foco guardado que venció con la app cerrada se cierra en el primer `tick()` tras el arranque.
 
-Al cerrar la app con **Foco** o **Bloqueo pendiente**, el cierre ordenado intenta desbloquear. Si lo consigue, la app sale en **Listo**. Si falla, o si vence el tiempo máximo, la app sale igualmente con `blockError` guardado y el foco, si lo había, en `state.json`. En el siguiente arranque, `recover()` lleva a **Foco** o **Bloqueo pendiente** si la sección gestionada sigue en `/etc/hosts`, y a **Listo** si macOS terminó de quitarla.
+Al cerrar la app con **Foco** o **Bloqueo pendiente**, el cierre ordenado intenta desbloquear. Si lo consigue, la app sale en **Listo**. Si falla, o si vence el tiempo máximo, la app sale igualmente con `blockError` guardado en `state.json`, sin el foco y tras notificar «Bloqueo aún activo». Descartar el foco evita que, al reabrir después de su fin, el tic lo cuente como pomodoro. En el siguiente arranque, `recover()` lleva a **Bloqueo pendiente** si la sección gestionada sigue en `/etc/hosts`, y a **Listo** si macOS terminó de quitarla.
 
 Secuencia del cierre de un pomodoro por el tic, con el camino de error:
 

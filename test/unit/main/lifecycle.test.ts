@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DEFAULT_SHUTDOWN_TIMEOUT_MS, LifecycleService } from '../../../src/main/lifecycle';
-import { FakeQuitSignals } from '../../helpers/fakes';
+import { FakeClock, FakeQuitSignals } from '../../helpers/fakes';
 import { createHarness } from '../../helpers/harness';
 
 /** Deja correr las promesas pendientes sin avanzar el reloj. */
@@ -78,22 +78,29 @@ test('cierre con bloqueo pendiente: vuelve a intentar quitarlo', async t => {
   assert.equal(harness.readSaved().blockError, null);
 });
 
-test('si falla el desbloqueo, sale igualmente con blockError persistido para recuperarlo', async t => {
+test('si falla el desbloqueo, sale igualmente con blockError persistido y sin el foco', async t => {
   const harness = createHarness(t);
-  const { lifecycle, focus, blocker, notifier } = harness;
+  const { lifecycle, focus, blocker, notifier, clock } = harness;
   await focus.startFocus();
   blocker.failNext(new Error('Se canceló la autorización de macOS.'));
   await lifecycle.shutdown();
   const saved = harness.readSaved();
   assert.equal(saved.blockError, 'Se canceló la autorización de macOS.');
-  assert.equal(saved.session?.kind, 'focus');
+  assert.equal(saved.session, null);
   assert.deepEqual(notifier.titles(), ['Bloqueo aún activo']);
   assert.equal(repositoryClosed(harness), true);
 
-  const reopened = createHarness(t, { saved });
+  // Al reabrir después de la hora de fin, el foco interrumpido no cuenta como pomodoro.
+  const later = new FakeClock(clock.now());
+  later.advanceMinutes(30);
+  const reopened = createHarness(t, { saved, clock: later });
   reopened.blocker.blocked = true;
   reopened.focus.recover();
-  assert.equal(reopened.store.state.blockError, 'Se canceló la autorización de macOS.');
+  await reopened.focus.tick();
+  assert.match(reopened.store.state.blockError ?? '', /bloqueo anterior/);
+  assert.equal(reopened.store.state.session, null);
+  assert.equal(reopened.store.state.focusCount, 0);
+  assert.deepEqual(reopened.notifier.sent, []);
   assert.equal(reopened.focus.mustReleaseBeforeQuit(), true);
 });
 
@@ -157,9 +164,9 @@ test('si el cierre falla, sale igualmente informando del error y cierra SQLite',
   assert.equal(repositoryClosed(harness), true);
 });
 
-test('al agotarse el tiempo máximo sale dejando blockError para recover()', async t => {
+test('al agotarse el tiempo máximo sale dejando blockError para recover() y lo notifica', async t => {
   const harness = createHarness(t, { shutdownTimeoutMs: 5000 });
-  const { lifecycle, focus, blocker, clock } = harness;
+  const { lifecycle, focus, blocker, clock, notifier } = harness;
   await focus.startFocus();
   const release = blocker.hold();
   let closed = false;
@@ -172,9 +179,15 @@ test('al agotarse el tiempo máximo sale dejando blockError para recover()', asy
   await closing;
   const saved = harness.readSaved();
   assert.equal(saved.blockError, 'Ritmo se cerró antes de quitar el bloqueo.');
-  assert.equal(saved.session?.kind, 'focus');
+  assert.equal(saved.session, null);
+  assert.deepEqual(notifier.titles(), ['Bloqueo aún activo']);
   assert.equal(repositoryClosed(harness), true);
   assert.equal(clock.pendingTimers, 0);
+
+  const stillBlocked = createHarness(t, { saved });
+  stillBlocked.blocker.blocked = true;
+  stillBlocked.focus.recover();
+  assert.match(stillBlocked.store.state.blockError ?? '', /bloqueo anterior/);
 
   // Si macOS termina de desbloquear después, recover() lo reconcilia en el siguiente arranque.
   release();
@@ -192,6 +205,48 @@ test('al agotarse el tiempo conserva un blockError anterior', async t => {
   harness.clock.advance(10);
   await closing;
   assert.equal(harness.readSaved().blockError, 'pendiente');
+  assert.deepEqual(harness.notifier.titles(), ['Bloqueo aún activo']);
+});
+
+test('al agotarse el tiempo, las señales llaman a exit una sola vez y sin error', async t => {
+  const harness = createHarness(t, { shutdownTimeoutMs: 10 });
+  const { lifecycle, focus, blocker, clock } = harness;
+  await focus.startFocus();
+  blocker.hold();
+  const signals = new FakeQuitSignals();
+  const exits: unknown[] = [];
+  lifecycle.listen(signals, error => exits.push(error));
+  signals.emit('before-quit');
+  signals.emit('SIGINT');
+  clock.advance(10);
+  signals.emit('SIGTERM');
+  await settle();
+  assert.deepEqual(exits, [undefined]);
+  assert.equal(harness.readSaved().blockError, 'Ritmo se cerró antes de quitar el bloqueo.');
+});
+
+test('al agotarse el tiempo mientras se inicia un foco no marca bloqueo; recover() lo reconcilia', async t => {
+  const harness = createHarness(t, { shutdownTimeoutMs: 10 });
+  const { lifecycle, focus, blocker, clock, notifier } = harness;
+  const release = blocker.hold();
+  const starting = focus.startFocus();
+  const closing = lifecycle.shutdown();
+  clock.advance(10);
+  await closing;
+  assert.equal(harness.readSaved().blockError, null);
+  assert.equal(harness.readSaved().session, null);
+  assert.deepEqual(notifier.sent, []);
+
+  // Si macOS aplica el bloqueo después, la operación lo guarda y recover() mantiene el foco.
+  release();
+  await starting;
+  const saved = harness.readSaved();
+  assert.equal(saved.session?.kind, 'focus');
+  const reopened = createHarness(t, { saved });
+  reopened.blocker.blocked = true;
+  reopened.focus.recover();
+  assert.equal(reopened.store.state.session?.kind, 'focus');
+  assert.equal(reopened.store.state.blockError, null);
 });
 
 test('al agotarse el tiempo sin nada que desbloquear no inventa un bloqueo pendiente', async t => {
