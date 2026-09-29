@@ -11,7 +11,7 @@ El renderer no tiene acceso a Node ni a Electron. Todo pasa por `window.ritmo`, 
 ```mermaid
 flowchart LR
   subgraph renderer["Renderer (sin Node)"]
-    ui["app.ts, timer.ts, tasks.ts,<br/>planner.ts, domains.ts"]
+    ui["React: app.tsx, screens/,<br/>components/, use-ritmo.ts"]
     view["view.ts<br/>lógica sin DOM"]
     ui --> view
   end
@@ -71,7 +71,8 @@ flowchart TB
     notification["Notification"]:::electron
     salida["before-quit, powerMonitor 'shutdown'"]:::electron
     signals["SIGINT, SIGTERM"]
-    osascript["osascript con privilegios<br/>→ block-sites.sh"]
+    osascript["osascript con privilegios<br/>→ install-block-helper.sh"]
+    sudo["sudo -n → helper<br/>ritmo-block-sites"]
     hosts[("/etc/hosts")]
     afplay["afplay Glass.aiff"]
     json[("state.json")]
@@ -96,7 +97,7 @@ flowchart TB
   focus -- "Notifier" --> notifier
   focus -- "SoundPlayer" --> sound
   taskService --> store
-  taskService --> repo
+  taskService -- "TaskRepositoryPort" --> repo
   domainService --> store
   lifecycle --> store
   lifecycle --> focus
@@ -105,12 +106,13 @@ flowchart TB
   lifecycle -- "Timers" --> timers
   lifecycle -- "QuitSignals" --> quit
 
-  store -- "tasks" --> repo
+  store -- "TaskRepositoryPort" --> repo
   store -- "PublishState" --> send
   store --> json
   repo --> db
 
-  blocker --> osascript --> hosts
+  blocker -- "solo si falta o cambió" --> osascript --> sudo
+  blocker --> sudo --> hosts
   blocker -- "hasManagedBlock: lectura" --> hosts
   notifier --> notification
   sound --> afplay
@@ -246,7 +248,7 @@ sequenceDiagram
   S->>S: busy = true
   S-->>R: estado público con busy
   F->>B: changeBlock('unblock', domains)
-  Note over B: osascript pide autorización y ejecuta block-sites.sh
+  Note over B: sudo -n ejecuta el helper instalado; si falta o cambió, osascript pide autorización para reinstalarlo
   alt desbloqueo correcto
     F->>S: session = null, blockError = null, focusCount + 1
     F->>N: notify('Foco completado', ...)

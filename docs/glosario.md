@@ -31,7 +31,7 @@ Si cambias un término, un puerto o un servicio, actualiza este glosario y `arqu
 | Fecha de creación | Marca ISO de cuándo se creó la tarea; ordena la lista del día. | `Task.createdAt` | `src/shared/contracts.ts` |
 | Tareas de hoy | Copia en memoria de las tareas planificadas para `day`, incluida en el estado público. Se refresca tras cada cambio de tareas y en el reinicio diario. | `AppState.tasks`, `TaskService.refreshToday()` | `src/shared/contracts.ts`, `src/main/task-service.ts` |
 | Cambio de tarea | Edición parcial de título, fecha planificada o completado. | `TaskPatch`, `RitmoAPI.updateTask()` | `src/main/task-service.ts`, `src/shared/contracts.ts` |
-| Repositorio de tareas | Acceso a la tabla `tasks` de SQLite. | `TaskRepository` | `src/main/tasks.ts` |
+| Repositorio de tareas | Acceso a la tabla `tasks` de SQLite. Los servicios dependen del puerto `TaskRepositoryPort`. | `TaskRepository`, `TaskRepositoryPort`, `TaskPatch` | `src/main/tasks.ts`, `src/main/ports.ts` |
 | Migración de tareas | Importación única de las tareas antiguas de `state.json` a SQLite, con copia en `state.json.backup`. | `TaskRepository.importLegacy()`, campo `tasksMigrated` de `state.json` | `src/main/tasks.ts`, `src/main/state.ts` |
 
 ## Dominios y bloqueo
@@ -40,7 +40,7 @@ Si cambias un término, un puerto o un servicio, actualiza este glosario y `arqu
 | --- | --- | --- | --- |
 | Dominio bloqueado | Sitio que se bloquea durante el foco («sitio» en la interfaz). Se normaliza a minúsculas, sin protocolo, ruta ni puerto; máximo 50. Solo se editan fuera del foco y sin bloqueo pendiente; la interfaz tampoco deja editarlos mientras hay una operación protegida en curso, aunque `DomainService` todavía no lo comprueba (prueba `todo`). | `AppState.domains`, `normalizeDomain()`, `normalizeDomains()`, `DomainService`, `domainsLocked()` | `src/shared/contracts.ts`, `src/shared/validation.ts`, `src/main/domains.ts`, `src/renderer/view.ts` |
 | Dominios por defecto | Lista inicial: `facebook.com`, `linkedin.com`, `x.com`, `twitter.com`. | `DEFAULT_DOMAINS` | `src/shared/validation.ts` |
-| Bloqueo de sitios | Redirigir cada dominio y su `www.` a `0.0.0.0` y `::1` en `/etc/hosts`. Requiere autorización de administrador de macOS en cada cambio. | Puerto `SiteBlocker`, `BlockAction` = `'block' \| 'unblock'` | `src/main/ports.ts`, `src/main/site-blocker.ts`, `src/block-sites.sh` |
+| Bloqueo de sitios | Redirigir cada dominio y su `www.` a `0.0.0.0` y `::1` en `/etc/hosts`. Lo hace un helper instalado en `/Library/PrivilegedHelperTools/ritmo-block-sites`, que la cuenta ejecuta con `sudo -n` sin contraseña; macOS solo pide autorización para instalarlo o restaurarlo. | Puerto `SiteBlocker`, `BlockAction` = `'block' \| 'unblock'` | `src/main/ports.ts`, `src/main/site-blocker.ts`, `src/block-sites.sh` |
 | Sección gestionada | Bloque de `/etc/hosts` entre `# >>> RITMO FOCUS BLOCK >>>` y `# <<< RITMO FOCUS BLOCK <<<`. Es lo único que Ritmo escribe o borra; el resto del archivo se conserva. | `BLOCK_MARKER`, `SiteBlocker.hasManagedBlock()` | `src/main/site-blocker.ts`, `src/block-sites.sh` |
 | Bloqueo pendiente | Mensaje que indica que la sección gestionada puede seguir en `/etc/hosts` sin un foco activo: falló el desbloqueo o se encontró un bloqueo anterior. Mientras exista, no se puede iniciar sesión ni editar dominios, y la interfaz solo ofrece **Quitar bloqueo**. | `AppState.blockError` | `src/shared/contracts.ts`, `src/main/focus.ts` |
 | Quitar bloqueo | Reintento de desbloqueo. Usa el mismo camino que terminar el foco. | `RitmoAPI.retryUnblock()`, canal `retry-unblock` → `FocusService.finishFocus()` | `src/shared/contracts.ts`, `src/main/ipc.ts` |
@@ -68,10 +68,11 @@ Interfaces de `src/main/ports.ts` por las que los servicios acceden a efectos ex
 
 | Puerto | Qué abstrae | Implementación real | Quién lo usa |
 | --- | --- | --- | --- |
-| `SiteBlocker` | Consultar y cambiar la sección gestionada de `/etc/hosts`. | `createSiteBlocker()` en `site-blocker.ts`: `osascript` con privilegios de administrador ejecuta `block-sites.sh`. | `FocusService` |
+| `SiteBlocker` | Consultar y cambiar la sección gestionada de `/etc/hosts`. | `createSiteBlocker()` en `site-blocker.ts`: ejecuta con `sudo -n` el helper instalado (copia de `block-sites.sh`); si falta o cambió, lo instala `install-block-helper.sh` mediante `osascript` con privilegios de administrador. | `FocusService` |
 | `BlockAction` | Acción de `SiteBlocker.changeBlock()`: `'block'` o `'unblock'`. | — | `FocusService`, `block-sites.sh` |
 | `Notifier` | Notificaciones del sistema. | `createNotifier(notificationApi)` en `notifier.ts`; `app.ts` pasa `Notification` de Electron como `notificationApi`. | `FocusService`, `LifecycleService` |
 | `SoundPlayer` | Señal sonora al completar un pomodoro. | `createSoundPlayer()` en `sound-player.ts`: `afplay` con `Glass.aiff`. | `FocusService` |
+| `TaskRepositoryPort` | Lectura y escritura de tareas por día, y la migración de las antiguas. | `TaskRepository` en `tasks.ts`, registrado como `taskRepository` en `container.ts`. | `StateStore`, `TaskService` |
 | `Clock` | Hora actual en milisegundos. Los servicios la leen con `store.now()`. | `Date.now`, registrado como `now` en `container.ts` e inyectado en `StateStore` y `TaskRepository`. | `StateStore`, `TaskRepository` |
 | `IdGenerator` | Identificadores de tareas nuevas. | `crypto.randomUUID()`, valor por defecto de `TaskRepository`; `container.ts` no lo registra. | `TaskRepository` |
 | `PublishState` | Envío del estado público al renderer. | Función que `app.ts` pasa a `createMainContainer()` y llama a `window.webContents.send('state', …)`. | `StateStore` |
