@@ -6,7 +6,7 @@ Si cambias un puerto, un servicio, su cableado en `src/main/app.ts` o el ciclo d
 
 ## 1. Procesos
 
-El renderer no tiene acceso a Node ni a Electron. Todo pasa por `window.ritmo`, que `preload.ts` expone con `contextBridge`. Cada método invoca un canal IPC; `ipc.ts` lo conecta con un servicio, que valida la entrada. El estado vuelve por un solo canal, `state`, cada vez que `StateStore` guarda o empieza una operación protegida.
+El renderer no tiene acceso a Node ni a Electron. Todo pasa por `window.ritmo`, que `preload.ts` expone con `contextBridge`. Cada método, salvo `onState()`, invoca un canal IPC; `ipc.ts` lo conecta con un servicio, que valida la entrada. El estado vuelve por un solo canal, `state`, que `onState()` escucha, cada vez que `StateStore` guarda o empieza una operación protegida.
 
 ```mermaid
 flowchart LR
