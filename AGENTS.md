@@ -4,7 +4,7 @@ Ritmo es una aplicación de productividad para macOS hecha con Electron y TypeSc
 
 ## Mapa del proyecto
 
-- `src/main.ts` inicia el proceso principal. En `src/main/`, `app.ts` es la raíz de composición: crea las implementaciones reales y las inyecta. `state.ts`, `focus.ts`, `task-service.ts`, `domains.ts` y `tasks.ts` (repositorio SQLite) no importan Electron. Sus dependencias externas (bloqueo de sitios, notificaciones, reloj, IPC, publicación del estado) son interfaces de `ports.ts`, con adaptadores en `site-blocker.ts` y `notifier.ts`. `ipc.ts` solo conecta canales con servicios.
+- `src/main.ts` inicia el proceso principal. En `src/main/`, `app.ts` es la raíz de composición: crea las implementaciones reales y las inyecta. `state.ts`, `focus.ts`, `task-service.ts`, `domains.ts` y `tasks.ts` (repositorio SQLite) no importan Electron. Sus dependencias externas (bloqueo de sitios, notificaciones, sonido, reloj, IPC, publicación del estado) son interfaces de `ports.ts`, con adaptadores en `site-blocker.ts`, `notifier.ts` y `sound-player.ts`. `ipc.ts` solo conecta canales con servicios.
 - `src/preload.ts` expone `window.ritmo` al renderer. Mantén el aislamiento de contexto y la API limitada.
 - `src/renderer/app.ts` inicia la interfaz; los módulos de `src/renderer/` renderizan el temporizador, las tareas y los dominios. No hay framework de interfaz. La lógica de presentación sin DOM (textos, estado del temporizador, botones disponibles) va en `src/renderer/view.ts`.
 - `src/shared/contracts.ts` define los tipos de estado y la API; `src/shared/validation.ts` valida entradas y define valores por defecto.
@@ -49,7 +49,7 @@ Ritmo es una aplicación de productividad para macOS hecha con Electron y TypeSc
 - `test/unit/<área>/`: una prueba por módulo de `src/` (por ejemplo, `unit/main/focus.test.ts`). Sin procesos externos; los archivos y SQLite van en directorios temporales.
 - `test/contract/`: comprueba que `preload.ts`, `ipc.ts` y `RitmoAPI` sigan sincronizados. Si añades un método a `RitmoAPI`, `sampleCalls` deja de compilar hasta que lo incluyas.
 - `test/integration/`: ejecuta `block-sites.sh` real contra un hosts falso en `/tmp`.
-- `test/helpers/`: piezas reutilizables. `fakes.ts` tiene `FakeBlocker`, `FakeNotifier`, `FakeClock`, `FakeIpc` y `sequentialIds`. `harness.ts` tiene `createHarness(t, { saved, clock })`, que arma store, repositorio y servicios con dobles, y `buildState`. `temp.ts` tiene `tempDir(t)`, que se limpia sola. Reutilízalas en lugar de crear dobles ad hoc en cada archivo.
+- `test/helpers/`: piezas reutilizables. `fakes.ts` tiene `FakeBlocker`, `FakeNotifier`, `FakeSoundPlayer`, `FakeClock`, `FakeIpc` y `sequentialIds`. `harness.ts` tiene `createHarness(t, { saved, clock })`, que arma store, repositorio y servicios con dobles, y `buildState`. `temp.ts` tiene `tempDir(t)`, que se limpia sola. Reutilízalas en lugar de crear dobles ad hoc en cada archivo.
 - Controla el tiempo con `FakeClock` (`advanceMinutes`, `nextDay`), no con esperas reales.
 - Para documentar un defecto conocido sin romper la suite, usa `test(..., { todo: 'motivo' }, ...)`. Quita el `todo` cuando lo corrijas.
 - Las pruebas no tienen DOM. En el renderer, lleva la lógica a funciones puras de `view.ts` y pruébalas en `test/unit/renderer/`; los módulos que solo copian valores al DOM quedan sin cubrir.

@@ -1,19 +1,22 @@
 import { MINUTES } from '../shared/validation';
-import type { Notifier, SiteBlocker } from './ports';
+import type { Notifier, SiteBlocker, SoundPlayer } from './ports';
 import { StateStore } from './state';
 
 export interface FocusDeps {
   blocker: SiteBlocker;
   notifier: Notifier;
+  sound: SoundPlayer;
 }
 
 export class FocusService {
   private readonly blocker: SiteBlocker;
   private readonly notifier: Notifier;
+  private readonly sound: SoundPlayer;
 
   constructor(private readonly store: StateStore, deps: FocusDeps) {
     this.blocker = deps.blocker;
     this.notifier = deps.notifier;
+    this.sound = deps.sound;
   }
 
   recover(): void {
@@ -37,6 +40,7 @@ export class FocusService {
     if (completed) {
       state.focusCount += 1;
       this.notifier.notify('Foco completado', 'Terminó tu pomodoro. Es momento de descansar.');
+      try { this.sound.play(); } catch { /* Sin sonido, el pomodoro ya quedó contado y desbloqueado. */ }
     }
   }
 

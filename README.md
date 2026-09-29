@@ -4,7 +4,7 @@ Ritmo es una herramienta personal para mejorar mis sesiones de estudio y llevar 
 
 ## Para qué sirve
 
-- **Enfocarme**: sesiones de foco de 25 minutos con descansos de 5 o 15, al estilo pomodoro.
+- **Enfocarme**: sesiones de foco de 25 minutos con descansos de 5 o 15, al estilo pomodoro. Al completarse el foco suena una señal y aparece una notificación, aunque Ritmo esté en segundo plano.
 - **Evitar distracciones**: bloquea sitios como redes sociales mientras dura el foco.
 - **Planificar**: tareas organizadas por día, con un planner para moverlas entre fechas.
 - **Hacer seguimiento**: un contador de pomodoros para ver cuántos completé hoy; se reinicia cada día.

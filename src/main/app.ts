@@ -5,6 +5,7 @@ import { FocusService } from './focus';
 import { registerHandlers } from './ipc';
 import { createNotifier } from './notifier';
 import { createSiteBlocker } from './site-blocker';
+import { createSoundPlayer } from './sound-player';
 import { StateStore } from './state';
 import { TaskService } from './task-service';
 import { TaskRepository } from './tasks';
@@ -36,7 +37,7 @@ app.whenReady().then(async () => {
     tasks,
     publish: state => { if (window && !window.isDestroyed()) window.webContents.send('state', state); }
   });
-  focus = new FocusService(store, { blocker: createSiteBlocker(), notifier: createNotifier(Notification) });
+  focus = new FocusService(store, { blocker: createSiteBlocker(), notifier: createNotifier(Notification), sound: createSoundPlayer() });
   focus.recover();
   registerHandlers(ipcMain, { store, focus, tasks: new TaskService(store, tasks), domains: new DomainService(store) });
   createWindow();

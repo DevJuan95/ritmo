@@ -8,7 +8,7 @@ import { FocusService } from '../../src/main/focus';
 import { StateStore } from '../../src/main/state';
 import { TaskService } from '../../src/main/task-service';
 import { TaskRepository } from '../../src/main/tasks';
-import { FakeBlocker, FakeClock, FakeNotifier, sequentialIds } from './fakes';
+import { FakeBlocker, FakeClock, FakeNotifier, FakeSoundPlayer, sequentialIds } from './fakes';
 import { tempDir } from './temp';
 
 export function buildState(overrides: Partial<AppState> = {}, clock = new FakeClock()): AppState {
@@ -31,6 +31,7 @@ export interface Harness {
   clock: FakeClock;
   blocker: FakeBlocker;
   notifier: FakeNotifier;
+  sound: FakeSoundPlayer;
   published: PublicState[];
   repository: TaskRepository;
   store: StateStore;
@@ -52,6 +53,7 @@ export function createHarness(t: TestContext, options: HarnessOptions = {}): Har
 
   const blocker = new FakeBlocker();
   const notifier = new FakeNotifier();
+  const sound = new FakeSoundPlayer();
   const published: PublicState[] = [];
   const repository = new TaskRepository(dbPath, { now: clock.now, newId: sequentialIds() });
   t.after(() => repository.close());
@@ -59,8 +61,8 @@ export function createHarness(t: TestContext, options: HarnessOptions = {}): Har
   const store = open();
 
   return {
-    directory, statePath, dbPath, clock, blocker, notifier, published, repository, store,
-    focus: new FocusService(store, { blocker, notifier }),
+    directory, statePath, dbPath, clock, blocker, notifier, sound, published, repository, store,
+    focus: new FocusService(store, { blocker, notifier, sound }),
     tasks: new TaskService(store, repository),
     domains: new DomainService(store),
     reopen: open,

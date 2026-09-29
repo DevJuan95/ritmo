@@ -1,4 +1,4 @@
-import type { BlockAction, IpcRegistrar, Notifier, SiteBlocker } from '../../src/main/ports';
+import type { BlockAction, IpcRegistrar, Notifier, SiteBlocker, SoundPlayer } from '../../src/main/ports';
 
 /** Bloqueador en memoria: registra llamadas, puede fallar a demanda o quedarse esperando. */
 export class FakeBlocker implements SiteBlocker {
@@ -31,6 +31,19 @@ export class FakeNotifier implements Notifier {
   readonly sent: Array<{ title: string; body: string }> = [];
   notify(title: string, body: string): void { this.sent.push({ title, body }); }
   titles(): string[] { return this.sent.map(item => item.title); }
+}
+
+/** Reproductor en memoria: cuenta las reproducciones y puede fallar a demanda. */
+export class FakeSoundPlayer implements SoundPlayer {
+  plays = 0;
+  private failure?: Error;
+  failNext(error = new Error('No se pudo reproducir el sonido.')): void { this.failure = error; }
+  play(): void {
+    this.plays += 1;
+    const failure = this.failure;
+    this.failure = undefined;
+    if (failure) throw failure;
+  }
 }
 
 /** Reloj controlable. Por defecto: 29 de septiembre de 2026, 09:00 hora local. */

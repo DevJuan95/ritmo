@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { FocusService } from '../../../src/main/focus';
 import { createHarness } from '../../helpers/harness';
 
 test('iniciar foco bloquea los dominios y agenda 25 minutos', async t => {
@@ -39,13 +40,14 @@ test('no acepta una segunda operación mientras espera la autorización', async 
 });
 
 test('terminar el foco antes de tiempo desbloquea sin contar el pomodoro', async t => {
-  const { focus, store, blocker, notifier } = createHarness(t);
+  const { focus, store, blocker, notifier, sound } = createHarness(t);
   await focus.startFocus();
   await focus.finishFocus();
   assert.deepEqual(blocker.calls.map(call => call.action), ['block', 'unblock']);
   assert.equal(store.state.session, null);
   assert.equal(store.state.focusCount, 0);
   assert.equal(notifier.sent.length, 0);
+  assert.equal(sound.plays, 0);
 });
 
 test('tick no hace nada antes de que venza la sesión', async t => {
@@ -57,18 +59,49 @@ test('tick no hace nada antes de que venza la sesión', async t => {
   assert.equal(blocker.calls.length, 1);
 });
 
-test('al vencer el foco desbloquea, suma el pomodoro y notifica', async t => {
-  const { focus, store, notifier, clock } = createHarness(t);
+test('al vencer el foco desbloquea, suma el pomodoro, notifica y suena', async t => {
+  const { focus, store, notifier, sound, clock } = createHarness(t);
   await focus.startFocus();
   clock.advanceMinutes(25);
   await focus.tick();
   assert.equal(store.state.session, null);
   assert.equal(store.state.focusCount, 1);
   assert.deepEqual(notifier.titles(), ['Foco completado']);
+  assert.equal(sound.plays, 1);
+});
+
+test('el sonido de un foco completado no se repite en otros ticks ni al reabrir', async t => {
+  const harness = createHarness(t);
+  await harness.focus.startFocus();
+  harness.clock.advanceMinutes(25);
+  await harness.focus.tick();
+  harness.clock.advanceMinutes(1);
+  await harness.focus.tick();
+  await harness.focus.tick();
+
+  const reopened = new FocusService(harness.reopen(), { blocker: harness.blocker, notifier: harness.notifier, sound: harness.sound });
+  reopened.recover();
+  await reopened.tick();
+  assert.equal(harness.sound.plays, 1);
+  assert.deepEqual(harness.notifier.titles(), ['Foco completado']);
+});
+
+test('si falla el sonido el foco igual se desbloquea y se cuenta', async t => {
+  const { focus, store, blocker, notifier, sound, clock } = createHarness(t);
+  await focus.startFocus();
+  clock.advanceMinutes(25);
+  sound.failNext();
+  await focus.tick();
+  assert.equal(sound.plays, 1);
+  assert.equal(blocker.blocked, false);
+  assert.equal(store.state.session, null);
+  assert.equal(store.state.blockError, null);
+  assert.equal(store.state.focusCount, 1);
+  assert.deepEqual(notifier.titles(), ['Foco completado']);
 });
 
 test('si falla el desbloqueo al vencer deja un bloqueo pendiente recuperable', async t => {
-  const { focus, store, blocker, notifier, clock } = createHarness(t);
+  const { focus, store, blocker, notifier, sound, clock } = createHarness(t);
   await focus.startFocus();
   clock.advanceMinutes(25);
   blocker.failNext(new Error('No se pudo quitar el bloqueo.'));
@@ -77,6 +110,7 @@ test('si falla el desbloqueo al vencer deja un bloqueo pendiente recuperable', a
   assert.equal(store.state.blockError, 'No se pudo quitar el bloqueo.');
   assert.equal(store.state.focusCount, 0);
   assert.deepEqual(notifier.titles(), ['Bloqueo aún activo']);
+  assert.equal(sound.plays, 0);
   assert.equal(focus.mustReleaseBeforeQuit(), true);
 
   await focus.finishFocus();
@@ -87,7 +121,7 @@ test('si falla el desbloqueo al vencer deja un bloqueo pendiente recuperable', a
 
 test('los descansos duran 5 o 15 minutos y terminan sin tocar el bloqueo', async t => {
   for (const [kind, minutes] of [['shortBreak', 5], ['longBreak', 15]] as const) {
-    const { focus, store, blocker, notifier, clock } = createHarness(t);
+    const { focus, store, blocker, notifier, sound, clock } = createHarness(t);
     await focus.startBreak(kind);
     assert.deepEqual(store.state.session, { kind, endsAt: clock.now() + minutes * 60000 });
     clock.advanceMinutes(minutes);
@@ -95,6 +129,7 @@ test('los descansos duran 5 o 15 minutos y terminan sin tocar el bloqueo', async
     assert.equal(store.state.session, null);
     assert.equal(blocker.calls.length, 0);
     assert.deepEqual(notifier.titles(), ['Descanso terminado']);
+    assert.equal(sound.plays, 0);
   }
 });
 
