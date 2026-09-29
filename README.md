@@ -19,7 +19,7 @@ Por eso conviene leer el código con esa perspectiva: está pensado para mi uso 
 
 ## Iniciar
 
-Necesitas Node.js y npm.
+Necesitas Node.js 24 (ver `.nvmrc`) y npm.
 
 ```bash
 npm install
@@ -53,5 +53,7 @@ Los dominios y el estado del temporizador siguen en `state.json`. Al abrir una i
 npm test
 npm run coverage
 ```
+
+Cada PR hacia `main` ejecuta el check `ci` de GitHub Actions (`npm ci`, `npm run typecheck` y `npm test` en macOS). `main` está protegida: solo acepta cambios por PR con ese check aprobado.
 
 `npm run coverage` compila, ejecuta todas las pruebas con [c8](https://github.com/bcoe/c8) y muestra la cobertura de cada módulo de `src/`, incluidos los que ninguna prueba carga (aparecen con 0 %). El informe HTML queda en `coverage/index.html`. Falla si la cobertura baja de los umbrales de `.c8rc.json`.

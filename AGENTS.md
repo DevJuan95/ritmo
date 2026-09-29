@@ -14,7 +14,7 @@ Ritmo es una aplicación de productividad para macOS hecha con Electron y TypeSc
 
 ## Comandos
 
-- `npm install`: instala dependencias.
+- `npm install`: instala dependencias. El proyecto usa Node 24 (`.nvmrc`, `engines` de `package.json`).
 - `npm run typecheck`: comprueba los tipos del proceso principal y del renderer sin generar archivos.
 - `npm test`: compila todo y ejecuta todas las pruebas con `node --test`.
 - `npm run test:unit`, `npm run test:contract`, `npm run test:integration`: compilan con `tsc` y ejecutan un solo nivel.
@@ -39,9 +39,10 @@ Ritmo es una aplicación de productividad para macOS hecha con Electron y TypeSc
 - Los worktrees viven en `~/orca/workspaces/ritmo/<nombre>`, la carpeta que usa Orca (`workspaceDir` con `nestWorkspaces`). Así quedan juntos los creados desde Orca y los creados con git:
   `git worktree add -b feature/<nombre> ~/orca/workspaces/ritmo/<nombre> main`, y después `npm ci` dentro del worktree.
 - Si el worktree lo creó Orca, usa su rama tal como está; no crees otro para la misma feature.
-- Antes de crear el worktree, confirma que `main` no tiene cambios sin commitear que la feature necesite. Si los tiene, commitéalos primero en `main`; no los copies al worktree.
+- Antes de crear el worktree, confirma que `main` no tiene cambios sin commitear que la feature necesite. Si los tiene, intégralos primero en `main` con su propia rama y PR, porque `main` no admite push directo; no los copies al worktree.
 - Trabaja, ejecuta `npm run typecheck` y `npm test` y commitea en la rama del worktree.
-- Para traerlo a `main`, ejecuta `scripts/integrar-feature.sh` desde el worktree (skill `integrar-feature`). Hace fast-forward de la rama en `main`, verifica `npm test`, sube `main`, borra la rama remota y elimina el worktree y la rama local con `orca worktree rm`, lo que también cierra la sesión del agente en Orca. Si no admite fast-forward, rebasa la rama sobre `main` y resuelve allí. Si el worktree tiene cambios sin commitear, el script se detiene; `--force` los descarta, y solo debe usarse con confirmación del usuario. Ejecútalo como última acción de la sesión.
+- `main` está protegida por un ruleset: no admite push directo ni force-push, y solo integra PR con el check `ci` aprobado, la rama al día con `main` y el método rebase. El check lo define `.github/workflows/ci.yml` (`npm ci`, `npm run typecheck` y `npm test` en macOS con la versión de Node de `.nvmrc`); si renombras el job, actualiza el ruleset.
+- Para traerlo a `main`, ejecuta `scripts/integrar-feature.sh` desde el worktree (skill `integrar-feature`). Sube la rama, crea su PR si no existe, espera el check `ci`, integra el PR por rebase, borra la rama remota, actualiza `main` local y elimina el worktree y la rama local con `orca worktree rm`, lo que también cierra la sesión del agente en Orca. Necesita `gh` autenticado. Si la rama no está al día con `main`, rebásala sobre `main` y resuelve allí; si el check falla, el script se detiene sin integrar. Si el worktree tiene cambios sin commitear, el script se detiene; `--force` los descarta, y solo debe usarse con confirmación del usuario. Ejecútalo como última acción de la sesión.
 - No dejes worktrees abiertos de features ya integradas. `git worktree list` debe mostrar solo `main` y el trabajo en curso.
 
 ## Pruebas
