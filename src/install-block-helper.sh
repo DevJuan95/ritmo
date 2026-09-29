@@ -25,7 +25,8 @@ rule=/etc/sudoers.d/ritmo-$(printf '%s' "$account" | tr . %)
 /usr/bin/install -d -o root -g wheel -m 755 /Library/PrivilegedHelperTools
 temporary_rule=$(mktemp "$rule.XXXXXX")
 temporary_helper=$(mktemp /Library/PrivilegedHelperTools/ritmo.XXXXXX)
-trap 'rm -f "$temporary_rule" "$temporary_helper"' EXIT HUP INT TERM
+trap 'rm -f "$temporary_rule" "$temporary_helper"' EXIT
+trap 'exit 1' HUP INT TERM
 # secure_path es una segunda defensa: sudo no pasa al helper el PATH de quien lo llama.
 {
   printf 'Defaults!%s secure_path="/usr/bin:/bin:/usr/sbin:/sbin"\n' "$helper"

@@ -25,4 +25,6 @@ export interface PublicStatePort {
 export interface StateShutdownPort {
   drain(): Promise<void>;
   closeWith<T>(work: () => Promise<T>): Promise<T>;
+  /** Guarda por última vez; los `save()` posteriores no escriben. */
+  seal(): void;
 }

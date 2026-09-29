@@ -2,7 +2,8 @@ import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
+import { once } from 'node:events';
 import { distRoot, repoRoot } from '../helpers/paths';
 import { tempDir } from '../helpers/temp';
 
@@ -58,6 +59,24 @@ test('desbloquear sin sección previa deja el archivo igual', { skip: asRoot }, 
   const { run, read } = hostsFile(t);
   assert.equal(run('unblock').status, 0);
   assert.equal(read(), original);
+});
+
+test('una señal antes de escribir termina el script sin tocar hosts', { skip: asRoot }, async t => {
+  // Con hosts como FIFO, awk se queda leyendo hasta que se escribe en él: la señal llega a mitad.
+  const hosts = path.join(tempDir(t, { base: '/tmp' }), 'hosts');
+  assert.equal(spawnSync('/usr/bin/mkfifo', [hosts]).status, 0);
+  // En su propio grupo, para poder terminar también sus hijos si el script no sale.
+  const child = spawn('/bin/sh', [script, 'unblock'], { env: { ...process.env, RITMO_TEST_HOSTS: hosts }, detached: true });
+  const exited = once(child, 'exit');
+  const writer = await fs.promises.open(hosts, 'w');
+  child.kill('SIGTERM');
+  await writer.writeFile(original);
+  await writer.close();
+  // Si el script siguiera, se quedaría esperando para escribir en el FIFO en lugar de salir.
+  const timer = setTimeout(() => process.kill(-child.pid!, 'SIGKILL'), 5000);
+  const [code, signal] = await exited;
+  clearTimeout(timer);
+  assert.deepEqual([code, signal], [1, null]);
 });
 
 test('comprobar el helper no modifica hosts', { skip: asRoot }, t => {
