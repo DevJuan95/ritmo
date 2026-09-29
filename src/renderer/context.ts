@@ -1,4 +1,5 @@
 import type { PublicState } from '../shared/contracts.js';
+import type { ButtonStyle } from './view.js';
 
 let state: PublicState | undefined;
 let message = '';
@@ -33,7 +34,7 @@ export async function action(work: () => Promise<void>): Promise<void> {
   catch (error) { showError(error); }
 }
 
-export function button(text: string, style: 'primary' | 'secondary' | 'ghost', work: () => Promise<void>, disabled = false): HTMLButtonElement {
+export function button(text: string, style: ButtonStyle, work: () => Promise<void>, disabled = false): HTMLButtonElement {
   const element = document.createElement('button');
   element.type = 'button';
   const styles = {

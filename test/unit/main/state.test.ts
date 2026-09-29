@@ -1,9 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { DEFAULT_DOMAINS } from '../../../src/shared/validation';
+import path from 'node:path';
+import { StateStore } from '../../../src/main/state';
+import { DEFAULT_DOMAINS, todayKey } from '../../../src/shared/validation';
 import { FakeClock } from '../../helpers/fakes';
 import { createHarness } from '../../helpers/harness';
+import { tempDir } from '../../helpers/temp';
 
 test('sin state.json arranca con el estado inicial del día del reloj', t => {
   const { store } = createHarness(t);
@@ -110,4 +113,27 @@ test('guarded serializa operaciones y siempre libera busy y guarda', async t => 
   assert.equal(store.busy, false);
   assert.equal(harness.readSaved().focusCount, 9);
   assert.equal(published.at(-1)?.busy, false);
+});
+
+test('propaga los errores de lectura que no son archivo inexistente', t => {
+  const harness = createHarness(t);
+  fs.mkdirSync(harness.statePath);
+  assert.throws(() => harness.reopen(), (error: NodeJS.ErrnoException) => error.code === 'EISDIR');
+});
+
+test('completa con los sitios por defecto un estado guardado sin dominios', t => {
+  const { store } = createHarness(t, { saved: { domains: undefined } });
+  assert.deepEqual(store.state.domains, DEFAULT_DOMAINS);
+});
+
+test('funciona sin repositorio, reloj ni publicación inyectados', t => {
+  const statePath = path.join(tempDir(t), 'state.json');
+  fs.writeFileSync(statePath, JSON.stringify({ day: '2000-01-01', tasks: [{ id: 'a', title: 'Antigua', done: false }], focusCount: 3 }));
+  const store = new StateStore(statePath);
+  assert.equal(store.today(), todayKey());
+  store.rollDay();
+  assert.equal(store.state.day, todayKey());
+  assert.deepEqual(store.state.tasks, []);
+  assert.equal(store.state.focusCount, 0);
+  assert.equal(JSON.parse(fs.readFileSync(statePath, 'utf8')).day, todayKey());
 });

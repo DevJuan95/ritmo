@@ -1,11 +1,11 @@
 import { $, action, getState } from './context.js';
+import { completionText } from './view.js';
 
 export function renderTasks(): void {
   const state = getState();
   const list = $('#task-list');
   list.replaceChildren();
-  const done = state.tasks.filter(task => task.done).length;
-  $('#task-progress').textContent = state.tasks.length ? `${done} de ${state.tasks.length} completadas` : 'Elige lo que importa.';
+  $('#task-progress').textContent = completionText(state.tasks, 'Elige lo que importa.');
   $('#task-empty').hidden = state.tasks.length > 0;
   for (const task of state.tasks) {
     const row = document.createElement('li');

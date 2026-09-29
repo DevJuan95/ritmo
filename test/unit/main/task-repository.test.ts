@@ -97,3 +97,19 @@ test('importa tareas antiguas de forma idempotente y atómica', t => {
   assert.throws(() => repository.importLegacy([{ id: 'c', title: 'Válida', done: false }, { id: 'd', title: '   ', done: false }], '2026-09-21'));
   assert.equal(repository.listByDay('2026-09-21').length, 0, 'un error revierte toda la importación');
 });
+
+test('la importación omite entradas sin identificador', t => {
+  const { repository } = openRepository(t);
+  const legacy = [null, { id: '', title: 'Sin id', done: false }, { id: 7, title: 'Id numérico', done: false }, { id: 'ok', title: 'Válida', done: false }];
+  repository.importLegacy(legacy as never, '2026-09-20');
+  assert.deepEqual(repository.listByDay('2026-09-20').map(task => task.id), ['ok']);
+});
+
+test('sin generador inyectado usa UUID aleatorios', t => {
+  const repository = new TaskRepository(path.join(tempDir(t), 'ritmo.db'));
+  t.after(() => repository.close());
+  const first = repository.create('Una', '2026-09-29');
+  const second = repository.create('Otra', '2026-09-29');
+  assert.match(first.id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  assert.notEqual(first.id, second.id);
+});

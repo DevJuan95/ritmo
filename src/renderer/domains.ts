@@ -1,10 +1,11 @@
 import { $, action, getState } from './context.js';
+import { domainsLocked } from './view.js';
 
 export function renderDomains(): void {
   const state = getState();
   const list = $('#domain-list');
   list.replaceChildren();
-  const locked = state.session?.kind === 'focus' || !!state.blockError || state.busy;
+  const locked = domainsLocked(state);
   for (const domain of state.domains) {
     const chip = document.createElement('span'); chip.className = 'badge badge-soft badge-secondary domain-chip';
     const label = document.createElement('span'); label.textContent = domain;

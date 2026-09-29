@@ -1,6 +1,7 @@
 import type { Task } from '../shared/contracts.js';
 import { todayKey } from '../shared/validation.js';
 import { $, action, hasMessage, showError } from './context.js';
+import { completionText } from './view.js';
 
 let visible = false;
 let request = 0;
@@ -83,8 +84,7 @@ export async function refreshPlanner(): Promise<void> {
     const list = $('#planner-list');
     list.replaceChildren(...tasks.map(taskRow));
     $('#planner-empty').hidden = tasks.length > 0;
-    const done = tasks.filter(task => task.done).length;
-    $('#planner-progress').textContent = tasks.length ? `${done} de ${tasks.length} completadas` : '';
+    $('#planner-progress').textContent = completionText(tasks, '');
   } catch (error) { if (current === request) showError(error); }
 }
 

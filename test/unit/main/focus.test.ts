@@ -129,3 +129,33 @@ test('recover reconcilia el estado guardado con /etc/hosts', t => {
     else assert.equal(store.state.blockError, null);
   }
 });
+
+test('terminar el foco sin sesión ni bloqueo pendiente no toca hosts', async t => {
+  const { focus, blocker } = createHarness(t);
+  assert.equal(focus.mustReleaseBeforeQuit(), false);
+  await focus.finishFocus();
+  assert.equal(blocker.calls.length, 0);
+});
+
+test('durante el foco hay que quitar el bloqueo antes de salir', async t => {
+  const { focus } = createHarness(t);
+  await focus.startFocus();
+  assert.equal(focus.mustReleaseBeforeQuit(), true);
+});
+
+test('finishBreak cierra el descanso en curso y tolera no tener sesión', async t => {
+  const { focus, store } = createHarness(t);
+  await focus.finishBreak();
+  await focus.startBreak('longBreak');
+  await focus.finishBreak();
+  assert.equal(store.state.session, null);
+});
+
+test('guarda como texto un fallo de desbloqueo que no es un Error', async t => {
+  const { focus, store, blocker, clock } = createHarness(t);
+  await focus.startFocus();
+  clock.advanceMinutes(25);
+  blocker.failNext('sin permiso' as unknown as Error);
+  await focus.tick();
+  assert.equal(store.state.blockError, 'sin permiso');
+});

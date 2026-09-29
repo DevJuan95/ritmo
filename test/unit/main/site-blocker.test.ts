@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import { BLOCK_MARKER, createSiteBlocker, type SiteBlockerDeps } from '../../../src/main/site-blocker';
+import { tempDir } from '../../helpers/temp';
 
 function blockerWith(overrides: Partial<SiteBlockerDeps> = {}) {
   const calls: Array<{ file: string; args: string[] }> = [];
@@ -47,4 +50,12 @@ test('detecta la sección de Ritmo en hosts y tolera errores de lectura', () => 
   assert.equal(read(`127.0.0.1 localhost\n${BLOCK_MARKER}\n0.0.0.0 x.com\n`), true);
   assert.equal(read('127.0.0.1 localhost\n'), false);
   assert.equal(blockerWith({ readFile: () => { throw new Error('EACCES'); } }).blocker.hasManagedBlock(), false);
+});
+
+test('por defecto lee el archivo hosts configurado', t => {
+  const hostsPath = path.join(tempDir(t), 'hosts');
+  const blocker = createSiteBlocker({ hostsPath });
+  assert.equal(blocker.hasManagedBlock(), false, 'sin archivo no hay bloqueo');
+  fs.writeFileSync(hostsPath, `127.0.0.1 localhost\n${BLOCK_MARKER}\n`);
+  assert.equal(blocker.hasManagedBlock(), true);
 });

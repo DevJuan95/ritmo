@@ -1,0 +1,24 @@
+{
+  "all": true,
+  "src": [
+    "dist/src"
+  ],
+  "include": [
+    "dist/src/**/*.js"
+  ],
+  "exclude": [
+    "dist/src/renderer.js",
+    "dist/src/main/ports.js",
+    "dist/src/shared/contracts.js"
+  ],
+  "reporter": [
+    "text",
+    "html"
+  ],
+  "reports-dir": "coverage",
+  "check-coverage": true,
+  "lines": 60,
+  "statements": 60,
+  "branches": 95,
+  "functions": 90
+}

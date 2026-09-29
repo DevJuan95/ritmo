@@ -6,7 +6,7 @@ Ritmo es una aplicación de productividad para macOS hecha con Electron y TypeSc
 
 - `src/main.ts` inicia el proceso principal. En `src/main/`, `app.ts` es la raíz de composición: crea las implementaciones reales y las inyecta. `state.ts`, `focus.ts`, `task-service.ts`, `domains.ts` y `tasks.ts` (repositorio SQLite) no importan Electron. Sus dependencias externas (bloqueo de sitios, notificaciones, reloj, IPC, publicación del estado) son interfaces de `ports.ts`, con adaptadores en `site-blocker.ts` y `notifier.ts`. `ipc.ts` solo conecta canales con servicios.
 - `src/preload.ts` expone `window.ritmo` al renderer. Mantén el aislamiento de contexto y la API limitada.
-- `src/renderer/app.ts` inicia la interfaz; los módulos de `src/renderer/` renderizan el temporizador, las tareas y los dominios. No hay framework de interfaz.
+- `src/renderer/app.ts` inicia la interfaz; los módulos de `src/renderer/` renderizan el temporizador, las tareas y los dominios. No hay framework de interfaz. La lógica de presentación sin DOM (textos, estado del temporizador, botones disponibles) va en `src/renderer/view.ts`.
 - `src/shared/contracts.ts` define los tipos de estado y la API; `src/shared/validation.ts` valida entradas y define valores por defecto.
 - `src/block-sites.sh` administra una sección identificada en `/etc/hosts`.
 - `test/` está organizado por nivel; ver «Pruebas».
@@ -18,6 +18,7 @@ Ritmo es una aplicación de productividad para macOS hecha con Electron y TypeSc
 - `npm run typecheck`: comprueba los tipos del proceso principal y del renderer sin generar archivos.
 - `npm test`: compila todo y ejecuta todas las pruebas con `node --test`.
 - `npm run test:unit`, `npm run test:contract`, `npm run test:integration`: compilan con `tsc` y ejecutan un solo nivel.
+- `npm run coverage`: compila y ejecuta todas las pruebas con c8. Informa por archivo de `src/` (también los que no carga ninguna prueba) y falla por debajo de los umbrales de `.c8rc.json`. El HTML queda en `coverage/`.
 - `npm run build`: genera la app en `dist/`.
 - `npm start`: compila y abre Electron; requiere macOS para probar el bloqueo real.
 - `npm run watch:css`: recompila estilos durante cambios de interfaz.
@@ -51,3 +52,5 @@ Ritmo es una aplicación de productividad para macOS hecha con Electron y TypeSc
 - `test/helpers/`: piezas reutilizables. `fakes.ts` tiene `FakeBlocker`, `FakeNotifier`, `FakeClock`, `FakeIpc` y `sequentialIds`. `harness.ts` tiene `createHarness(t, { saved, clock })`, que arma store, repositorio y servicios con dobles, y `buildState`. `temp.ts` tiene `tempDir(t)`, que se limpia sola. Reutilízalas en lugar de crear dobles ad hoc en cada archivo.
 - Controla el tiempo con `FakeClock` (`advanceMinutes`, `nextDay`), no con esperas reales.
 - Para documentar un defecto conocido sin romper la suite, usa `test(..., { todo: 'motivo' }, ...)`. Quita el `todo` cuando lo corrijas.
+- Las pruebas no tienen DOM. En el renderer, lleva la lógica a funciones puras de `view.ts` y pruébalas en `test/unit/renderer/`; los módulos que solo copian valores al DOM quedan sin cubrir.
+- Cobertura: los servicios de `src/main/`, `src/shared/`, `preload.ts` y `view.ts` están al 100 %. Quedan fuera, a propósito, `src/main.ts`, `src/main/app.ts` (raíz de composición con Electron) y los módulos DOM del renderer. `block-sites.sh` no se mide; sus ramas las cubre `test/integration/`. Si añades lógica, añade su prueba en lugar de bajar los umbrales.

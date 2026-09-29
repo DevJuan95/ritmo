@@ -9,7 +9,8 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "rootDir": ".",
-    "outDir": "dist"
+    "outDir": "dist",
+    "sourceMap": true
   },
-  "include": ["src/main.ts", "src/preload.ts", "src/main/**/*.ts", "src/preload/**/*.ts", "src/shared/**/*.ts", "test/**/*.ts"]
+  "include": ["src/main.ts", "src/preload.ts", "src/main/**/*.ts", "src/renderer/**/*.ts", "src/preload/**/*.ts", "src/shared/**/*.ts", "test/**/*.ts"]
 }

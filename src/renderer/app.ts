@@ -3,13 +3,14 @@ import { renderTimer } from './timer.js';
 import { renderTasks } from './tasks.js';
 import { renderDomains } from './domains.js';
 import { initPlanner, refreshPlanner } from './planner.js';
+import { focusCountText } from './view.js';
 
 function render(): void {
   if (!hasState()) return;
   const state = getState();
   const date = new Intl.DateTimeFormat('es-CO', { weekday:'long', day:'numeric', month:'long' }).format(new Date());
   $('#date-label').textContent = date;
-  $('#focus-count').textContent = `${state.focusCount} ${state.focusCount === 1 ? 'pomodoro' : 'pomodoros'} hoy`;
+  $('#focus-count').textContent = focusCountText(state.focusCount);
   renderError(); renderTimer(); renderTasks(); renderDomains(); refreshPlanner();
 }
 

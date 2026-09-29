@@ -35,7 +35,7 @@ El código de Electron, la interfaz y las pruebas está en TypeScript. La interf
 - `src/renderer/`: interfaz organizada por temporizador, tareas y dominios; esbuild la empaqueta en un archivo local sin framework.
 - `src/shared/`: contratos TypeScript y validaciones compartidas.
 
-`src/main.ts` y `src/preload.ts` son las entradas CommonJS de Electron. `src/renderer/app.ts` es la entrada de la interfaz. La compilación usa `tsconfig.json` para Electron y pruebas, y `tsconfig.renderer.json` para comprobar los tipos de la interfaz.
+`src/main.ts` y `src/preload.ts` son las entradas CommonJS de Electron. `src/renderer/app.ts` es la entrada de la interfaz. La compilación usa `tsconfig.json` para Electron y pruebas (también compila los módulos del renderer a CommonJS para probarlos), y `tsconfig.renderer.json` para comprobar los tipos de la interfaz, que esbuild empaqueta.
 
 El icono de Ritmo se muestra en el Dock al abrir la app. Si quieres regenerarlo, ejecuta `python3 scripts/generate-icon.py`; la compilación copia `assets/icon.png` a `dist/`.
 
@@ -51,4 +51,7 @@ Los dominios y el estado del temporizador siguen en `state.json`. Al abrir una i
 
 ```bash
 npm test
+npm run coverage
 ```
+
+`npm run coverage` compila, ejecuta todas las pruebas con [c8](https://github.com/bcoe/c8) y muestra la cobertura de cada módulo de `src/`, incluidos los que ninguna prueba carga (aparecen con 0 %). El informe HTML queda en `coverage/index.html`. Falla si la cobertura baja de los umbrales de `.c8rc.json`.
