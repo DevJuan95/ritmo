@@ -1,12 +1,12 @@
 import { PublicError, type IpcResult } from '../../shared/contracts';
 import type { DomainServicePort } from '../blocking/ports';
 import type { FocusServicePort } from '../focus/ports';
-import type { StateStorePort } from '../state/ports';
+import type { PublicStatePort } from '../state/ports';
 import type { TaskServicePort } from '../tasks/ports';
 import type { IpcRegistrar } from './ports';
 
 export interface Services {
-  store: StateStorePort;
+  store: PublicStatePort;
   focus: FocusServicePort;
   tasks: TaskServicePort;
   domains: DomainServicePort;

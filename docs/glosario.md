@@ -71,8 +71,8 @@ Si cambias un término, un puerto, una interfaz de servicio o un módulo, actual
 | Módulo | Contexto | Puertos (`ports.ts`) | Servicio y adaptadores |
 | --- | --- | --- | --- |
 | `common/` | Piezas que usan varios módulos | `Clock`, `Timers`, `TimerHandle`, `Notifier` | `systemTimers` (`timers.ts`), `createNotifier` (`notifier.ts`) |
-| `state/` | Estado y su persistencia | `StateStorePort`, `PublishState` | `StateStore` (`state-store.ts`) |
-| `focus/` | Sesiones y temporizador | `FocusServicePort`, `SoundPlayer` | `FocusService` (`focus-service.ts`), `createSoundPlayer` (`sound-player.ts`) |
+| `state/` | Estado y su persistencia | `StateStorePort`, `PublicStatePort`, `StateShutdownPort`, `PublishState` | `StateStore` (`state-store.ts`) |
+| `focus/` | Sesiones y temporizador | `FocusServicePort`, `FocusLifecyclePort`, `SoundPlayer` | `FocusService` (`focus-service.ts`), `createSoundPlayer` (`sound-player.ts`) |
 | `blocking/` | Dominios y bloqueo | `DomainServicePort`, `SiteBlocker`, `BlockAction`, `ChangeBlockOptions` | `DomainService` (`domain-service.ts`), `createSiteBlocker` (`site-blocker.ts`) |
 | `tasks/` | Día y tareas | `TaskServicePort`, `TaskRepositoryPort`, `TaskPatch`, `IdGenerator` | `TaskService` (`task-service.ts`), `TaskRepository` (`task-repository.ts`) |
 | `lifecycle/` | Arranque y cierre ordenado | `LifecycleServicePort`, `QuitSignals`, `QuitReason` | `LifecycleService` (`lifecycle-service.ts`), `createQuitSignals` (`quit-signals.ts`) |
@@ -80,12 +80,15 @@ Si cambias un término, un puerto, una interfaz de servicio o un módulo, actual
 
 ## Interfaces de servicio
 
-Contrato de cada servicio con sus consumidores. Cada clase lo declara con `implements`, y `MainCradle`, `Services` (`ipc/handlers.ts`), `LifecycleDeps` y los constructores dependen de la interfaz, no de la clase. Solo incluyen lo que usan los consumidores: por ejemplo, `StateStorePort` no expone `publish()`, `closing` ni `tasks`.
+Contratos de cada servicio con sus consumidores. Cada clase los declara con `implements`, y `MainCradle`, `Services` (`ipc/handlers.ts`), `LifecycleDeps` y los constructores dependen de las interfaces, no de la clase. Cada consumidor recibe solo lo que usa: los manejadores IPC no ven `endFocus()`, `tick()`, `drain()` ni `closeWith()`, y ningún consumidor ve `publish()`, `closing` ni `tasks` de `StateStore`. `MainCradle` registra `store` y `focus` con la intersección de sus interfaces.
 
 | Interfaz | Implementación | Qué ofrece | Quién la usa |
 | --- | --- | --- | --- |
-| `StateStorePort` | `StateStore` | Estado, `busy`, reloj (`now`, `today()`), `publicState()`, `save()`, `rollDay()` y las operaciones protegidas (`guarded()`, `drain()`, `closeWith()`). | `FocusService`, `TaskService`, `DomainService`, `LifecycleService`, `registerHandlers()` |
-| `FocusServicePort` | `FocusService` | Iniciar y terminar foco y descanso; `recover()`, `tick()`, `mustReleaseBeforeQuit()` y `endFocus()` para el ciclo de vida. | `registerHandlers()`, `LifecycleService` |
+| `StateStorePort` | `StateStore` | Estado, `busy`, reloj (`now`, `today()`), `save()`, `rollDay()` y `guarded()`. | `FocusService`, `TaskService`, `DomainService`, `LifecycleService` |
+| `PublicStatePort` | `StateStore` | `rollDay()` y `publicState()`, para responder a `get-state`. | `registerHandlers()` |
+| `StateShutdownPort` | `StateStore` | `drain()` y `closeWith()`, las operaciones protegidas del cierre ordenado. | `LifecycleService` |
+| `FocusServicePort` | `FocusService` | Iniciar y terminar foco y descanso. | `registerHandlers()` |
+| `FocusLifecyclePort` | `FocusService` | `recover()`, `tick()`, `mustReleaseBeforeQuit()` y `endFocus()`. | `LifecycleService` |
 | `TaskServicePort` | `TaskService` | Crear, marcar, borrar, editar, listar por día y resumir tareas. | `registerHandlers()` |
 | `DomainServicePort` | `DomainService` | Añadir y quitar dominios bloqueados. | `registerHandlers()` |
 | `LifecycleServicePort` | `LifecycleService` | `start()`, `listen()` y `shutdown()`. | `app.ts` |

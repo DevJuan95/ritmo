@@ -1,6 +1,6 @@
 import type { Notifier, TimerHandle, Timers } from '../common/ports';
-import type { FocusServicePort } from '../focus/ports';
-import type { StateStorePort } from '../state/ports';
+import type { FocusLifecyclePort } from '../focus/ports';
+import type { StateShutdownPort, StateStorePort } from '../state/ports';
 import type { TaskRepositoryPort } from '../tasks/ports';
 import type { LifecycleServicePort, QuitSignals } from './ports';
 
@@ -15,8 +15,8 @@ export const DEFAULT_SHUTDOWN_TIMEOUT_MS = 160000;
 export const TICK_INTERVAL_MS = 1000;
 
 export interface LifecycleDeps {
-  store: StateStorePort;
-  focus: FocusServicePort;
+  store: StateStorePort & StateShutdownPort;
+  focus: FocusLifecyclePort;
   notifier: Notifier;
   tasks: TaskRepositoryPort;
   timers: Timers;
@@ -25,8 +25,8 @@ export interface LifecycleDeps {
 
 /** Arranque y cierre ordenado del proceso principal. */
 export class LifecycleService implements LifecycleServicePort {
-  private readonly store: StateStorePort;
-  private readonly focus: FocusServicePort;
+  private readonly store: StateStorePort & StateShutdownPort;
+  private readonly focus: FocusLifecyclePort;
   private readonly notifier: Notifier;
   private readonly tasks: TaskRepositoryPort;
   private readonly timers: Timers;
