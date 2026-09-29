@@ -21,7 +21,7 @@ export function App() {
       {error && error !== state?.blockError && <div className="error-banner" role="alert">{error}</div>}
       <Routes>
         <Route path="/" element={state && <TodayScreen state={state} run={run} />} />
-        <Route path="/planner" element={state && <PlannerScreen state={state} run={run} showError={showError} date={plannerDate ?? today} onDateChange={date => setPlannerDate(date === today ? undefined : date)} title={plannerTitle} onTitleChange={setPlannerTitle} />} />
+        <Route path="/planner" element={state && <PlannerScreen state={state} run={run} showError={showError} today={today} date={plannerDate ?? today} onDateChange={date => setPlannerDate(date === today ? undefined : date)} title={plannerTitle} onTitleChange={setPlannerTitle} />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </main>

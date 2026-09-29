@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
-import type { Task } from '../shared/contracts';
+import type { Task, TaskSummary } from '../shared/contracts';
 import type { Clock, IdGenerator, TaskPatch, TaskRepositoryPort } from './ports';
 import { safePlannedDate, safeTaskTitle } from '../shared/validation';
 
@@ -52,6 +52,14 @@ export class TaskRepository implements TaskRepositoryPort {
   listByDay(date: string): Task[] {
     const plannedDate = safePlannedDate(date);
     return (this.db.prepare('SELECT * FROM tasks WHERE planned_date = ? ORDER BY created_at, id').all(plannedDate) as unknown as TaskRow[]).map(taskFromRow);
+  }
+
+  summarizeRange(from: string, to: string): TaskSummary {
+    const rows = this.db.prepare(`
+      SELECT planned_date, COUNT(*) AS total, COUNT(completed_at) AS done FROM tasks
+      WHERE planned_date BETWEEN ? AND ? GROUP BY planned_date ORDER BY planned_date
+    `).all(safePlannedDate(from), safePlannedDate(to)) as unknown as Array<{ planned_date: string; total: number; done: number }>;
+    return Object.fromEntries(rows.map(row => [row.planned_date, { total: Number(row.total), done: Number(row.done) }]));
   }
 
   create(title: string, date: string): Task {

@@ -1,4 +1,4 @@
-import type { Task } from '../shared/contracts';
+import type { Task, TaskSummary } from '../shared/contracts';
 import { safePlannedDate } from '../shared/validation';
 import type { TaskPatch, TaskRepositoryPort } from './ports';
 import { StateStore } from './state';
@@ -28,6 +28,14 @@ export class TaskService {
 
   listByDay(date: unknown): Task[] {
     return this.repository.listByDay(safePlannedDate(date));
+  }
+
+  /** Resumen del rango que muestra el calendario del Planner, en una sola consulta. */
+  summarize(from: unknown, to: unknown): TaskSummary {
+    const first = safePlannedDate(from);
+    const last = safePlannedDate(to);
+    if (first > last) throw new Error('Rango de fechas inválido.');
+    return this.repository.summarizeRange(first, last);
   }
 
   update(id: unknown, patch: unknown): void {

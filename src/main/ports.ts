@@ -1,4 +1,4 @@
-import type { PublicState, Task } from '../shared/contracts';
+import type { PublicState, Task, TaskSummary } from '../shared/contracts';
 
 export type BlockAction = 'block' | 'unblock';
 
@@ -24,6 +24,8 @@ export type TaskPatch = { title?: string; plannedDate?: string; done?: boolean }
 
 export interface TaskRepositoryPort {
   listByDay(date: string): Task[];
+  /** Total y completadas de cada día con tareas entre `from` y `to`, ambos incluidos. */
+  summarizeRange(from: string, to: string): TaskSummary;
   create(title: string, date: string): Task;
   update(id: string, patch: TaskPatch): Task;
   delete(id: string): void;

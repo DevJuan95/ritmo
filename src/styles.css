@@ -36,6 +36,8 @@
   --ink-hover: color-mix(in srgb, var(--ink) 6%, transparent);
   --ink-wash: color-mix(in srgb, var(--ink) 8%, transparent);
   --ink-strike: color-mix(in srgb, var(--ink) 45%, transparent);
+  --on-ink-soft: color-mix(in srgb, var(--on-ink) 85%, transparent);
+  --highlight-soft: color-mix(in srgb, var(--highlight) 55%, transparent);
   --margin-wash: color-mix(in srgb, var(--margin) 9%, transparent);
   --leaf-wash: color-mix(in srgb, var(--leaf) 10%, transparent);
   --tone-text-mix: 82%;
@@ -43,6 +45,7 @@
   /* Tipografía. */
   --serif: ui-serif, "New York", "Iowan Old Style", Georgia, serif;
   --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+  --fs-2xs: 11.5px;
   --fs-xs: 12.5px;
   --fs-sm: 13px;
   --fs-base: 14px;
@@ -99,8 +102,10 @@
   --beat-width: 3px;
   --beats-height: 52px;
   --task-list-max-height: 262px;
-  --planner-max-width: 900px;
-  --planner-form-max-width: 640px;
+  --planner-columns: minmax(0, 1.55fr) minmax(290px, 1fr);
+  --planner-gap: clamp(24px, 3vw, 44px);
+  --calendar-cell-min: 36px;
+  --calendar-cell-height: clamp(46px, 8.2vh, 70px);
   --row-date-max-width: 140px;
   --edit-input-min-width: 140px;
   --dashboard-columns: minmax(360px, 1.15fr) minmax(290px, .85fr);
@@ -239,16 +244,42 @@ h2 { font-family:var(--serif); font-size:var(--fs-heading); font-weight:var(--we
 .sites-note { color:var(--pencil); font-size:var(--fs-xs); line-height:var(--lh-loose); margin:14px 0 0; }
 
 /* Planner. */
-.planner-panel { max-width:var(--planner-max-width); }
 .planner-header { display:flex; justify-content:space-between; align-items:end; gap:20px; }
 .planner-header h2 { font-size:var(--fs-heading-lg); }
-.planner-date-label { display:grid; gap:5px; color:var(--graphite); font-size:var(--fs-sm); font-weight:var(--weight-medium); }
-.planner-date-label input { height:var(--control-lg); background:var(--sheet); border-color:var(--rule); box-shadow:none; color:var(--ink); font-size:var(--fs-base); }
-.planner-form { margin:26px 0 12px; max-width:var(--planner-form-max-width); }
+.planner-today { height:var(--control-button); background:var(--sheet); border-color:var(--rule); box-shadow:none; color:var(--ink); }
+.planner-layout { display:grid; grid-template-columns:var(--planner-columns); gap:var(--planner-gap); align-items:start; margin-top:22px; }
+
+/* El mes: una hoja blanca con un recuadro por día; la cuadrícula del papel queda alrededor. */
+.planner-calendar { --cell-size:var(--calendar-cell-min); width:100%; padding:16px 16px 14px; background:var(--sheet); border:var(--stroke) solid var(--rule); border-radius:var(--corner-md); }
+.planner-calendar .rdp-month_caption { justify-content:flex-start; padding:0 0 0 4px; }
+.planner-calendar .rdp-caption_label { font-family:var(--serif); font-size:var(--fs-heading); font-weight:var(--weight-semibold); letter-spacing:var(--tracking-heading); text-transform:capitalize; }
+.planner-calendar .rdp-nav { left:auto; width:auto; }
+.planner-calendar .rdp-button_previous, .planner-calendar .rdp-button_next { color:var(--graphite); }
+.planner-calendar .rdp-weekdays, .planner-calendar .rdp-week { gap:4px; }
+.planner-calendar .rdp-week { margin-top:4px; }
+.planner-calendar .rdp-weekday { padding-bottom:2px; color:var(--graphite); font-size:var(--fs-xs); font-weight:var(--weight-medium); text-transform:capitalize; }
+.planner-calendar td.rdp-day { flex:1; min-width:0; aspect-ratio:auto; height:var(--calendar-cell-height); background:transparent; }
+.planner-calendar .planner-day { height:100%; min-width:0; padding:6px 7px; flex-direction:column; align-items:flex-start; justify-content:space-between; gap:2px; border:var(--stroke) solid var(--rule); border-radius:var(--corner-sm); aspect-ratio:auto; color:var(--ink); font-variant-numeric:tabular-nums; }
+.planner-calendar .planner-day:hover { border-color:var(--ink); background:var(--paper); }
+.planner-calendar .rdp-outside .planner-day { border-style:dashed; color:var(--pencil); }
+.planner-calendar .rdp-disabled .planner-day { visibility:hidden; }
+.planner-day-number { font-size:var(--fs-base); font-weight:var(--weight-medium); line-height:var(--lh-none); opacity:1; }
+/* Hoy lleva el número resaltado, como la sección activa de la barra lateral. */
+.rdp-today .planner-day-number { font-weight:var(--weight-bold); text-decoration:underline; text-decoration-color:var(--highlight); text-decoration-thickness:.5em; text-underline-offset:-.3em; text-decoration-skip-ink:none; }
+.planner-day-tasks { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--ink-light); font-size:var(--fs-2xs); font-weight:var(--weight-semibold); line-height:1.2; opacity:1; }
+.planner-day-tasks[data-complete="true"] { color:var(--leaf); }
+.planner-calendar .planner-day[data-selected-single="true"] { border-color:var(--ink); background:var(--ink); color:var(--on-ink); }
+.planner-calendar .planner-day[data-selected-single="true"] .planner-day-tasks { color:var(--on-ink-soft); }
+.planner-calendar .rdp-today .planner-day[data-selected-single="true"] .planner-day-number { text-decoration-color:var(--highlight-soft); }
+
+.planner-day-panel { min-width:0; padding-top:6px; }
+.planner-day-heading { font-family:var(--serif); font-size:var(--fs-heading); font-weight:var(--weight-semibold); letter-spacing:var(--tracking-heading); line-height:var(--lh-snug); margin:0; }
+.planner-day-heading::first-letter { text-transform:uppercase; }
+.planner-form { margin:16px 0 8px; }
 .planner-form button { height:var(--control-lg); min-height:var(--control-lg); padding:0 18px; }
 .planner-list { max-height:none; margin-top:8px; }
-.planner-list li { gap:13px; min-height:var(--row-planner); }
-.planner-actions { display:flex; align-items:center; gap:4px; flex-wrap:wrap; }
+.planner-list li { gap:4px 13px; min-height:var(--row-planner); flex-wrap:wrap; }
+.planner-actions { display:flex; align-items:center; gap:4px; flex-wrap:wrap; width:100%; padding-left:29px; }
 .row-action { height:var(--control-sm); min-height:var(--control-sm); padding:0 9px; color:var(--ink-light); font-size:var(--fs-sm); font-weight:var(--weight-medium); }
 .row-action-danger:hover { color:var(--margin); }
 .row-date { height:var(--control-sm); width:auto; max-width:var(--row-date-max-width); background:var(--sheet); border-color:var(--rule); box-shadow:none; color:var(--graphite); font-size:var(--fs-xs); }
@@ -259,6 +290,9 @@ h2 { font-family:var(--serif); font-size:var(--fs-heading); font-weight:var(--we
   .timer-panel, .timer-beats { transition:none; }
 }
 /* Los puntos de corte no admiten variables CSS: se mantienen como literales. */
+@media (max-width:1100px) {
+  .planner-layout { grid-template-columns:1fr; }
+}
 @media (max-width:950px) {
   .app-shell { grid-template-columns:var(--sidebar-width-compact) minmax(0,1fr); }
   .sidebar { padding:32px 12px; }
@@ -277,8 +311,5 @@ h2 { font-family:var(--serif); font-size:var(--fs-heading); font-weight:var(--we
   .main-content { padding:24px 16px; }
   .topbar { flex-direction:column; align-items:start; gap:6px; }
   .timer-panel { padding:22px 18px; }
-  .planner-header { display:block; }
-  .planner-date-label { margin-top:18px; }
-  .planner-list li { align-items:flex-start; flex-wrap:wrap; }
-  .planner-actions { width:100%; padding-left:32px; }
+  .planner-list li { align-items:flex-start; }
 }

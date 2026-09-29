@@ -22,6 +22,7 @@ export function registerHandlers(ipc: IpcRegistrar, { store, focus, tasks, domai
   ipc.handle('toggle-task', (_event, id: unknown) => tasks.toggle(id));
   ipc.handle('delete-task', (_event, id: unknown) => tasks.remove(id));
   ipc.handle('get-tasks-for-day', (_event, date: unknown) => tasks.listByDay(date));
+  ipc.handle('get-task-summary', (_event, from: unknown, to: unknown) => tasks.summarize(from, to));
   ipc.handle('update-task', (_event, id: unknown, patch: unknown) => tasks.update(id, patch));
   ipc.handle('add-domain', (_event, value: unknown) => domains.add(value));
   ipc.handle('remove-domain', (_event, domain: unknown) => domains.remove(domain));

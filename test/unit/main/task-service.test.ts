@@ -57,6 +57,18 @@ test('actualizar desde el planner refresca la lista de hoy', t => {
   assert.throws(() => tasks.listByDay('mañana'), /Fecha inválida/);
 });
 
+test('resume un rango de días y valida sus límites', t => {
+  const { tasks, store } = createHarness(t);
+  tasks.add('Hoy', undefined);
+  tasks.add('Mañana', '2026-09-30');
+  tasks.toggle(store.state.tasks[0].id);
+  assert.deepEqual(tasks.summarize('2026-09-29', '2026-09-30'), { '2026-09-29': { total: 1, done: 1 }, '2026-09-30': { total: 1, done: 0 } });
+  assert.deepEqual(tasks.summarize('2026-09-30', '2026-09-30'), { '2026-09-30': { total: 1, done: 0 } });
+  assert.throws(() => tasks.summarize('2026-09-30', '2026-09-29'), /Rango de fechas inválido/);
+  assert.throws(() => tasks.summarize('1999-12-27', '2000-02-06'), /entre 2000 y 2100/);
+  assert.throws(() => tasks.summarize('2026-09-29', undefined), /Fecha inválida/);
+});
+
 test('las operaciones de tareas avanzan de día antes de actuar', t => {
   const { tasks, store, clock } = createHarness(t, { saved: { focusCount: 4 } });
   clock.nextDay();

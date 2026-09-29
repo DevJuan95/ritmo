@@ -60,7 +60,9 @@ test('los canales de tareas reenvían identificadores, fechas y cambios', async 
 
   await ipc.invoke('delete-task', today.id);
   assert.deepEqual(store.state.tasks.map(task => task.title), ['Adelantada']);
+  assert.deepEqual(await ipc.invoke('get-task-summary', '2026-09-28', '2026-11-08'), { '2026-09-29': { total: 1, done: 0 } });
   await assert.rejects(ipc.invoke('get-tasks-for-day', 'mañana'), /Fecha inválida/);
+  await assert.rejects(ipc.invoke('get-task-summary', '2026-09-28', null), /Fecha inválida/);
 });
 
 test('los canales de dominios validan en el proceso principal', async t => {

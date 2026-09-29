@@ -11,6 +11,7 @@ const ritmo: RitmoAPI = {
   toggleTask: id => ipcRenderer.invoke('toggle-task', id),
   deleteTask: id => ipcRenderer.invoke('delete-task', id),
   getTasksForDay: date => ipcRenderer.invoke('get-tasks-for-day', date),
+  getTaskSummary: (from, to) => ipcRenderer.invoke('get-task-summary', from, to),
   updateTask: (id, patch) => ipcRenderer.invoke('update-task', id, patch),
   addDomain: domain => ipcRenderer.invoke('add-domain', domain),
   removeDomain: domain => ipcRenderer.invoke('remove-domain', domain),

@@ -63,6 +63,21 @@ test('permite editar, completar, reprogramar y borrar sin mover pendientes autom
   assert.equal(repository.listByDay('2026-10-01').length, 0);
 });
 
+test('resume por día el total y las completadas de un rango, con ambos extremos', t => {
+  const { repository } = openRepository(t);
+  const first = repository.create('Una', '2026-09-01');
+  repository.create('Dos', '2026-09-01');
+  repository.create('Fin', '2026-09-30');
+  repository.create('Fuera', '2026-10-01');
+  repository.update(first.id, { done: true });
+  assert.deepEqual(repository.summarizeRange('2026-09-01', '2026-09-30'), {
+    '2026-09-01': { total: 2, done: 1 },
+    '2026-09-30': { total: 1, done: 0 }
+  });
+  assert.deepEqual(repository.summarizeRange('2026-08-01', '2026-08-31'), {});
+  assert.throws(() => repository.summarizeRange('ayer', '2026-09-30'), /Fecha inválida/);
+});
+
 test('rechaza fechas inválidas y títulos vacíos en la capa persistente', t => {
   const { repository } = openRepository(t);
   for (const date of ['2026-02-30', '2026-9-1', '2026-13-01', 'ayer']) {

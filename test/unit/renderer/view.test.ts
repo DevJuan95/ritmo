@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { AppState, PublicState, RitmoAPI, Task } from '../../../src/shared/contracts';
-import { completionText, dateLabel, domainsLocked, focusCountText, isPlannableDate, plannedDateToSave, tasksRevision, timerActions, timerView } from '../../../src/renderer/view';
+import { calendarRange, completionText, dateLabel, dayButtonLabel, dayIndicator, dayToDate, domainsLocked, focusCountText, isPlannableDate, monthOf, plannedDateToSave, tasksRevision, timerActions, timerView } from '../../../src/renderer/view';
 import { buildState } from '../../helpers/harness';
 
 const now = new Date(2026, 8, 29, 9, 0, 0).getTime();
@@ -102,4 +102,34 @@ test('ofrece las acciones de cada estado y llama a la API correspondiente', asyn
   assert.deepEqual(await run(publicState({ session: { kind: 'focus', endsAt: now } })), { buttons: [['Terminar foco', 'secondary']], calls: [['finishFocus']] });
   assert.deepEqual(await run(publicState({ session: { kind: 'longBreak', endsAt: now } })), { buttons: [['Terminar descanso', 'secondary']], calls: [['finishBreak']] });
   assert.deepEqual(await run(publicState({ blockError: 'pendiente', session: { kind: 'focus', endsAt: now } })), { buttons: [['Quitar bloqueo', 'primary']], calls: [['retryUnblock']] });
+});
+
+test('convierte claves de día en fechas locales y en el mes que las contiene', () => {
+  assert.equal(dayToDate('2026-09-29').getTime(), new Date(2026, 8, 29).getTime());
+  assert.equal(monthOf('2026-09-29').getTime(), new Date(2026, 8, 1).getTime());
+});
+
+test('el calendario muestra seis semanas desde el lunes de la semana del día 1', () => {
+  assert.deepEqual(calendarRange(new Date(2026, 8, 1)), { from: '2026-08-31', to: '2026-10-11' });
+  assert.deepEqual(calendarRange(new Date(2026, 5, 15)), { from: '2026-06-01', to: '2026-07-12' }, 'un mes que empieza en lunes');
+  assert.deepEqual(calendarRange(new Date(2026, 2, 1)), { from: '2026-02-23', to: '2026-04-05' }, 'un mes que empieza en domingo');
+});
+
+test('el rango del calendario no sale de los días planificables', () => {
+  assert.deepEqual(calendarRange(new Date(2000, 0, 1)), { from: '2000-01-01', to: '2000-02-06' });
+  assert.deepEqual(calendarRange(new Date(2100, 11, 1)), { from: '2100-11-29', to: '2100-12-31' });
+});
+
+test('el indicador del día cuenta tareas pendientes o completadas', () => {
+  assert.equal(dayIndicator(undefined), null);
+  assert.equal(dayIndicator({ total: 0, done: 0 }), null);
+  assert.deepEqual(dayIndicator({ total: 1, done: 0 }), { text: '1 tarea', label: '1 tarea', complete: false });
+  assert.deepEqual(dayIndicator({ total: 3, done: 0 }), { text: '3 tareas', label: '3 tareas', complete: false });
+  assert.deepEqual(dayIndicator({ total: 3, done: 1 }), { text: '✓ 1/3', label: '1 de 3 completadas', complete: false });
+  assert.deepEqual(dayIndicator({ total: 2, done: 2 }), { text: '✓ 2/2', label: '2 de 2 completadas', complete: true });
+});
+
+test('la etiqueta accesible de cada día dice la fecha, si es hoy y sus tareas', () => {
+  assert.equal(dayButtonLabel('2026-09-29', { total: 3, done: 1 }, true), 'martes, 29 de septiembre de 2026, hoy, 1 de 3 completadas');
+  assert.equal(dayButtonLabel('2026-10-01', undefined, false), 'jueves, 1 de octubre de 2026, sin tareas');
 });
