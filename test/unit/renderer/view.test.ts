@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { AppState, PublicState, RitmoAPI, Task } from '../../../src/shared/contracts';
-import { completionText, domainsLocked, focusCountText, timerActions, timerView } from '../../../src/renderer/view';
+import { completionText, dateLabel, domainsLocked, focusCountText, tasksRevision, timerActions, timerView } from '../../../src/renderer/view';
 import { buildState } from '../../helpers/harness';
 
 const now = new Date(2026, 8, 29, 9, 0, 0).getTime();
@@ -23,6 +23,18 @@ test('cuenta pomodoros en singular y plural', () => {
   assert.equal(focusCountText(0), '0 pomodoros hoy');
   assert.equal(focusCountText(1), '1 pomodoro hoy');
   assert.equal(focusCountText(4), '4 pomodoros hoy');
+});
+
+test('escribe la fecha del encabezado a partir de la clave del día', () => {
+  assert.equal(dateLabel('2026-09-29'), 'martes, 29 de septiembre');
+  assert.equal(dateLabel('2026-10-01'), 'jueves, 1 de octubre');
+});
+
+test('la revisión de tareas solo cambia con el día o sus tareas', () => {
+  const base = publicState({ tasks: [task('a', false)] });
+  assert.equal(tasksRevision({ ...base, busy: true, now: now + 1000, focusCount: 3 }), tasksRevision(base));
+  assert.notEqual(tasksRevision({ ...base, tasks: [task('a', true)] }), tasksRevision(base));
+  assert.notEqual(tasksRevision({ ...base, day: '2026-09-30' }), tasksRevision(base));
 });
 
 test('bloquea la edición de sitios durante el foco, con bloqueo pendiente o en espera', () => {

@@ -12,6 +12,20 @@ export function focusCountText(count: number): string {
   return `${count} ${count === 1 ? 'pomodoro' : 'pomodoros'} hoy`;
 }
 
+/** Fecha del encabezado a partir de la clave del día, p. ej. «martes, 29 de septiembre». */
+export function dateLabel(day: string): string {
+  const [year, month, date] = day.split('-').map(Number);
+  return new Intl.DateTimeFormat('es-CO', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(year, month - 1, date));
+}
+
+/**
+ * Cambia cuando cambian el día o sus tareas, no con cada estado publicado.
+ * El Planner vuelve a pedir la lista del día elegido solo cuando cambia.
+ */
+export function tasksRevision(state: PublicState): string {
+  return JSON.stringify([state.day, state.tasks]);
+}
+
 /** Los sitios no se editan mientras el bloqueo está activo, pendiente o en autorización. */
 export function domainsLocked(state: PublicState): boolean {
   return state.session?.kind === 'focus' || !!state.blockError || state.busy;
