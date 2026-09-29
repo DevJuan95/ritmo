@@ -4,6 +4,7 @@ import type { PublicState, Task, TaskSummary } from '../../shared/contracts';
 import { Button } from '../../components/ui/button';
 import { Calendar, CalendarDayButton } from '../../components/ui/calendar';
 import { Input } from '../../components/ui/input';
+import { cn } from '../../lib/utils';
 import { TaskList } from '../components/task-list';
 import { FIRST_PLANNED_DATE, LAST_PLANNED_DATE, todayKey } from '../../shared/validation';
 import { calendarRange, completionText, dateLabel, dayButtonLabel, dayIndicator, dayToDate, monthOf, tasksRevision } from '../view';
@@ -18,11 +19,14 @@ const SummaryContext = createContext<TaskSummary>({});
 
 function PlannerDayButton({ children, ...props }: ComponentProps<typeof CalendarDayButton>) {
   const indicator = dayIndicator(useContext(SummaryContext)[todayKey(props.day.date)]);
-  return <CalendarDayButton {...props} className="planner-day">
+  return <CalendarDayButton {...props} className={cn(props.className, 'planner-day')}>
     <span className="planner-day-number">{children}</span>
     {indicator && <span className="planner-day-tasks" data-complete={indicator.complete} aria-hidden="true">{indicator.text}</span>}
   </CalendarDayButton>;
 }
+
+// Constante del módulo: un objeto nuevo en cada render haría que react-day-picker recalculara sus componentes.
+const CALENDAR_COMPONENTS = { DayButton: PlannerDayButton };
 
 interface PlannerScreenProps {
   state: PublicState;
@@ -42,9 +46,6 @@ export function PlannerScreen({ state, run, showError, today, date, onDateChange
   const [reload, setReload] = useState(0);
   const revision = tasksRevision(state);
   const { from, to } = calendarRange(month);
-
-  // Al elegir un día de otro mes (o volver a hoy), el calendario pasa a ese mes.
-  useEffect(() => setMonth(monthOf(date)), [date]);
 
   // Las tareas de otros días no llegan en el estado: se piden al elegir el día o el mes y
   // después de cada cambio hecho aquí o en la lista de hoy.
@@ -71,6 +72,13 @@ export function PlannerScreen({ state, run, showError, today, date, onDateChange
     if (title.trim() && await runAndReload(() => window.ritmo.addTask(title, date))) onTitleChange('');
   }
 
+  // El mes cambia solo por una acción del usuario: si siguiera a `date`, el calendario volvería
+  // al mes actual a medianoche, cuando el día elegido por defecto pasa al siguiente.
+  function select(day: Date) {
+    onDateChange(todayKey(day));
+    setMonth(monthOf(todayKey(day)));
+  }
+
   function goToday() {
     onDateChange(today);
     setMonth(monthOf(today));
@@ -88,7 +96,7 @@ export function PlannerScreen({ state, run, showError, today, date, onDateChange
           mode="single"
           required
           selected={dayToDate(date)}
-          onSelect={day => onDateChange(todayKey(day))}
+          onSelect={select}
           month={month}
           onMonthChange={setMonth}
           startMonth={FIRST_DAY}
@@ -99,7 +107,7 @@ export function PlannerScreen({ state, run, showError, today, date, onDateChange
           weekStartsOn={1}
           fixedWeeks
           labels={{ labelDayButton: (day, modifiers) => dayButtonLabel(todayKey(day), summary[todayKey(day)], modifiers.today) }}
-          components={{ DayButton: PlannerDayButton }}
+          components={CALENDAR_COMPONENTS}
         />
       </SummaryContext.Provider>
       <div className="planner-day-panel" aria-labelledby="planner-day-heading" role="region">
