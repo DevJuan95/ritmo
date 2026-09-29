@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import Module from 'node:module';
 import path from 'node:path';
 import { GENERIC_ERROR_MESSAGE, PublicError, type PublicState, type RitmoAPI } from '../../src/shared/contracts';
-import { registerHandlers } from '../../src/main/ipc';
+import { registerHandlers } from '../../src/main/ipc/handlers';
 import { errorMessage } from '../../src/renderer/view';
 import { FakeIpc } from '../helpers/fakes';
 import { createHarness } from '../helpers/harness';

@@ -8,7 +8,7 @@
   ],
   "exclude": [
     "dist/src/renderer.js",
-    "dist/src/main/ports/**",
+    "dist/src/main/**/ports.js",
     "dist/src/shared/contracts.js"
   ],
   "reporter": [

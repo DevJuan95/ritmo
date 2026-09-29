@@ -2,11 +2,11 @@
 
 Cómo se conectan los procesos de Electron, los servicios del proceso principal, sus puertos y sus adaptadores, y cómo avanza una sesión. Los términos se definen en [`glosario.md`](glosario.md).
 
-Si cambias un puerto, un servicio, su registro en `src/main/container.ts`, su cableado en `src/main/app.ts` o el ciclo de una sesión, actualiza estos diagramas en el mismo cambio.
+Si cambias un puerto, un servicio o su interfaz, un módulo, su registro en `src/main/container.ts`, su cableado en `src/main/app.ts` o el ciclo de una sesión, actualiza estos diagramas en el mismo cambio.
 
 ## 1. Procesos
 
-El renderer no tiene acceso a Node ni a Electron. Todo pasa por `window.ritmo`, que `preload.ts` expone con `contextBridge`. Cada método, salvo `onState()`, invoca un canal IPC; `ipc.ts` lo conecta con un servicio, que valida la entrada. Los handlers devuelven `IpcResult`: los errores `PublicError` conservan un mensaje útil; las excepciones inesperadas se registran en el proceso principal y cruzan IPC sin detalle. Preload convierte los fallos, incluidos los de `ipcRenderer.invoke`, en `ApiError`; el renderer solo muestra esos mensajes. El estado vuelve por un solo canal, `state`, que `onState()` escucha, cada vez que `StateStore` guarda o empieza una operación protegida. `StateStore.publicState()` reemplaza cualquier `blockError` guardado por una indicación fija con la acción de recuperación.
+El renderer no tiene acceso a Node ni a Electron. Todo pasa por `window.ritmo`, que `preload.ts` expone con `contextBridge`. Cada método, salvo `onState()`, invoca un canal IPC; `ipc/handlers.ts` lo conecta con un servicio, que valida la entrada. Los handlers devuelven `IpcResult`: los errores `PublicError` conservan un mensaje útil; las excepciones inesperadas se registran en el proceso principal y cruzan IPC sin detalle. Preload convierte los fallos, incluidos los de `ipcRenderer.invoke`, en `ApiError`; el renderer solo muestra esos mensajes. El estado vuelve por un solo canal, `state`, que `onState()` escucha, cada vez que `StateStore` guarda o empieza una operación protegida. `StateStore.publicState()` reemplaza cualquier `blockError` guardado por una indicación fija con la acción de recuperación.
 
 ```mermaid
 flowchart LR
@@ -21,7 +21,7 @@ flowchart LR
   end
 
   subgraph main["Proceso principal"]
-    ipc["ipc.ts<br/>registerHandlers"]
+    ipc["ipc/handlers.ts<br/>registerHandlers"]
     services["FocusService<br/>TaskService<br/>DomainService"]
     store["StateStore"]
     ipc --> services
@@ -36,11 +36,13 @@ flowchart LR
   api -- "onState(callback)" --> ui
 ```
 
-Canales: `get-state`, `start-focus`, `finish-focus`, `retry-unblock`, `start-break`, `finish-break`, `add-task`, `toggle-task`, `delete-task`, `get-tasks-for-day`, `get-task-summary`, `update-task`, `add-domain` y `remove-domain`, en `invoke`, y `state`, que va del proceso principal al renderer. `retry-unblock` y `finish-focus` llaman al mismo método, `FocusService.finishFocus()`. `get-task-summary` devuelve el resumen de tareas del rango que muestra el calendario del Planner en una sola consulta, en lugar de pedir cada día con `get-tasks-for-day`. `test/contract/` comprueba que `RitmoAPI`, `preload.ts` e `ipc.ts` sigan sincronizados.
+Canales: `get-state`, `start-focus`, `finish-focus`, `retry-unblock`, `start-break`, `finish-break`, `add-task`, `toggle-task`, `delete-task`, `get-tasks-for-day`, `get-task-summary`, `update-task`, `add-domain` y `remove-domain`, en `invoke`, y `state`, que va del proceso principal al renderer. `retry-unblock` y `finish-focus` llaman al mismo método, `FocusService.finishFocus()`. `get-task-summary` devuelve el resumen de tareas del rango que muestra el calendario del Planner en una sola consulta, en lugar de pedir cada día con `get-tasks-for-day`. `test/contract/` comprueba que `RitmoAPI`, `preload.ts` e `ipc/handlers.ts` sigan sincronizados.
 
 ## 2. Servicios y dependencias
 
-`src/main/app.ts` es la raíz de composición. Crea con `createMainContainer()` (`src/main/container.ts`, Awilix) un contenedor en el que todo es singleton, le pasa lo que viene de Electron (`userData`, `Notification` y la función que publica el estado) y resuelve de él `lifecycle`. Después conecta las vías de salida con el cierre ordenado, registra los manejadores IPC con `ipcMain` y el propio `container.cradle`. Solo `app.ts` y `preload.ts` importan `electron`, y solo `container.ts` importa Awilix. Los servicios no conocen el contenedor: las fábricas de `container.ts` llaman a sus constructores de forma explícita y los servicios reciben lo de Electron a través de los puertos de `ports/`, que reexporta `ports/index.ts`.
+`src/main/app.ts` es la raíz de composición. Crea con `createMainContainer()` (`src/main/container.ts`, Awilix) un contenedor en el que todo es singleton, le pasa lo que viene de Electron (`userData`, `Notification` y la función que publica el estado) y resuelve de él `lifecycle`. Después conecta las vías de salida con el cierre ordenado, registra los manejadores IPC con `ipcMain` y el propio `container.cradle`. Solo `app.ts` y `preload.ts` importan `electron`, y solo `container.ts` importa Awilix. Los servicios no conocen el contenedor: las fábricas de `container.ts` llaman a sus constructores de forma explícita y los servicios reciben lo de Electron a través de puertos.
+
+`src/main/` está dividido en módulos por contexto (`common/`, `state/`, `focus/`, `blocking/`, `tasks/`, `lifecycle/` e `ipc/`; ver «Módulos» en el [glosario](glosario.md)). Cada módulo declara en su `ports.ts` los puertos de salida que necesita y la interfaz de su servicio (`StateStorePort`, `FocusServicePort`, `TaskServicePort`, `DomainServicePort`, `LifecycleServicePort`), que la clase implementa. Los consumidores, `MainCradle` incluido, dependen solo de esas interfaces, y los módulos se importan entre sí solo a través de `ports.ts`: `container.ts` es el único que construye las clases de servicio.
 
 ```mermaid
 flowchart TB
@@ -48,21 +50,21 @@ flowchart TB
   container["createMainContainer<br/>container.ts (Awilix)"]
 
   subgraph servicios["Servicios (no importan Electron)"]
-    ipc["registerHandlers<br/>ipc.ts"]
-    focus["FocusService<br/>focus.ts"]
-    taskService["TaskService<br/>task-service.ts"]
-    domainService["DomainService<br/>domains.ts"]
-    lifecycle["LifecycleService<br/>lifecycle.ts"]
-    store["StateStore<br/>state.ts"]
-    repo["TaskRepository<br/>tasks.ts"]
+    ipc["registerHandlers<br/>ipc/handlers.ts"]
+    focus["FocusService<br/>focus/focus-service.ts"]
+    taskService["TaskService<br/>tasks/task-service.ts"]
+    domainService["DomainService<br/>blocking/domain-service.ts"]
+    lifecycle["LifecycleService<br/>lifecycle/lifecycle-service.ts"]
+    store["StateStore<br/>state/state-store.ts"]
+    repo["TaskRepository<br/>tasks/task-repository.ts"]
   end
 
   subgraph adaptadores["Adaptadores (no importan Electron)"]
-    blocker["createSiteBlocker<br/>site-blocker.ts"]
-    notifier["createNotifier<br/>notifier.ts"]
-    sound["createSoundPlayer<br/>sound-player.ts"]
-    timers["systemTimers<br/>timers.ts"]
-    quit["createQuitSignals<br/>quit-signals.ts"]
+    blocker["createSiteBlocker<br/>blocking/site-blocker.ts"]
+    notifier["createNotifier<br/>common/notifier.ts"]
+    sound["createSoundPlayer<br/>focus/sound-player.ts"]
+    timers["systemTimers<br/>common/timers.ts"]
+    quit["createQuitSignals<br/>lifecycle/quit-signals.ts"]
   end
 
   subgraph externos["Efectos externos"]
@@ -81,26 +83,26 @@ flowchart TB
 
   app -- "userDataPath, notificationApi, publish" --> container
   app -- "ipcMain, container.cradle" --> ipc
-  app -- "QuitSignals, exit" --> lifecycle
+  app -- "LifecycleServicePort:<br/>QuitSignals, exit" --> lifecycle
   app -- "app, powerMonitor, process" --> quit
   container -. "registra singletons" .-> servicios
   container -. "registra singletons" .-> adaptadores
 
   ipc -- "IpcRegistrar" --> ipcMain
-  ipc --> store
-  ipc --> focus
-  ipc --> taskService
-  ipc --> domainService
+  ipc -- "StateStorePort" --> store
+  ipc -- "FocusServicePort" --> focus
+  ipc -- "TaskServicePort" --> taskService
+  ipc -- "DomainServicePort" --> domainService
 
-  focus --> store
+  focus -- "StateStorePort" --> store
   focus -- "SiteBlocker" --> blocker
   focus -- "Notifier" --> notifier
   focus -- "SoundPlayer" --> sound
-  taskService --> store
+  taskService -- "StateStorePort" --> store
   taskService -- "TaskRepositoryPort" --> repo
-  domainService --> store
-  lifecycle --> store
-  lifecycle --> focus
+  domainService -- "StateStorePort" --> store
+  lifecycle -- "StateStorePort" --> store
+  lifecycle -- "FocusServicePort" --> focus
   lifecycle -- "TaskRepositoryPort" --> repo
   lifecycle -- "Notifier" --> notifier
   lifecycle -- "Timers" --> timers
@@ -122,9 +124,9 @@ flowchart TB
   classDef electron fill:#fde2e2,stroke:#c0392b,color:#000
 ```
 
-En rojo, lo que depende de Electron. Las flechas continuas son dependencias en tiempo de ejecución, rotuladas con el puerto cuando lo hay; las discontinuas indican que `container.ts` registra el módulo. `registerHandlers()` no está en el contenedor: lo llama `app.ts`.
+En rojo, lo que depende de Electron. Las flechas continuas son dependencias en tiempo de ejecución, rotuladas con el puerto o la interfaz de servicio por la que pasan; las discontinuas indican que `container.ts` registra el módulo. `registerHandlers()` no está en el contenedor: lo llama `app.ts`.
 
-Registros de `createMainContainer()`:
+Registros de `createMainContainer()`. En `MainCradle`, los servicios y el repositorio se tipan con su interfaz: `taskRepository` como `TaskRepositoryPort`, `store` como `StateStorePort`, `focus` como `FocusServicePort`, `tasks` como `TaskServicePort`, `domains` como `DomainServicePort` y `lifecycle` como `LifecycleServicePort`.
 
 | Registro | Fábrica | Puertos sin inyectar |
 | --- | --- | --- |

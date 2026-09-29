@@ -4,12 +4,19 @@ Ritmo es una aplicación de productividad para macOS hecha con Electron y TypeSc
 
 ## Mapa del proyecto
 
-- `src/main.ts` inicia el proceso principal. En `src/main/`, `app.ts` es la raíz de composición: crea con `createMainContainer` (`container.ts`, Awilix) el contenedor de singletons, le pasa lo que viene de Electron y resuelve de él los servicios. `lifecycle.ts` (`LifecycleService`) arranca el tic y hace el cierre ordenado de todas las vías de salida (`before-quit`, `SIGINT`, `SIGTERM`, apagado de macOS): espera la operación en curso, quita el bloqueo, guarda el estado y cierra SQLite, con un tiempo máximo. Solo `container.ts` importa Awilix; los servicios reciben sus dependencias por constructor. `state.ts`, `focus.ts`, `task-service.ts`, `domains.ts`, `lifecycle.ts` y `tasks.ts` (repositorio SQLite) no importan Electron. Sus dependencias externas (bloqueo de sitios, notificaciones, sonido, reloj, temporizadores, avisos de salida, IPC, publicación del estado) son interfaces de `ports/`, un archivo por dominio (`site-blocking.ts`, `alerts.ts`, `tasks.ts`, `time.ts`, `lifecycle.ts`, `ipc.ts`) que reexporta `ports/index.ts`, con adaptadores en `site-blocker.ts`, `notifier.ts`, `sound-player.ts`, `timers.ts` y `quit-signals.ts`. `ipc.ts` solo conecta canales con servicios. `window-size.ts` calcula el tamaño inicial de la ventana a partir del área útil de la pantalla.
+- `src/main.ts` inicia el proceso principal. En `src/main/`, `app.ts` es la raíz de composición: crea con `createMainContainer` (`container.ts`, Awilix) el contenedor de singletons, le pasa lo que viene de Electron y resuelve de él los servicios. Solo `container.ts` importa Awilix y construye las clases de servicio; los servicios reciben sus dependencias por constructor y no importan Electron. `window-size.ts` calcula el tamaño inicial de la ventana a partir del área útil de la pantalla. El resto se divide en módulos por contexto, cada uno con su servicio, sus adaptadores y un `ports.ts` con la interfaz del servicio y sus puertos de salida:
+  - `common/`: `Clock`, `Timers`, `Notifier` y sus adaptadores (`timers.ts`, `notifier.ts`).
+  - `state/`: `StateStore` (`state-store.ts`, `StateStorePort`), dueño del estado, su persistencia y las operaciones protegidas; `PublishState`.
+  - `focus/`: `FocusService` (`focus-service.ts`, `FocusServicePort`), sesiones de foco y descanso y el tic; `SoundPlayer` y `sound-player.ts`.
+  - `blocking/`: `DomainService` (`domain-service.ts`, `DomainServicePort`), los dominios bloqueados; `SiteBlocker` y `site-blocker.ts`.
+  - `tasks/`: `TaskService` (`task-service.ts`, `TaskServicePort`) y el repositorio SQLite (`task-repository.ts`, `TaskRepositoryPort`).
+  - `lifecycle/`: `LifecycleService` (`lifecycle-service.ts`, `LifecycleServicePort`) arranca el tic y hace el cierre ordenado de todas las vías de salida (`before-quit`, `SIGINT`, `SIGTERM`, apagado de macOS): espera la operación en curso, quita el bloqueo, guarda el estado y cierra SQLite, con un tiempo máximo; `QuitSignals` y `quit-signals.ts`.
+  - `ipc/`: `handlers.ts` solo conecta canales con servicios; `IpcRegistrar`.
 - `src/preload.ts` expone `window.ritmo` al renderer. Mantén el aislamiento de contexto y la API limitada.
 - `src/renderer/main.tsx` inicia React. `src/renderer/screens/` contiene Hoy y Planner; `src/renderer/components/` contiene las piezas de la aplicación y `src/components/ui/` los componentes editables de shadcn/ui. La lógica de presentación sin DOM va en `src/renderer/view.ts`.
 - `src/shared/contracts.ts` define los tipos de estado y la API; `src/shared/validation.ts` valida entradas y define valores por defecto.
 - `src/block-sites.sh` administra una sección identificada en `/etc/hosts`; con `check` solo comprueba que se puede ejecutar. Se instala como helper de root en `/Library/PrivilegedHelperTools/ritmo-block-sites`.
-- `src/install-block-helper.sh` instala ese helper y la regla de sudoers de la cuenta. Lo ejecuta `site-blocker.ts` con `osascript` y privilegios de administrador, solo cuando el helper falta, cambió o perdió el permiso.
+- `src/install-block-helper.sh` instala ese helper y la regla de sudoers de la cuenta. Lo ejecuta `main/blocking/site-blocker.ts` con `osascript` y privilegios de administrador, solo cuando el helper falta, cambió o perdió el permiso.
 - `test/` está organizado por nivel; ver «Pruebas».
 - `src/styles.css` usa Tailwind CSS y los tokens de shadcn/ui. Vite compila la interfaz a `dist/src/`; `dist/` es generado y está ignorado por Git.
 
@@ -26,14 +33,15 @@ Ritmo es una aplicación de productividad para macOS hecha con Electron y TypeSc
 
 ## Al cambiar código
 
-- Conserva sincronizados los contratos de `src/shared/contracts.ts`, el puente de `src/preload.ts`, los manejadores de `src/main/ipc.ts` y sus llamadas desde el renderer.
+- Conserva sincronizados los contratos de `src/shared/contracts.ts`, el puente de `src/preload.ts`, los manejadores de `src/main/ipc/handlers.ts` y sus llamadas desde el renderer.
 - Valida en el proceso principal toda entrada recibida por IPC. El renderer no tiene acceso directo a Node ni a Electron.
 - Respeta la persistencia local de `StateStore` y el reinicio diario de tareas y contador. Las operaciones de foco que cambian el estado pasan por `guarded`.
 - En el bloqueo de sitios, preserva las entradas ajenas a la sección de Ritmo y la recuperación tras un cierre inesperado. No ejecutes pruebas contra el `/etc/hosts` real: la prueba del script usa `RITMO_TEST_HOSTS` con un archivo temporal.
 - Antes de cerrar un cambio de código, ejecuta `npm run typecheck` y las pruebas pertinentes. Si cambias la compilación o recursos copiados a `dist/`, ejecuta también `npm run build`.
 - No edites `dist/` ni `node_modules/` directamente. Respeta los cambios locales existentes que no pertenezcan a la tarea.
-- Si cambias un puerto, un servicio, su registro en `src/main/container.ts` o su cableado en `src/main/app.ts`, el ciclo de una sesión o un término del dominio (tipos de `src/shared/contracts.ts` o `src/main/ports/`), actualiza `docs/glosario.md` y `docs/arquitectura.md` en el mismo cambio.
-- Inyecta las dependencias nuevas con efectos externos (Electron, procesos, reloj, red) como un puerto en `src/main/ports/`: añade la interfaz al archivo de su dominio o, si no encaja en ninguno, crea uno nuevo y reexpórtalo en `ports/index.ts`; importa siempre desde `./ports`. Regístralas en `src/main/container.ts` y pasa desde `src/main/app.ts` lo que dependa de Electron. Los servicios no deben importar `electron` ni usar `Date.now()` directamente; usan `store.now()`.
+- Si cambias un puerto, un servicio o su interfaz, un módulo, su registro en `src/main/container.ts` o su cableado en `src/main/app.ts`, el ciclo de una sesión o un término del dominio (tipos de `src/shared/contracts.ts` o de un `ports.ts` de `src/main/`), actualiza `docs/glosario.md` y `docs/arquitectura.md` en el mismo cambio.
+- Inyecta las dependencias nuevas con efectos externos (Electron, procesos, reloj, red) como un puerto en el `ports.ts` del módulo que la usa, o en `common/ports.ts` si la usan varios; si no encaja en ningún módulo, crea uno nuevo con su `ports.ts`.
+- Cada servicio implementa (`implements`) la interfaz declarada en el `ports.ts` de su módulo, con solo lo que usan sus consumidores. Los consumidores, `MainCradle` incluido, dependen de la interfaz y la importan con `import type`; entre módulos solo se importa `ports.ts`, y solo `container.ts` (y las pruebas) importan las clases de servicio. Regístralas en `src/main/container.ts` y pasa desde `src/main/app.ts` lo que dependa de Electron. Los servicios no deben importar `electron` ni usar `Date.now()` directamente; usan `store.now()`.
 
 ## Flujo de trabajo con worktrees
 
@@ -49,8 +57,8 @@ Ritmo es una aplicación de productividad para macOS hecha con Electron y TypeSc
 
 ## Pruebas
 
-- `test/unit/<área>/`: una prueba por módulo de `src/` (por ejemplo, `unit/main/focus.test.ts`). Sin procesos externos; los archivos y SQLite van en directorios temporales.
-- `test/contract/`: comprueba que `preload.ts`, `ipc.ts` y `RitmoAPI` sigan sincronizados. Si añades un método a `RitmoAPI`, `sampleCalls` deja de compilar hasta que lo incluyas.
+- `test/unit/<área>/`: una prueba por archivo de `src/`, en la misma ruta (por ejemplo, `unit/main/focus/focus-service.test.ts`). Sin procesos externos; los archivos y SQLite van en directorios temporales.
+- `test/contract/`: comprueba que `preload.ts`, `ipc/handlers.ts` y `RitmoAPI` sigan sincronizados. Si añades un método a `RitmoAPI`, `sampleCalls` deja de compilar hasta que lo incluyas.
 - `test/integration/`: ejecuta `block-sites.sh` real contra un hosts falso en `/tmp`.
 - `test/helpers/`: piezas reutilizables. `fakes.ts` tiene `FakeBlocker`, `FakeNotifier`, `FakeSoundPlayer`, `FakeClock` (también implementa `Timers`), `FakeQuitSignals`, `FakeIpc` y `sequentialIds`. `harness.ts` tiene `createHarness(t, { saved, clock, shutdownTimeoutMs })`, que arma store, repositorio y servicios (también `lifecycle`, con `clock` como temporizadores) con dobles, y `buildState`. `temp.ts` tiene `tempDir(t)`, que se limpia sola. Reutilízalas en lugar de crear dobles ad hoc en cada archivo.
 - Controla el tiempo con `FakeClock` (`advance`, `advanceMinutes`, `nextDay`, que también disparan sus temporizadores), no con esperas reales.

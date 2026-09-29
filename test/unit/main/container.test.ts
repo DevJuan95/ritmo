@@ -5,9 +5,10 @@ import path from 'node:path';
 import { asValue } from 'awilix';
 import type { PublicState } from '../../../src/shared/contracts';
 import { createMainContainer } from '../../../src/main/container';
-import type { NotificationApi } from '../../../src/main/notifier';
+import type { NotificationApi } from '../../../src/main/common/notifier';
 import { FakeBlocker, FakeClock, FakeSoundPlayer } from '../../helpers/fakes';
-import { systemTimers } from '../../../src/main/timers';
+import { systemTimers } from '../../../src/main/common/timers';
+import { StateStore } from '../../../src/main/state/state-store';
 import { tempDir } from '../../helpers/temp';
 
 function fakeNotificationApi(shown: string[]): NotificationApi {
@@ -36,6 +37,7 @@ test('el contenedor arma los servicios sobre un único store y repositorio', asy
 
   const { store, tasks, domains, focus, taskRepository } = container.cradle;
   assert.equal(container.cradle.store, store);
+  assert.ok(store instanceof StateStore);
   assert.equal(store.tasks, taskRepository);
   assert.equal(store.now, clock.now);
   assert.ok(fs.existsSync(path.join(directory, 'ritmo.db')));
