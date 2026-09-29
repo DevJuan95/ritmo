@@ -11,6 +11,8 @@ import { systemTimers } from '../../../src/main/common/timers';
 import { StateStore } from '../../../src/main/state/state-store';
 import { tempDir } from '../../helpers/temp';
 
+const resourcesPath = '/app/resources';
+
 function fakeNotificationApi(shown: string[]): NotificationApi {
   return class {
     static isSupported(): boolean { return true; }
@@ -26,6 +28,7 @@ test('el contenedor arma los servicios sobre un único store y repositorio', asy
   const clock = new FakeClock();
   const container = createMainContainer({
     userDataPath: directory,
+    resourcesPath,
     publish: state => published.push(state),
     notificationApi: fakeNotificationApi(shown),
     now: clock.now
@@ -56,15 +59,16 @@ test('el contenedor arma los servicios sobre un único store y repositorio', asy
 });
 
 test('usa el reloj del sistema y el bloqueador real por defecto', t => {
-  const container = createMainContainer({ userDataPath: tempDir(t), publish: () => {}, notificationApi: fakeNotificationApi([]) });
+  const container = createMainContainer({ userDataPath: tempDir(t), resourcesPath, publish: () => {}, notificationApi: fakeNotificationApi([]) });
   t.after(() => container.dispose());
   assert.equal(container.cradle.now, Date.now);
   assert.equal(container.cradle.timers, systemTimers);
+  assert.equal(container.cradle.resourcesPath, resourcesPath);
   assert.equal(typeof container.cradle.blocker.hasManagedBlock, 'function');
 });
 
 test('dispose cierra la conexión SQLite', async t => {
-  const container = createMainContainer({ userDataPath: tempDir(t), publish: () => {}, notificationApi: fakeNotificationApi([]) });
+  const container = createMainContainer({ userDataPath: tempDir(t), resourcesPath, publish: () => {}, notificationApi: fakeNotificationApi([]) });
   const repository = container.cradle.taskRepository;
   const close = t.mock.method(repository, 'close');
   await container.dispose();
@@ -75,7 +79,7 @@ test('dispose cierra la conexión SQLite', async t => {
 test('registra el ciclo de vida con los temporizadores y el tiempo máximo del cierre', async t => {
   const clock = new FakeClock();
   const container = createMainContainer({
-    userDataPath: tempDir(t), publish: () => {}, notificationApi: fakeNotificationApi([]),
+    userDataPath: tempDir(t), resourcesPath, publish: () => {}, notificationApi: fakeNotificationApi([]),
     now: clock.now, timers: clock, shutdownTimeoutMs: 10
   });
   t.after(() => container.dispose());

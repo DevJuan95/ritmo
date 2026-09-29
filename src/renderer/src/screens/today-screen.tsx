@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
-import type { PublicState } from '../../shared/contracts';
-import { Button } from '../../components/ui/button';
-import { Input } from '../../components/ui/input';
+import type { PublicState } from '../../../shared/contracts';
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
 import { DomainsPanel } from '../components/domains-panel';
 import { TaskList } from '../components/task-list';
 import { TimerPanel } from '../components/timer-panel';

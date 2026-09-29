@@ -7,8 +7,8 @@ import { once } from 'node:events';
 import { distRoot, repoRoot } from '../helpers/paths';
 import { tempDir } from '../helpers/temp';
 
-const script = path.join(repoRoot, 'src', 'block-sites.sh');
-const installer = path.join(repoRoot, 'src', 'install-block-helper.sh');
+const script = path.join(repoRoot, 'resources', 'block-sites.sh');
+const installer = path.join(repoRoot, 'resources', 'install-block-helper.sh');
 const original = '127.0.0.1 localhost\n1.2.3.4 ejemplo.local\n';
 const asRoot = process.getuid?.() === 0;
 

@@ -1,8 +1,8 @@
 import { useState, type FormEvent } from 'react';
-import type { PublicState } from '../../shared/contracts';
-import { Badge } from '../../components/ui/badge';
-import { Button } from '../../components/ui/button';
-import { Input } from '../../components/ui/input';
+import type { PublicState } from '../../../shared/contracts';
+import { Badge } from './ui/badge';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
 import { domainsLocked } from '../view';
 import type { RunAction } from '../use-ritmo';
 

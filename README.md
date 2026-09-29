@@ -32,15 +32,15 @@ npm start
 
 | Comando | Qué hace |
 | --- | --- |
-| `npm start` | Compila a `dist/` y abre la app |
-| `npm run dev:renderer` | Interfaz en Vite con recarga en caliente, sin datos |
+| `npm start` | Compila a `out/` con electron-vite y abre la app |
+| `npm run dev` | Abre la app con recarga en caliente de la interfaz |
 | `npm run typecheck` | Comprueba los tipos sin generar archivos |
 | `npm test` | Compila y ejecuta todas las pruebas |
 | `npm run coverage` | Pruebas con cobertura (c8); falla bajo los umbrales de `.c8rc.json` |
 
 **Stack:** Electron · React · Tailwind CSS · shadcn/ui · SQLite · TypeScript
 
-El código está en `src/`: `main/` (proceso principal, en módulos por contexto), `preload.ts` (API limitada para la interfaz), `renderer/` (React) y `shared/` (contratos y validaciones). Cada PR hacia `main` pasa el check `ci` (`npm ci`, `npm run typecheck` y `npm test` en macOS).
+El código está en `src/`: `main/` (proceso principal, en módulos por contexto), `preload/` (API limitada para la interfaz), `renderer/` (React) y `shared/` (contratos y validaciones); los scripts del bloqueo y el icono, en `resources/`. Cada PR hacia `main` pasa el check `ci` (`npm ci`, `npm run typecheck` y `npm test` en macOS).
 
 📚 [Arquitectura](docs/arquitectura.md) · [Glosario](docs/glosario.md) · [Desarrollo](docs/desarrollo.md) · [Bloqueo de sitios](docs/bloqueo-de-sitios.md) · [Pautas para agentes](AGENTS.md)
 

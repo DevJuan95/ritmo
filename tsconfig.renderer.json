@@ -6,11 +6,11 @@
     "jsx": "react-jsx",
     "noEmit": true,
     "baseUrl": ".",
-    "paths": { "@/*": ["src/*"] },
+    "paths": { "@/*": ["src/renderer/src/*"] },
     "lib": ["ES2022", "DOM"],
     "strict": true,
     "skipLibCheck": true,
     "rootDir": "src"
   },
-  "include": ["src/renderer/**/*.ts", "src/renderer/**/*.tsx", "src/components/**/*.ts", "src/components/**/*.tsx", "src/lib/**/*.ts", "src/shared/contracts.ts", "src/shared/validation.ts"]
+  "include": ["src/renderer/src/**/*.ts", "src/renderer/src/**/*.tsx", "src/shared/contracts.ts", "src/shared/validation.ts"]
 }

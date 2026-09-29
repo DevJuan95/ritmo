@@ -19,6 +19,7 @@ import { TaskService } from './tasks/task-service';
 
 export interface MainCradle {
   userDataPath: string;
+  resourcesPath: string;
   publish: PublishState;
   now: Clock;
   timers: Timers;
@@ -37,6 +38,8 @@ export interface MainCradle {
 
 export interface MainContainerOptions {
   userDataPath: string;
+  /** Carpeta `resources/` de la app, con los scripts del bloqueo de sitios. */
+  resourcesPath: string;
   publish: PublishState;
   notificationApi: NotificationApi;
   now?: Clock;
@@ -56,12 +59,13 @@ export function createMainContainer(options: MainContainerOptions): AwilixContai
   const container = createContainer<MainCradle>({ injectionMode: InjectionMode.PROXY, strict: true });
   container.register({
     userDataPath: asValue(options.userDataPath),
+    resourcesPath: asValue(options.resourcesPath),
     publish: asValue(options.publish),
     now: asValue(options.now ?? Date.now),
     timers: asValue(options.timers ?? systemTimers),
     shutdownTimeoutMs: asValue(options.shutdownTimeoutMs),
     notificationApi: asValue(options.notificationApi),
-    blocker: asFunction(() => createSiteBlocker()).singleton(),
+    blocker: asFunction(({ resourcesPath }: MainCradle) => createSiteBlocker(resourcesPath)).singleton(),
     notifier: asFunction(({ notificationApi }: MainCradle) => createNotifier(notificationApi)).singleton(),
     sound: asFunction(() => createSoundPlayer()).singleton(),
     taskRepository: asFunction(({ userDataPath, now }: MainCradle) => new TaskRepository(path.join(userDataPath, 'ritmo.db'), { now }))

@@ -3,21 +3,21 @@
   "version": "0.1.0",
   "private": true,
   "description": "Pomodoro, tareas diarias y bloqueo de distracciones para macOS",
-  "main": "dist/src/main.js",
+  "main": "out/main/index.js",
   "engines": {
     "node": ">=24"
   },
   "scripts": {
-    "build": "npm run clean && tsc && tsc -p tsconfig.renderer.json --noEmit && vite build && cp src/block-sites.sh src/install-block-helper.sh assets/icon.png dist/src/",
-    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
-    "dev:renderer": "vite",
-    "start": "npm run build && electron .",
-    "test": "npm run build && npm run test:all",
+    "build": "npm run clean && npm run typecheck && electron-vite build",
+    "clean": "node -e \"for (const dir of ['dist', 'out']) require('node:fs').rmSync(dir, { recursive: true, force: true })\"",
+    "dev": "electron-vite dev",
+    "start": "npm run build && electron-vite preview --skipBuild",
+    "test": "npm run build && tsc && npm run test:all",
     "test:all": "node --test \"dist/test/**/*.test.js\"",
     "test:unit": "npm run clean && tsc && node --test \"dist/test/unit/**/*.test.js\"",
     "test:contract": "npm run clean && tsc && node --test \"dist/test/contract/**/*.test.js\"",
     "test:integration": "npm run clean && tsc && node --test \"dist/test/integration/**/*.test.js\"",
-    "coverage": "npm run build && c8 npm run test:all",
+    "coverage": "npm run build && tsc && c8 npm run test:all",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.renderer.json --noEmit"
   },
   "devDependencies": {
@@ -28,6 +28,7 @@
     "@vitejs/plugin-react": "^5.2.0",
     "c8": "^12.0.0",
     "electron": "^44.4.5",
+    "electron-vite": "^5.0.0",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.9.0",
     "vite": "^7.3.6"

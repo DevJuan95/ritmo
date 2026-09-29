@@ -4,7 +4,7 @@ import Module from 'node:module';
 import path from 'node:path';
 import { GENERIC_ERROR_MESSAGE, PublicError, type PublicState, type RitmoAPI } from '../../src/shared/contracts';
 import { registerHandlers } from '../../src/main/ipc/handlers';
-import { errorMessage } from '../../src/renderer/view';
+import { errorMessage } from '../../src/renderer/src/view';
 import { FakeIpc } from '../helpers/fakes';
 import { createHarness } from '../helpers/harness';
 import { distRoot } from '../helpers/paths';
@@ -36,7 +36,7 @@ function loadPreload(invoke?: (channel: string, ...args: unknown[]) => Promise<u
   };
   const loader = Module as unknown as { _load: (request: string, ...rest: unknown[]) => unknown };
   const original = loader._load;
-  const preloadPath = path.join(distRoot, 'src', 'preload.js');
+  const preloadPath = path.join(distRoot, 'src', 'preload', 'index.js');
   loader._load = function (request: string, ...rest: unknown[]) {
     if (request === 'electron') return electron;
     if ((rest[0] as { filename?: string } | undefined)?.filename === preloadPath && request.startsWith('.')) {

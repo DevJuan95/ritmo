@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { ApiError, IpcResult, PublicState, RitmoAPI } from './shared/contracts';
+import type { ApiError, IpcResult, PublicState, RitmoAPI } from '../shared/contracts';
 
 // El preload con sandbox no puede cargar módulos locales mediante require().
 const GENERIC_ERROR_MESSAGE = 'No se pudo completar la operación. Inténtalo de nuevo.';
