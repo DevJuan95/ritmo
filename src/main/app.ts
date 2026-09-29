@@ -1,8 +1,12 @@
-import { app, BrowserWindow, dialog } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain } from 'electron';
 import path from 'node:path';
+import { DomainService } from './domains';
 import { FocusService } from './focus';
 import { registerHandlers } from './ipc';
+import { electronNotifier } from './notifier';
+import { createSiteBlocker } from './site-blocker';
 import { StateStore } from './state';
+import { TaskService } from './task-service';
 import { TaskRepository } from './tasks';
 
 const resources = path.join(__dirname, '..');
@@ -28,10 +32,13 @@ app.whenReady().then(async () => {
   app.setName('Ritmo');
   if (process.platform === 'darwin') app.dock?.setIcon(iconPath);
   tasks = new TaskRepository(path.join(app.getPath('userData'), 'ritmo.db'));
-  store = new StateStore(path.join(app.getPath('userData'), 'state.json'), () => window, tasks);
-  focus = new FocusService(store);
+  store = new StateStore(path.join(app.getPath('userData'), 'state.json'), {
+    tasks,
+    publish: state => { if (window && !window.isDestroyed()) window.webContents.send('state', state); }
+  });
+  focus = new FocusService(store, { blocker: createSiteBlocker(), notifier: electronNotifier });
   focus.recover();
-  registerHandlers(store, focus);
+  registerHandlers(ipcMain, { store, focus, tasks: new TaskService(store, tasks), domains: new DomainService(store) });
   createWindow();
   store.rollDay();
   if (store.state.session?.kind === 'focus' && Date.now() >= store.state.session.endsAt) await focus.tick();
@@ -39,7 +46,7 @@ app.whenReady().then(async () => {
 });
 
 app.on('before-quit', event => {
-  if (quitting || !store || (store.state.session?.kind !== 'focus' && !store.state.blockError)) return;
+  if (quitting || !store || !focus.mustReleaseBeforeQuit()) return;
   event.preventDefault();
   if (store.busy) return;
   store.guarded(async () => {

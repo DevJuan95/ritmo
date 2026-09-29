@@ -3,6 +3,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import type { Task } from '../shared/contracts';
+import type { Clock, IdGenerator } from './ports';
 import { safePlannedDate, safeTaskTitle } from '../shared/validation';
 
 interface TaskRow {
@@ -20,11 +21,20 @@ function taskFromRow(row: TaskRow): Task {
   };
 }
 
+export interface TaskRepositoryDeps {
+  now?: Clock;
+  newId?: IdGenerator;
+}
+
 export class TaskRepository {
   private readonly db: DatabaseSync;
   private closed = false;
+  private readonly now: Clock;
+  private readonly newId: IdGenerator;
 
-  constructor(dbPath: string) {
+  constructor(dbPath: string, deps: TaskRepositoryDeps = {}) {
+    this.now = deps.now ?? Date.now;
+    this.newId = deps.newId ?? (() => crypto.randomUUID());
     fs.mkdirSync(path.dirname(dbPath), { recursive: true });
     this.db = new DatabaseSync(dbPath);
     this.db.exec(`
@@ -46,8 +56,8 @@ export class TaskRepository {
 
   create(title: string, date: string): Task {
     const task: Task = {
-      id: crypto.randomUUID(), title: safeTaskTitle(title), plannedDate: safePlannedDate(date),
-      createdAt: new Date().toISOString(), completedAt: null, done: false
+      id: this.newId(), title: safeTaskTitle(title), plannedDate: safePlannedDate(date),
+      createdAt: this.timestamp(), completedAt: null, done: false
     };
     this.db.prepare('INSERT INTO tasks (id, title, planned_date, created_at, completed_at) VALUES (?, ?, ?, ?, ?)')
       .run(task.id, task.title, task.plannedDate, task.createdAt, task.completedAt);
@@ -61,7 +71,7 @@ export class TaskRepository {
     const title = patch.title === undefined ? existing.title : safeTaskTitle(patch.title);
     const plannedDate = patch.plannedDate === undefined ? existing.plannedDate : safePlannedDate(patch.plannedDate);
     if (patch.done !== undefined && typeof patch.done !== 'boolean') throw new Error('Estado de tarea inválido.');
-    const completedAt = patch.done === undefined ? existing.completedAt : patch.done ? existing.completedAt || new Date().toISOString() : null;
+    const completedAt = patch.done === undefined ? existing.completedAt : patch.done ? existing.completedAt || this.timestamp() : null;
     this.db.prepare('UPDATE tasks SET title = ?, planned_date = ?, completed_at = ? WHERE id = ?').run(title, plannedDate, completedAt, id);
     return { ...existing, title, plannedDate, completedAt, done: completedAt !== null };
   }
@@ -74,7 +84,7 @@ export class TaskRepository {
   importLegacy(tasks: ReadonlyArray<{ id: string; title: string; done: boolean }>, day: string): void {
     const plannedDate = safePlannedDate(day);
     const insert = this.db.prepare('INSERT OR IGNORE INTO tasks (id, title, planned_date, created_at, completed_at) VALUES (?, ?, ?, ?, ?)');
-    const timestamp = new Date().toISOString();
+    const timestamp = this.timestamp();
     this.db.exec('BEGIN IMMEDIATE');
     try {
       for (const task of tasks) {
@@ -88,6 +98,8 @@ export class TaskRepository {
   close(): void {
     if (!this.closed) { this.db.close(); this.closed = true; }
   }
+
+  private timestamp(): string { return new Date(this.now()).toISOString(); }
 
   private find(id: string): Task | undefined {
     if (typeof id !== 'string' || !id) throw new Error('Identificador de tarea inválido.');

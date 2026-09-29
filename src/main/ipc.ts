@@ -1,58 +1,28 @@
-import { ipcMain } from 'electron';
-import { normalizeDomain, normalizeDomains, safePlannedDate, todayKey } from '../shared/validation';
-import { FocusService } from './focus';
-import { StateStore } from './state';
+import type { DomainService } from './domains';
+import type { FocusService } from './focus';
+import type { IpcRegistrar } from './ports';
+import type { StateStore } from './state';
+import type { TaskService } from './task-service';
 
-export function registerHandlers(store: StateStore, focus: FocusService): void {
-  ipcMain.handle('get-state', () => { store.rollDay(); return store.publicState(); });
-  ipcMain.handle('start-focus', () => focus.startFocus());
-  ipcMain.handle('finish-focus', () => focus.finishFocus());
-  ipcMain.handle('retry-unblock', () => focus.finishFocus());
-  ipcMain.handle('start-break', (_event, kind: unknown) => focus.startBreak(kind));
-  ipcMain.handle('finish-break', () => focus.finishBreak());
-  ipcMain.handle('add-task', (_event, title: unknown, date: unknown) => {
-    store.rollDay();
-    if (!store.tasks) throw new Error('La base de tareas no está disponible.');
-    store.tasks.create(title as string, date === undefined ? todayKey() : safePlannedDate(date));
-    store.state.tasks = store.tasks.listByDay(todayKey());
-    store.save();
-  });
-  ipcMain.handle('toggle-task', (_event, id: unknown) => {
-    store.rollDay();
-    if (!store.tasks) throw new Error('La base de tareas no está disponible.');
-    if (typeof id !== 'string') throw new Error('Identificador de tarea inválido.');
-    const task = store.state.tasks.find(item => item.id === id);
-    if (task) store.tasks.update(id, { done: !task.done });
-    store.state.tasks = store.tasks.listByDay(todayKey());
-    store.save();
-  });
-  ipcMain.handle('delete-task', (_event, id: unknown) => {
-    store.rollDay();
-    if (!store.tasks) throw new Error('La base de tareas no está disponible.');
-    if (typeof id !== 'string') throw new Error('Identificador de tarea inválido.');
-    store.tasks.delete(id);
-    store.state.tasks = store.tasks.listByDay(todayKey());
-    store.save();
-  });
-  ipcMain.handle('get-tasks-for-day', (_event, date: unknown) => {
-    if (!store.tasks) throw new Error('La base de tareas no está disponible.');
-    return store.tasks.listByDay(safePlannedDate(date));
-  });
-  ipcMain.handle('update-task', (_event, id: unknown, patch: unknown) => {
-    if (!store.tasks) throw new Error('La base de tareas no está disponible.');
-    if (typeof id !== 'string' || !patch || typeof patch !== 'object' || Array.isArray(patch)) throw new Error('Cambio de tarea inválido.');
-    store.tasks.update(id, patch as { title?: string; plannedDate?: string; done?: boolean });
-    store.state.tasks = store.tasks.listByDay(todayKey());
-    store.save();
-  });
-  ipcMain.handle('add-domain', (_event, value: unknown) => {
-    if (store.state.session?.kind === 'focus' || store.state.blockError) throw new Error('Edita los sitios cuando termine el foco.');
-    store.state.domains = normalizeDomains([...store.state.domains, normalizeDomain(value)]);
-    store.save();
-  });
-  ipcMain.handle('remove-domain', (_event, domain: unknown) => {
-    if (store.state.session?.kind === 'focus' || store.state.blockError) throw new Error('Edita los sitios cuando termine el foco.');
-    store.state.domains = store.state.domains.filter(item => item !== domain);
-    store.save();
-  });
+export interface Services {
+  store: StateStore;
+  focus: FocusService;
+  tasks: TaskService;
+  domains: DomainService;
+}
+
+export function registerHandlers(ipc: IpcRegistrar, { store, focus, tasks, domains }: Services): void {
+  ipc.handle('get-state', () => { store.rollDay(); return store.publicState(); });
+  ipc.handle('start-focus', () => focus.startFocus());
+  ipc.handle('finish-focus', () => focus.finishFocus());
+  ipc.handle('retry-unblock', () => focus.finishFocus());
+  ipc.handle('start-break', (_event, kind: unknown) => focus.startBreak(kind));
+  ipc.handle('finish-break', () => focus.finishBreak());
+  ipc.handle('add-task', (_event, title: unknown, date: unknown) => tasks.add(title, date));
+  ipc.handle('toggle-task', (_event, id: unknown) => tasks.toggle(id));
+  ipc.handle('delete-task', (_event, id: unknown) => tasks.remove(id));
+  ipc.handle('get-tasks-for-day', (_event, date: unknown) => tasks.listByDay(date));
+  ipc.handle('update-task', (_event, id: unknown, patch: unknown) => tasks.update(id, patch));
+  ipc.handle('add-domain', (_event, value: unknown) => domains.add(value));
+  ipc.handle('remove-domain', (_event, domain: unknown) => domains.remove(domain));
 }

@@ -1,16 +1,29 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { BrowserWindow } from 'electron';
 import type { AppState, PublicState } from '../shared/contracts';
 import { DEFAULT_DOMAINS, normalizeDomains, safePlannedDate, safeTaskTitle, todayKey } from '../shared/validation';
+import type { Clock, PublishState } from './ports';
 import { TaskRepository } from './tasks';
+
+export interface StateStoreDeps {
+  publish?: PublishState;
+  now?: Clock;
+  tasks?: TaskRepository;
+}
 
 export class StateStore {
   state: AppState;
   busy = false;
   private migrated = false;
+  readonly now: Clock;
+  readonly tasks?: TaskRepository;
+  private readonly publishState: PublishState;
 
-  constructor(private readonly statePath: string, private readonly getWindow: () => BrowserWindow | undefined, readonly tasks?: TaskRepository) {
+  constructor(private readonly statePath: string, deps: StateStoreDeps = {}) {
+    this.now = deps.now ?? Date.now;
+    this.tasks = deps.tasks;
+    this.publishState = deps.publish ?? (() => {});
+    const tasks = this.tasks;
     this.state = this.load();
     if (tasks) {
       if (!this.migrated && fs.existsSync(this.statePath)) {
@@ -18,14 +31,16 @@ export class StateStore {
         if (!fs.existsSync(backup)) fs.copyFileSync(this.statePath, backup);
         tasks.importLegacy(this.state.tasks, this.state.day);
         this.migrated = true;
-        this.state.tasks = tasks.listByDay(todayKey());
+        this.state.tasks = tasks.listByDay(this.today());
         this.save();
-      } else this.state.tasks = tasks.listByDay(todayKey());
+      } else this.state.tasks = tasks.listByDay(this.today());
     }
   }
 
+  today(): string { return todayKey(new Date(this.now())); }
+
   private initial(): AppState {
-    return { day: todayKey(), tasks: [], domains: [...DEFAULT_DOMAINS], session: null, focusCount: 0, blockError: null };
+    return { day: this.today(), tasks: [], domains: [...DEFAULT_DOMAINS], session: null, focusCount: 0, blockError: null };
   }
 
   private load(): AppState {
@@ -58,12 +73,9 @@ export class StateStore {
     }
   }
 
-  publicState(): PublicState { return { ...this.state, busy: this.busy, now: Date.now() }; }
+  publicState(): PublicState { return { ...this.state, busy: this.busy, now: this.now() }; }
 
-  publish(): void {
-    const window = this.getWindow();
-    if (window && !window.isDestroyed()) window.webContents.send('state', this.publicState());
-  }
+  publish(): void { this.publishState(this.publicState()); }
 
   save(): void {
     fs.mkdirSync(path.dirname(this.statePath), { recursive: true });
@@ -74,7 +86,7 @@ export class StateStore {
   }
 
   rollDay(): void {
-    const day = todayKey();
+    const day = this.today();
     if (this.state.day === day) return;
     this.state.day = day;
     this.state.tasks = this.tasks ? this.tasks.listByDay(day) : [];

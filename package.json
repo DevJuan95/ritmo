@@ -10,7 +10,11 @@
     "build:css": "tailwindcss -i ./src/styles.css -o ./dist/src/styles.css --minify",
     "watch:css": "tailwindcss -i ./src/styles.css -o ./dist/src/styles.css --watch",
     "start": "npm run build && electron .",
-    "test": "npm run build && node --test dist/test/*.test.js",
+    "test": "npm run build && npm run test:all",
+    "test:all": "node --test \"dist/test/**/*.test.js\"",
+    "test:unit": "tsc && node --test \"dist/test/unit/**/*.test.js\"",
+    "test:contract": "tsc && node --test \"dist/test/contract/**/*.test.js\"",
+    "test:integration": "tsc && node --test \"dist/test/integration/**/*.test.js\"",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.renderer.json --noEmit"
   },
   "devDependencies": {
