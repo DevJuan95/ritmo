@@ -13,6 +13,9 @@ const appleScript = `on run argv
   do shell script "/bin/sh " & quoted form of installerPath & " " & quoted form of helperPath & " " & quoted form of accountName with administrator privileges
 end run`;
 const INSTALLED_HELPER = '/Library/PrivilegedHelperTools/ritmo-block-sites';
+/** El diálogo de administrador espera al usuario; `sudo -n` nunca pregunta y el helper es inmediato. */
+export const INSTALL_TIMEOUT_MS = 120000;
+export const HELPER_TIMEOUT_MS = 10000;
 
 export interface SiteBlockerDeps {
   exec: (file: string, args: string[], options: { timeout: number }) => Promise<unknown>;
@@ -45,7 +48,7 @@ export function createSiteBlocker(overrides: Partial<SiteBlockerDeps> = {}): Sit
 
   async function installHelper(): Promise<void> {
     try {
-      await deps.exec('/usr/bin/osascript', ['-e', appleScript, deps.installerPath, deps.helperPath, deps.account], { timeout: 120000 });
+      await deps.exec('/usr/bin/osascript', ['-e', appleScript, deps.installerPath, deps.helperPath, deps.account], { timeout: INSTALL_TIMEOUT_MS });
     } catch (error) {
       const detail = error as Error & { stderr?: string };
       if (/User canceled|(-128)/i.test(`${detail.message} ${detail.stderr || ''}`)) throw new Error('Se canceló la autorización de macOS.');
@@ -54,7 +57,7 @@ export function createSiteBlocker(overrides: Partial<SiteBlockerDeps> = {}): Sit
   }
 
   function runHelper(action: BlockAction | 'check', domainList: string): Promise<unknown> {
-    return deps.exec('/usr/bin/sudo', ['-n', '-k', deps.installedHelperPath, action, domainList], { timeout: 120000 });
+    return deps.exec('/usr/bin/sudo', ['-n', '-k', deps.installedHelperPath, action, domainList], { timeout: HELPER_TIMEOUT_MS });
   }
 
   async function canRunHelper(): Promise<boolean> {
@@ -72,16 +75,17 @@ export function createSiteBlocker(overrides: Partial<SiteBlockerDeps> = {}): Sit
       catch { return false; }
     },
 
-    async changeBlock(action, domains) {
+    async changeBlock(action, domains, { authorize = true } = {}) {
       if (deps.platform !== 'darwin') throw new Error('El bloqueo de sitios de esta versión requiere macOS.');
       const domainList = action === 'block' ? domains.join('\n') : '';
       const installed = needsInstall();
+      if (installed && !authorize) throw blockError(action, new Error('Hay que reinstalar el helper y no se puede pedir autorización.'));
       if (installed) await installHelper();
       try {
         await runHelper(action, domainList);
       } catch (error) {
         // Si se acaba de instalar, reinstalar pediría la contraseña otra vez sin arreglar nada.
-        if (installed || await canRunHelper()) throw blockError(action, error);
+        if (installed || !authorize || await canRunHelper()) throw blockError(action, error);
         await installHelper();
         try { await runHelper(action, domainList); }
         catch (retryError) { throw blockError(action, retryError); }

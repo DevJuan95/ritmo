@@ -1,9 +1,10 @@
-import type { BlockAction, IpcRegistrar, Notifier, QuitReason, QuitSignals, SiteBlocker, SoundPlayer, TimerHandle, Timers } from '../../src/main/ports';
+import type { BlockAction, ChangeBlockOptions, IpcRegistrar, Notifier, QuitReason, QuitSignals, SiteBlocker, SoundPlayer, TimerHandle, Timers } from '../../src/main/ports';
 
 /** Bloqueador en memoria: registra llamadas, puede fallar a demanda o quedarse esperando. */
 export class FakeBlocker implements SiteBlocker {
   blocked = false;
-  readonly calls: Array<{ action: BlockAction; domains: string[] }> = [];
+  /** `authorize: false` solo aparece en las llamadas que no pueden pedir autorización. */
+  readonly calls: Array<{ action: BlockAction; domains: string[]; authorize?: false }> = [];
   private readonly failures: Error[] = [];
   private gate?: Promise<void>;
 
@@ -18,8 +19,8 @@ export class FakeBlocker implements SiteBlocker {
 
   hasManagedBlock(): boolean { return this.blocked; }
 
-  async changeBlock(action: BlockAction, domains: string[]): Promise<void> {
-    this.calls.push({ action, domains: [...domains] });
+  async changeBlock(action: BlockAction, domains: string[], options: ChangeBlockOptions = {}): Promise<void> {
+    this.calls.push({ action, domains: [...domains], ...(options.authorize === false ? { authorize: false as const } : {}) });
     if (this.gate) await this.gate;
     const failure = this.failures.shift();
     if (failure) throw failure;
