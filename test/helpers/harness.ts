@@ -3,12 +3,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { AppState, PublicState } from '../../src/shared/contracts';
 import { DEFAULT_DOMAINS, todayKey } from '../../src/shared/validation';
-import { DomainService } from '../../src/main/domains';
-import { FocusService } from '../../src/main/focus';
-import { LifecycleService } from '../../src/main/lifecycle';
-import { StateStore } from '../../src/main/state';
-import { TaskService } from '../../src/main/task-service';
-import { TaskRepository } from '../../src/main/tasks';
+import { DomainService } from '../../src/main/blocking/domain-service';
+import { FocusService } from '../../src/main/focus/focus-service';
+import { LifecycleService } from '../../src/main/lifecycle/lifecycle-service';
+import { StateStore } from '../../src/main/state/state-store';
+import { TaskService } from '../../src/main/tasks/task-service';
+import { TaskRepository } from '../../src/main/tasks/task-repository';
 import { FakeBlocker, FakeClock, FakeNotifier, FakeSoundPlayer, sequentialIds } from './fakes';
 import { tempDir } from './temp';
 

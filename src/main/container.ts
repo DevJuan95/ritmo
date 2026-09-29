@@ -1,16 +1,21 @@
 import path from 'node:path';
 import { asFunction, asValue, createContainer, InjectionMode, type AwilixContainer } from 'awilix';
-import { DomainService } from './domains';
-import { FocusService } from './focus';
-import { LifecycleService } from './lifecycle';
-import { createNotifier, type NotificationApi } from './notifier';
-import type { Clock, Notifier, PublishState, SiteBlocker, SoundPlayer, Timers } from './ports';
-import { createSiteBlocker } from './site-blocker';
-import { createSoundPlayer } from './sound-player';
-import { StateStore } from './state';
-import { TaskService } from './task-service';
-import { TaskRepository } from './tasks';
-import { systemTimers } from './timers';
+import { DomainService } from './blocking/domain-service';
+import type { DomainServicePort, SiteBlocker } from './blocking/ports';
+import { createSiteBlocker } from './blocking/site-blocker';
+import { createNotifier, type NotificationApi } from './common/notifier';
+import type { Clock, Notifier, Timers } from './common/ports';
+import { systemTimers } from './common/timers';
+import { FocusService } from './focus/focus-service';
+import type { FocusServicePort, SoundPlayer } from './focus/ports';
+import { createSoundPlayer } from './focus/sound-player';
+import { LifecycleService } from './lifecycle/lifecycle-service';
+import type { LifecycleServicePort } from './lifecycle/ports';
+import type { PublishState, StateStorePort } from './state/ports';
+import { StateStore } from './state/state-store';
+import type { TaskRepositoryPort, TaskServicePort } from './tasks/ports';
+import { TaskRepository } from './tasks/task-repository';
+import { TaskService } from './tasks/task-service';
 
 export interface MainCradle {
   userDataPath: string;
@@ -22,12 +27,12 @@ export interface MainCradle {
   blocker: SiteBlocker;
   notifier: Notifier;
   sound: SoundPlayer;
-  taskRepository: TaskRepository;
-  store: StateStore;
-  focus: FocusService;
-  tasks: TaskService;
-  domains: DomainService;
-  lifecycle: LifecycleService;
+  taskRepository: TaskRepositoryPort;
+  store: StateStorePort;
+  focus: FocusServicePort;
+  tasks: TaskServicePort;
+  domains: DomainServicePort;
+  lifecycle: LifecycleServicePort;
 }
 
 export interface MainContainerOptions {
@@ -44,6 +49,7 @@ export interface MainContainerOptions {
  * Registra las dependencias del proceso principal. Todas son singletons: comparten el mismo
  * `StateStore` y la misma conexión SQLite, que se cierra con `container.dispose()`.
  * Los servicios no conocen el contenedor; las fábricas llaman a sus constructores explícitamente.
+ * Es el único módulo que construye las clases de servicio: el resto depende de sus puertos.
  * Antes de resolver, se puede sustituir cualquier registro (por ejemplo, el bloqueador en pruebas).
  */
 export function createMainContainer(options: MainContainerOptions): AwilixContainer<MainCradle> {

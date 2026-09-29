@@ -30,7 +30,7 @@ El código de Electron, la interfaz y las pruebas está en TypeScript. La interf
 
 ## Estructura
 
-- `src/main/`: arranque de Electron, SQLite para las tareas, estado del temporizador, sesiones de foco, bloqueo de sitios e IPC.
+- `src/main/`: proceso principal. `app.ts` arranca Electron y `container.ts` arma los servicios; el resto se divide en módulos por contexto: `focus/` (sesiones y temporizador), `tasks/` (tareas en SQLite), `blocking/` (dominios y bloqueo de sitios), `state/` (estado persistente), `lifecycle/` (arranque y cierre), `ipc/` y `common/`.
 - `src/preload.ts`: API limitada que conecta la interfaz con el proceso principal.
 - `src/renderer/`: entrada React, pantallas `screens/`, componentes de la aplicación y lógica de presentación en `view.ts`.
 - `src/components/ui/`: componentes editables de shadcn/ui. `components.json` configura su CLI.

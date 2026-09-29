@@ -1,8 +1,8 @@
 import { app, BrowserWindow, ipcMain, Notification, powerMonitor, screen } from 'electron';
 import path from 'node:path';
 import { createMainContainer } from './container';
-import { registerHandlers } from './ipc';
-import { createQuitSignals } from './quit-signals';
+import { registerHandlers } from './ipc/handlers';
+import { createQuitSignals } from './lifecycle/quit-signals';
 import { initialWindowSize } from './window-size';
 
 const resources = path.join(__dirname, '..');

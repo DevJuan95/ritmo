@@ -1,4 +1,8 @@
-import type { BlockAction, ChangeBlockOptions, IpcRegistrar, Notifier, QuitReason, QuitSignals, SiteBlocker, SoundPlayer, TimerHandle, Timers } from '../../src/main/ports';
+import type { BlockAction, ChangeBlockOptions, SiteBlocker } from '../../src/main/blocking/ports';
+import type { Notifier, TimerHandle, Timers } from '../../src/main/common/ports';
+import type { SoundPlayer } from '../../src/main/focus/ports';
+import type { IpcRegistrar } from '../../src/main/ipc/ports';
+import type { QuitReason, QuitSignals } from '../../src/main/lifecycle/ports';
 import type { IpcResult } from '../../src/shared/contracts';
 
 /** Bloqueador en memoria: registra llamadas, puede fallar a demanda o quedarse esperando. */
