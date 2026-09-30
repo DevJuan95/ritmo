@@ -471,6 +471,7 @@ test('proposalsSummary cuenta las propuestas por revisar y las añadidas', () =>
 
 test('el aviso de privacidad dice a quién y qué se envía', () => {
   assert.match(agentNoticeText('claude'), /envía a Claude Code \(Anthropic\) el tema, el objetivo/);
+  assert.match(agentNoticeText('claude'), /el roadmap \(enfoque, etapas, proyecto final y reglas de estudio\)/);
   assert.match(agentNoticeText('codex'), /envía a Codex \(OpenAI\)/);
   assert.match(agentNoticeText('codex'), /solo cuando pulsas el botón/);
 });
