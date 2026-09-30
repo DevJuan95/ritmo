@@ -1,6 +1,6 @@
 # Guía para agentes: Ritmo
 
-Ritmo es una aplicación de productividad para macOS hecha con Electron y TypeScript. Ofrece sesiones de foco y descanso, tareas diarias y bloqueo de dominios durante el foco. Lee `README.md` para el comportamiento visible para el usuario, `docs/bloqueo-de-sitios.md` para el helper de bloqueo y su recuperación, `docs/desarrollo.md` para la compilación y los datos locales, `docs/glosario.md` para el significado de cada término del dominio y `docs/arquitectura.md` para los diagramas de procesos, servicios, puertos y adaptadores, y del ciclo de una sesión.
+Ritmo es una aplicación de productividad para macOS hecha con Electron y TypeScript. Ofrece sesiones de foco y descanso, tareas diarias, bloqueo de dominios durante el foco y rutas de estudio cuyas próximas tareas propone Claude Code o Codex, lanzados como CLI con la sesión del usuario. Lee `README.md` para el comportamiento visible para el usuario, `docs/bloqueo-de-sitios.md` para el helper de bloqueo y su recuperación, `docs/desarrollo.md` para la compilación, los datos locales y el registro del servidor MCP de Ritmo en los CLI, `docs/glosario.md` para el significado de cada término del dominio y `docs/arquitectura.md` para los diagramas de procesos, servicios, puertos y adaptadores, y del ciclo de una sesión.
 
 ## Mapa del proyecto
 
@@ -41,6 +41,7 @@ Ritmo es una aplicación de productividad para macOS hecha con Electron y TypeSc
 - El preload se ejecuta con sandbox: de `src/shared/` solo importa tipos (`import type`).
 - Valida en el proceso principal toda entrada recibida por IPC. El renderer no tiene acceso directo a Node ni a Electron.
 - Respeta la persistencia local de `StateStore` y el reinicio diario de tareas y contador. Las operaciones de foco que cambian el estado pasan por `guarded`.
+- En el agente de estudio, no envíes nada al proveedor sin una acción explícita del usuario ni sin el aviso de privacidad aceptado, lanza los CLI solo con `runAgentCli` (sin shell, sin claves de API en el entorno, en un directorio temporal, con tiempo máximo y cancelación; Claude Code sin herramientas y Codex con sandbox de solo lectura) y valida su respuesta en el proceso principal. Las pruebas nunca lanzan el CLI real: usan `FakeStudyAgent` o el ejecutable falso de `test/helpers/fake-cli.ts`.
 - En el bloqueo de sitios, preserva las entradas ajenas a la sección de Ritmo y la recuperación tras un cierre inesperado. No ejecutes pruebas contra el `/etc/hosts` real: la prueba del script usa `RITMO_TEST_HOSTS` con un archivo temporal.
 - Antes de cerrar un cambio de código, ejecuta `npm run typecheck` y las pruebas pertinentes. Si cambias la compilación o `resources/`, ejecuta también `npm run build`.
 - No edites `out/`, `dist/` ni `node_modules/` directamente. Respeta los cambios locales existentes que no pertenezcan a la tarea.
