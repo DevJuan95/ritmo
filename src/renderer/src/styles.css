@@ -108,7 +108,8 @@
   --calendar-cell-min: 36px;
   --calendar-cell-height: clamp(46px, 8.2vh, 70px);
   --row-date-max-width: 140px;
-  --row-stage-max-width: 220px;
+  --row-stage-max-width: 240px;
+  --row-stage-menu-max-width: 320px;
   --edit-input-min-width: 140px;
   --study-cards-columns: repeat(auto-fill, minmax(260px, 1fr));
   --study-stage-number: 34px;
@@ -146,6 +147,8 @@
   --color-secondary-foreground: var(--on-ink);
   --color-card: var(--sheet);
   --color-card-foreground: var(--ink);
+  --color-popover: var(--sheet);
+  --color-popover-foreground: var(--ink);
   --color-input: var(--rule);
   --color-ring: var(--ink);
   --color-accent: var(--paper-deep);
@@ -299,8 +302,17 @@ h2 { font-family:var(--serif); font-size:var(--fs-heading); font-weight:var(--we
 .row-action { height:var(--control-sm); min-height:var(--control-sm); padding:0 9px; color:var(--ink-light); font-size:var(--fs-sm); font-weight:var(--weight-medium); }
 .row-action-danger:hover { color:var(--margin); }
 .row-date { height:var(--control-sm); width:auto; max-width:var(--row-date-max-width); background:var(--sheet); border-color:var(--rule); box-shadow:none; color:var(--graphite); font-size:var(--fs-xs); }
-/* Etapa de ruta de la tarea: el mismo tamaño discreto que el campo de fecha. */
-.row-stage { height:var(--control-sm); width:auto; min-width:0; max-width:var(--row-stage-max-width); padding:0 6px; background:var(--sheet); border:var(--stroke) solid var(--rule); border-radius:var(--corner-md); color:var(--graphite); font:inherit; font-size:var(--fs-xs); text-overflow:ellipsis; }
+/* Etapa de ruta de la tarea: el mismo tamaño discreto que el campo de fecha; abre un menú por rutas. */
+.row-stage { display:inline-flex; align-items:center; gap:5px; height:var(--control-sm); min-width:0; max-width:var(--row-stage-max-width); padding:0 6px 0 8px; background:var(--sheet); border:var(--stroke) solid var(--rule); border-radius:var(--corner-md); color:var(--graphite); font:inherit; font-size:var(--fs-xs); }
+.row-stage:hover,.row-stage[data-state=open] { border-color:var(--ink-light); color:var(--ink); }
+.row-stage-route { flex:none; max-width:45%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--pencil); }
+.row-stage-route::after { content:'·'; margin-left:5px; }
+.row-stage-name { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.row-stage-chevron { flex:none; width:12px; height:12px; margin-left:auto; color:var(--pencil); }
+.stage-menu { max-width:var(--row-stage-menu-max-width); }
+.stage-menu-text { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.stage-menu-count { padding-left:12px; color:var(--pencil); font-size:var(--fs-xs); font-variant-numeric:tabular-nums; }
+.stage-menu-current { font-weight:var(--weight-semibold); }
 .planner-edit-form { display:flex; flex:1; gap:6px; min-width:0; flex-wrap:wrap; align-items:center; }
 .planner-edit-form input { flex:1; min-width:var(--edit-input-min-width); height:var(--control-md); background:var(--sheet); font-size:var(--fs-base); }
 

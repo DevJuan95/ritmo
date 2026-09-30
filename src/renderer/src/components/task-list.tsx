@@ -3,9 +3,11 @@ import type { StudyRoute } from '../../../shared/study/contract';
 import { FIRST_PLANNED_DATE, LAST_PLANNED_DATE, type Task } from '../../../shared/tasks/contract';
 import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
+import { ChevronDownIcon } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from './ui/dropdown-menu';
 import { Input } from './ui/input';
 import type { RunAction } from '../use-ritmo';
-import { linkFromStage, plannedDateToSave, stageOptions, taskStageValue } from '../view';
+import { linkFromStage, plannedDateToSave, stageOptions, taskStageLabel, taskStageValue } from '../view';
 
 function TaskRow({ task, planner, routes, run }: { task: Task; planner: boolean; routes: readonly StudyRoute[]; run: RunAction }) {
   const [editing, setEditing] = useState(false);
@@ -33,15 +35,33 @@ function TaskRow({ task, planner, routes, run }: { task: Task; planner: boolean;
   </li>;
 }
 
-/** Vincula la tarea a una etapa de una ruta de estudio, o la deja suelta. */
+/** Vincula la tarea a una etapa de una ruta de estudio, o la deja suelta: primero la ruta y, en su submenú, la etapa. */
 function StageSelect({ task, routes, run }: { task: Task; routes: readonly StudyRoute[]; run: RunAction }) {
-  return <select className="row-stage" value={taskStageValue(routes, task)} aria-label={`Etapa de ruta de ${task.title}`}
-    onChange={event => void run(() => window.ritmo.updateTask(task.id, { link: linkFromStage(routes, event.target.value) }))}>
-    <option value="">Sin ruta</option>
-    {stageOptions(routes).map(group => <optgroup key={group.label} label={group.label}>
-      {group.options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-    </optgroup>)}
-  </select>;
+  const current = taskStageLabel(routes, task);
+  const stageId = taskStageValue(routes, task);
+  const link = (value: string) => void run(() => window.ritmo.updateTask(task.id, { link: linkFromStage(routes, value) }));
+  return <DropdownMenu modal={false}>
+    <DropdownMenuTrigger className="row-stage" aria-label={`Etapa de ruta de ${task.title}`} title={current ? `${current.route} · ${current.stage}` : undefined}>
+      {current ? <><span className="row-stage-route">{current.route}</span><span className="row-stage-name">{current.stage}</span></> : <span className="row-stage-name">Sin ruta</span>}
+      <ChevronDownIcon className="row-stage-chevron" aria-hidden />
+    </DropdownMenuTrigger>
+    <DropdownMenuContent align="start" className="stage-menu">
+      <DropdownMenuLabel>Rutas de estudio</DropdownMenuLabel>
+      {stageOptions(routes).map(group => <DropdownMenuSub key={group.routeId}>
+        <DropdownMenuSubTrigger className={group.routeId === task.routeId && stageId ? 'stage-menu-current' : undefined}>
+          <span className="stage-menu-text">{group.label}</span>
+          <span className="stage-menu-count">{group.options.length}</span>
+        </DropdownMenuSubTrigger>
+        <DropdownMenuSubContent className="stage-menu">
+          {group.options.length === 0 ? <DropdownMenuItem disabled>Sin etapas</DropdownMenuItem>
+            : <DropdownMenuRadioGroup value={group.routeId === task.routeId ? stageId : ''} onValueChange={link}>
+              {group.options.map(option => <DropdownMenuRadioItem key={option.value} value={option.value}><span className="stage-menu-text">{option.label}</span></DropdownMenuRadioItem>)}
+            </DropdownMenuRadioGroup>}
+        </DropdownMenuSubContent>
+      </DropdownMenuSub>)}
+      {current && <><DropdownMenuSeparator /><DropdownMenuItem onSelect={() => link('')}>Quitar de la ruta</DropdownMenuItem></>}
+    </DropdownMenuContent>
+  </DropdownMenu>;
 }
 
 const NO_ROUTES: readonly StudyRoute[] = [];
