@@ -13,7 +13,9 @@ import { LifecycleService } from './lifecycle/lifecycle-service';
 import type { LifecycleServicePort } from './lifecycle/ports';
 import type { PublicStatePort, PublishState, StateShutdownPort, StateStorePort } from './state/ports';
 import { StateStore } from './state/state-store';
-import type { StudyRepositoryPort, StudyServicePort, StudyStagesPort } from './study/ports';
+import { AgentService } from './study/agent-service';
+import { SystemAgentDetector } from './study/agent-detector';
+import type { AgentDetector, AgentServicePort, AgentSettingsRepositoryPort, StudyRepositoryPort, StudyServicePort, StudyStagesPort } from './study/ports';
 import { StudyRepository } from './study/study-repository';
 import { StudyService } from './study/study-service';
 import type { StudyTasksPort, TaskRepositoryPort, TaskServicePort } from './tasks/ports';
@@ -32,12 +34,14 @@ export interface MainCradle {
   notifier: Notifier;
   sound: SoundPlayer;
   taskRepository: TaskRepositoryPort;
-  studyRepository: StudyRepositoryPort & StudyStagesPort;
+  studyRepository: StudyRepositoryPort & StudyStagesPort & AgentSettingsRepositoryPort;
+  agentDetector: AgentDetector;
   store: StateStorePort & PublicStatePort & StateShutdownPort;
   focus: FocusServicePort & FocusLifecyclePort;
   tasks: TaskServicePort & StudyTasksPort;
   domains: DomainServicePort;
   study: StudyServicePort;
+  agents: AgentServicePort;
   lifecycle: LifecycleServicePort;
 }
 
@@ -80,12 +84,14 @@ export function createMainContainer(options: MainContainerOptions): AwilixContai
     studyRepository: asFunction(({ userDataPath, now }: MainCradle) => new StudyRepository(path.join(userDataPath, 'ritmo.db'), { now }))
       .singleton()
       .disposer(repository => repository.close()),
+    agentDetector: asFunction(() => new SystemAgentDetector()).singleton(),
     store: asFunction(({ userDataPath, taskRepository, publish, now }: MainCradle) =>
       new StateStore(path.join(userDataPath, 'state.json'), { tasks: taskRepository, publish, now })).singleton(),
     focus: asFunction(({ store, blocker, notifier, sound }: MainCradle) => new FocusService(store, { blocker, notifier, sound })).singleton(),
     tasks: asFunction(({ store, taskRepository, studyRepository }: MainCradle) => new TaskService(store, taskRepository, studyRepository)).singleton(),
     domains: asFunction(({ store }: MainCradle) => new DomainService(store)).singleton(),
     study: asFunction(({ studyRepository, tasks }: MainCradle) => new StudyService(studyRepository, tasks)).singleton(),
+    agents: asFunction(({ studyRepository, agentDetector }: MainCradle) => new AgentService(studyRepository, agentDetector)).singleton(),
     lifecycle: asFunction(({ store, focus, notifier, taskRepository, studyRepository, timers, shutdownTimeoutMs }: MainCradle) =>
       new LifecycleService({ store, focus, notifier, databases: [taskRepository, studyRepository], timers, shutdownTimeoutMs })).singleton()
   });

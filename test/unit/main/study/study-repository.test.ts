@@ -1,7 +1,8 @@
 import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import type { StudyRouteInput } from '../../../../src/shared/study/contract';
+import { DatabaseSync } from 'node:sqlite';
+import { DEFAULT_AGENT_SETTINGS, type AgentSettings, type StudyRouteInput } from '../../../../src/shared/study/contract';
 import { StudyRepository } from '../../../../src/main/study/study-repository';
 import { TaskRepository } from '../../../../src/main/tasks/task-repository';
 import { FakeClock, sequentialIds } from '../../../helpers/fakes';
@@ -118,4 +119,30 @@ test('comprueba que una etapa existe y pertenece a la ruta', t => {
   assert.equal(repository.hasStage(rust.id, 'inventada'), false);
   repository.delete(rust.id);
   assert.equal(repository.hasStage(rust.id, rust.stages[0].id), false);
+});
+
+test('guarda la configuración del agente y la recupera tras reabrir la base', t => {
+  const { repository, dbPath } = openRepository(t);
+  assert.deepEqual(repository.loadAgentSettings(), DEFAULT_AGENT_SETTINGS);
+  const loaded = repository.loadAgentSettings();
+  loaded.claude.model = 'cambiado';
+  assert.equal(DEFAULT_AGENT_SETTINGS.claude.model, 'haiku', 'devuelve una copia de la configuración por defecto');
+
+  const settings: AgentSettings = { provider: 'codex', claude: { path: '~/.local/bin/claude', model: 'haiku' }, codex: { path: '', model: '' } };
+  repository.saveAgentSettings(settings);
+  repository.saveAgentSettings({ ...settings, codex: { path: '', model: 'gpt-6-luna' } });
+  repository.close();
+  const reopened = new StudyRepository(dbPath);
+  t.after(() => reopened.close());
+  assert.deepEqual(reopened.loadAgentSettings(), { ...settings, codex: { path: '', model: 'gpt-6-luna' } });
+});
+
+test('una configuración del agente guardada que no es válida vuelve a la de por defecto', t => {
+  const { repository, dbPath } = openRepository(t);
+  const db = new DatabaseSync(dbPath);
+  t.after(() => db.close());
+  for (const value of ['{no es json', JSON.stringify({ provider: 'gemini' })]) {
+    db.prepare("INSERT OR REPLACE INTO study_settings (key, value) VALUES ('agent', ?)").run(value);
+    assert.deepEqual(repository.loadAgentSettings(), DEFAULT_AGENT_SETTINGS);
+  }
 });

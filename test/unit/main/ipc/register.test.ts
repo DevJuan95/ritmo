@@ -25,7 +25,10 @@ const channels: { [C in RitmoChannel]: true } = {
   'create-study-route': true,
   'update-study-route': true,
   'delete-study-route': true,
-  'get-study-progress': true
+  'get-study-progress': true,
+  'get-agent-settings': true,
+  'save-agent-settings': true,
+  'check-study-agents': true
 };
 
 test('registra una sola vez los canales de todos los módulos', t => {

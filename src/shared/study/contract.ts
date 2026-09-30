@@ -164,12 +164,95 @@ export function safeStudyRouteId(value: unknown): string {
   return value;
 }
 
+/** Nombre o alias de modelo que se pasa al CLI: sin espacios y sin empezar por `-`. */
+export const AGENT_MODEL_PATTERN = /^[A-Za-z0-9][\w.:[\]-]{0,99}$/;
+export const MAX_AGENT_PATH = 1024;
+
+/** Configuración del CLI de un proveedor. */
+export interface AgentProviderSettings {
+  /** Ruta del ejecutable, absoluta o con `~/`; vacía para detectarlo. */
+  path: string;
+  /** Modelo o alias que se pasa al CLI; vacío para usar el que tenga configurado el CLI. */
+  model: string;
+}
+
+/** Configuración del agente de estudio: el proveedor elegido y el CLI de cada uno. */
+export interface AgentSettings {
+  provider: StudyProvider;
+  claude: AgentProviderSettings;
+  codex: AgentProviderSettings;
+}
+
+/** Modelos ligeros por defecto: las peticiones cuentan para los límites de la suscripción. */
+export const DEFAULT_AGENT_MODELS: Readonly<Record<StudyProvider, string>> = { claude: 'haiku', codex: 'gpt-6-luna' };
+
+export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
+  provider: 'claude',
+  claude: { path: '', model: DEFAULT_AGENT_MODELS.claude },
+  codex: { path: '', model: DEFAULT_AGENT_MODELS.codex },
+};
+
+/**
+ * Disponibilidad del CLI de un proveedor: listo, no encontrado, sin sesión, con una clave de API
+ * en lugar de la suscripción o con una sesión que no se pudo confirmar.
+ */
+export type AgentAvailability = 'ready' | 'missing' | 'logged-out' | 'api-key' | 'unknown';
+
+/** Estado del CLI de un proveedor, tal como se comprobó al pedirlo. */
+export interface AgentStatus {
+  provider: StudyProvider;
+  availability: AgentAvailability;
+  /** Ejecutable encontrado, o `null` si no se encontró. */
+  path: string | null;
+  /** Si se buscó en la ruta configurada en lugar de detectarlo. */
+  configured: boolean;
+}
+
+/** Nombre de cada proveedor para la interfaz y los mensajes. */
+export const AGENT_NAMES: Readonly<Record<StudyProvider, string>> = { claude: 'Claude Code', codex: 'Codex' };
+
+function agentPath(value: unknown, provider: StudyProvider): string {
+  const message = `La ruta de ${AGENT_NAMES[provider]} debe ser absoluta (empieza por / o ~/) o quedar vacía.`;
+  if (typeof value !== 'string') throw new PublicError(message);
+  const text = value.trim();
+  if (!text) return '';
+  if (text.length > MAX_AGENT_PATH || /[\0-\x1f]/.test(text) || !(text.startsWith('/') || text.startsWith('~/'))) throw new PublicError(message);
+  return text;
+}
+
+function agentModel(value: unknown, provider: StudyProvider): string {
+  const message = `El modelo de ${AGENT_NAMES[provider]} debe ser un nombre sin espacios, como «${DEFAULT_AGENT_MODELS[provider]}», o quedar vacío.`;
+  if (typeof value !== 'string') throw new PublicError(message);
+  const text = value.trim();
+  if (text && !AGENT_MODEL_PATTERN.test(text)) throw new PublicError(message);
+  return text;
+}
+
+function providerSettings(value: unknown, provider: StudyProvider): AgentProviderSettings {
+  const settings = record(value, 'La configuración del agente no es válida.');
+  return { path: agentPath(settings.path, provider), model: agentModel(settings.model, provider) };
+}
+
+/** Valida la configuración del agente que llega por IPC o que estaba guardada. */
+export function safeAgentSettings(value: unknown): AgentSettings {
+  const settings = record(value, 'La configuración del agente no es válida.');
+  return {
+    provider: safeStudyProvider(settings.provider),
+    claude: providerSettings(settings.claude, 'claude'),
+    codex: providerSettings(settings.codex, 'codex'),
+  };
+}
+
 export interface StudyAPI {
   listStudyRoutes(): Promise<StudyRoute[]>;
   createStudyRoute(route: StudyRouteInput): Promise<StudyRoute>;
   updateStudyRoute(id: string, route: StudyRouteInput): Promise<StudyRoute>;
   deleteStudyRoute(id: string): Promise<void>;
   getStudyProgress(): Promise<StudyProgress>;
+  getAgentSettings(): Promise<AgentSettings>;
+  saveAgentSettings(settings: AgentSettings): Promise<AgentSettings>;
+  /** Busca el CLI de cada proveedor y comprueba su sesión; no envía ningún prompt. */
+  checkStudyAgents(): Promise<AgentStatus[]>;
 }
 
 export type StudyChannels = ChannelMap<StudyAPI, {
@@ -178,4 +261,7 @@ export type StudyChannels = ChannelMap<StudyAPI, {
   updateStudyRoute: 'update-study-route';
   deleteStudyRoute: 'delete-study-route';
   getStudyProgress: 'get-study-progress';
+  getAgentSettings: 'get-agent-settings';
+  saveAgentSettings: 'save-agent-settings';
+  checkStudyAgents: 'check-study-agents';
 }>;

@@ -1,7 +1,9 @@
 import type { RitmoAPI } from '../../shared/api.js';
 import { MINUTES } from '../../shared/focus/contract.js';
 import { GENERIC_ERROR_MESSAGE, type PublicError } from '../../shared/ipc.js';
-import { DEFAULT_AGENT_INSTRUCTIONS, MAX_STAGES, safeStudyRoute, type StageProgress, type StudyLevel, type StudyProgress, type StudyRoute, type StudyRouteInput } from '../../shared/study/contract.js';
+import {
+  AGENT_NAMES, DEFAULT_AGENT_INSTRUCTIONS, DEFAULT_AGENT_MODELS, MAX_STAGES, safeAgentSettings, safeStudyRoute, STUDY_PROVIDERS,
+  type AgentProviderSettings, type AgentSettings, type AgentStatus, type StageProgress, type StudyProvider, type StudyLevel, type StudyProgress, type StudyRoute, type StudyRouteInput } from '../../shared/study/contract.js';
 import { todayKey, type PublicState } from '../../shared/state/contract.js';
 import { FIRST_PLANNED_DATE, LAST_PLANNED_DATE, safePlannedDate, type DaySummary, type Task, type TaskLink } from '../../shared/tasks/contract.js';
 
@@ -368,4 +370,100 @@ export function taskStageValue(routes: readonly StudyRoute[], task: Pick<Task, '
   const { routeId, stageId } = task;
   if (!stageId) return '';
   return routes.some(route => route.id === routeId && route.stages.some(stage => stage.id === stageId)) ? stageId : '';
+}
+
+// Agente de estudio.
+
+/** Cómo iniciar sesión en cada CLI con la cuenta de la suscripción. */
+export const AGENT_LOGIN_COMMANDS: Readonly<Record<StudyProvider, string>> = { claude: 'claude auth login', codex: 'codex login' };
+/** Cuenta con la que cada CLI usa la suscripción del usuario. */
+export const AGENT_ACCOUNTS: Readonly<Record<StudyProvider, string>> = { claude: 'claude.ai', codex: 'ChatGPT' };
+
+export type AgentTone = 'checking' | 'ready' | 'warning' | 'missing';
+
+export interface AgentStatusView {
+  tone: AgentTone;
+  /** Estado en pocas palabras, p. ej. «Listo» o «Sin sesión». */
+  label: string;
+  /** Qué significa y, si hace falta, cómo resolverlo. */
+  detail: string;
+}
+
+/** Estado del CLI de un proveedor para la pantalla; sin estado, se está comprobando. */
+export function agentStatusView(provider: StudyProvider, status: AgentStatus | undefined): AgentStatusView {
+  const name = AGENT_NAMES[provider];
+  const login = `Ejecuta «${AGENT_LOGIN_COMMANDS[provider]}» en la terminal con tu cuenta de ${AGENT_ACCOUNTS[provider]} y vuelve a comprobarlo.`;
+  switch (status?.availability) {
+    case undefined: return { tone: 'checking', label: 'Comprobando…', detail: `Buscando ${name} y su sesión.` };
+    case 'ready': return { tone: 'ready', label: 'Listo', detail: `Sesión iniciada con tu cuenta de ${AGENT_ACCOUNTS[provider]}.` };
+    case 'missing': return {
+      tone: 'missing',
+      label: 'No encontrado',
+      detail: status.configured
+        ? 'No hay un programa que se pueda ejecutar en la ruta indicada. Corrígela o déjala vacía para buscarlo.'
+        : `No se encontró ${name} en este Mac. Instálalo o indica la ruta del ejecutable.`
+    };
+    case 'logged-out': return { tone: 'warning', label: 'Sin sesión', detail: login };
+    case 'api-key': return {
+      tone: 'warning',
+      label: 'Con clave de API',
+      detail: `${name} usa una clave de API, que se factura aparte. ${login}`
+    };
+    case 'unknown': return { tone: 'warning', label: 'Sin confirmar', detail: `No se pudo comprobar la sesión de ${name}. Se comprobará otra vez al pedir tareas.` };
+  }
+}
+
+/** Estado de los dos proveedores cuando no se pudo comprobar ninguno. */
+export function uncheckedAgents(): AgentStatus[] {
+  return STUDY_PROVIDERS.map(provider => ({ provider, availability: 'unknown', path: null, configured: false }));
+}
+
+/** Texto del campo de ruta vacío: dónde se detectó el CLI, si se detectó. */
+export function agentPathPlaceholder(status: AgentStatus | undefined): string {
+  return status?.path && !status.configured ? `Detectado en ${status.path}` : 'Detectar automáticamente';
+}
+
+/** Ayuda del campo de modelo, con el modelo ligero por defecto. */
+export function agentModelHint(provider: StudyProvider): string {
+  return `Por defecto, «${DEFAULT_AGENT_MODELS[provider]}», un modelo ligero. Vacío, usa el que tenga configurado ${AGENT_NAMES[provider]}.`;
+}
+
+/** Copia de la configuración con los campos de un proveedor cambiados. */
+export function withProviderSettings(settings: AgentSettings, provider: StudyProvider, patch: Partial<AgentProviderSettings>): AgentSettings {
+  return { ...settings, [provider]: { ...settings[provider], ...patch } };
+}
+
+/** Por qué no se puede guardar la configuración, con las reglas del proceso principal, o `null`. */
+export function agentSettingsProblem(settings: AgentSettings): string | null {
+  try { safeAgentSettings(settings); return null; }
+  // `safeAgentSettings()` solo lanza `PublicError`, con un mensaje pensado para el usuario.
+  catch (error) { return (error as PublicError).message; }
+}
+
+/** Si la configuración difiere de la guardada, sin contar espacios al principio o al final. */
+export function agentSettingsChanged(settings: AgentSettings, saved: AgentSettings): boolean {
+  const comparable = (value: AgentSettings) => JSON.stringify([
+    value.provider, ...STUDY_PROVIDERS.flatMap(provider => [value[provider].path.trim(), value[provider].model.trim()])
+  ]);
+  return comparable(settings) !== comparable(saved);
+}
+
+export interface AgentSummaryView {
+  tone: AgentTone;
+  text: string;
+}
+
+/** Resumen del agente elegido para la pantalla de rutas, p. ej. «Las tareas las propondrá Claude Code con haiku.». */
+export function agentSummary(settings: AgentSettings, statuses: readonly AgentStatus[] | undefined): AgentSummaryView {
+  const provider = settings.provider;
+  const name = AGENT_NAMES[provider];
+  const status = statuses?.find(item => item.provider === provider);
+  const view = agentStatusView(provider, status);
+  const model = settings[provider].model;
+  switch (status?.availability) {
+    case undefined: return { tone: view.tone, text: `Comprobando ${name}…` };
+    case 'ready': return { tone: view.tone, text: `Las tareas las propondrá ${name}${model ? ` con ${model}` : ''}.` };
+    case 'unknown': return { tone: view.tone, text: `No se pudo confirmar la sesión de ${name}.` };
+    default: return { tone: view.tone, text: `${name} no está listo: ${view.label.toLowerCase()}.` };
+  }
 }

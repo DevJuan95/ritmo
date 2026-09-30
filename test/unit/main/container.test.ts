@@ -4,6 +4,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { asValue } from 'awilix';
 import type { PublicState } from '../../../src/shared/state/contract';
+import { DEFAULT_AGENT_SETTINGS } from '../../../src/shared/study/contract';
+import { SystemAgentDetector } from '../../../src/main/study/agent-detector';
 import { createMainContainer } from '../../../src/main/container';
 import type { NotificationApi } from '../../../src/main/common/notifier';
 import { FakeBlocker, FakeClock, FakeSoundPlayer } from '../../helpers/fakes';
@@ -87,6 +89,15 @@ test('arma las rutas de estudio sobre ritmo.db', async t => {
   assert.equal(route.createdAt, new Date(clock.now()).toISOString());
   assert.deepEqual(studyRepository.list(), [route]);
   assert.ok(fs.existsSync(path.join(directory, 'ritmo.db')));
+});
+
+test('arma la configuración del agente sobre ritmo.db con el detector del sistema', t => {
+  const container = createMainContainer({ userDataPath: tempDir(t), resourcesPath, publish: () => {}, notificationApi: fakeNotificationApi([]) });
+  t.after(() => container.dispose());
+  const { agents, agentDetector, studyRepository } = container.cradle;
+  assert.ok(agentDetector instanceof SystemAgentDetector);
+  const saved = agents.saveSettings({ ...DEFAULT_AGENT_SETTINGS, provider: 'codex' });
+  assert.deepEqual(studyRepository.loadAgentSettings(), saved);
 });
 
 test('registra el ciclo de vida con los temporizadores y el tiempo máximo del cierre', async t => {

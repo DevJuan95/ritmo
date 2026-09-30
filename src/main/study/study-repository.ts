@@ -3,9 +3,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { PublicError } from '../../shared/ipc';
-import type { StudyLevel, StudyRoute, StudyRouteInput, StudyStage } from '../../shared/study/contract';
+import { DEFAULT_AGENT_SETTINGS, safeAgentSettings, type AgentSettings, type StudyLevel, type StudyRoute, type StudyRouteInput, type StudyStage } from '../../shared/study/contract';
 import type { Clock, IdGenerator } from '../common/ports';
-import type { StudyRepositoryPort, StudyStagesPort } from './ports';
+import type { AgentSettingsRepositoryPort, StudyRepositoryPort, StudyStagesPort } from './ports';
 
 interface RouteRow {
   id: string;
@@ -42,12 +42,15 @@ export interface StudyRepositoryDeps {
   newId?: IdGenerator;
 }
 
+/** Clave de la configuración del agente en `study_settings`. */
+const AGENT_SETTINGS_KEY = 'agent';
+
 /**
  * Rutas de estudio en las tablas `study_routes` y `study_stages` de `ritmo.db`, con su propia
  * conexión. Las etapas guardan su posición en la ruta y sus temas como JSON; borrar una ruta borra
- * sus etapas.
+ * sus etapas. La configuración del agente va como JSON en `study_settings`.
  */
-export class StudyRepository implements StudyRepositoryPort, StudyStagesPort {
+export class StudyRepository implements StudyRepositoryPort, StudyStagesPort, AgentSettingsRepositoryPort {
   private readonly db: DatabaseSync;
   private closed = false;
   private readonly now: Clock;
@@ -78,6 +81,10 @@ export class StudyRepository implements StudyRepositoryPort, StudyStagesPort {
         topics TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS study_stages_route ON study_stages(route_id, position);
+      CREATE TABLE IF NOT EXISTS study_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      );
     `);
   }
 
@@ -125,6 +132,22 @@ export class StudyRepository implements StudyRepositoryPort, StudyStagesPort {
 
   hasStage(routeId: string, stageId: string): boolean {
     return this.db.prepare('SELECT 1 FROM study_stages WHERE id = ? AND route_id = ?').get(stageId, routeId) !== undefined;
+  }
+
+  /** Una configuración guardada que ya no es válida, por ejemplo de otra versión, vuelve a la de por defecto. */
+  loadAgentSettings(): AgentSettings {
+    const row = this.db.prepare('SELECT value FROM study_settings WHERE key = ?').get(AGENT_SETTINGS_KEY) as { value: string } | undefined;
+    if (!row) return structuredClone(DEFAULT_AGENT_SETTINGS);
+    try {
+      return safeAgentSettings(JSON.parse(row.value));
+    } catch {
+      return structuredClone(DEFAULT_AGENT_SETTINGS);
+    }
+  }
+
+  saveAgentSettings(settings: AgentSettings): void {
+    this.db.prepare('INSERT INTO study_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value')
+      .run(AGENT_SETTINGS_KEY, JSON.stringify(settings));
   }
 
   close(): void {

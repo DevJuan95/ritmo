@@ -1,8 +1,8 @@
 import { PublicError } from '../../shared/ipc';
-import { INVALID_AGENT_RESPONSE, type TaskProposal } from '../../shared/study/contract';
-import { AGENT_LOGIN_TIMEOUT_MS, AGENT_MODEL_PATTERN, AGENT_TIMEOUT_MS, runAgentCli } from './agent-cli';
+import { AGENT_MODEL_PATTERN, INVALID_AGENT_RESPONSE, type TaskProposal } from '../../shared/study/contract';
+import { AGENT_LOGIN_TIMEOUT_MS, AGENT_TIMEOUT_MS, runAgentCli } from './agent-cli';
 import { buildAgentRequest, readAgentProposals } from './agent-prompt';
-import type { StudyAgent, StudyAgentContext, StudyAgentOptions } from './ports';
+import type { AgentLogin, StudyAgent, StudyAgentContext, StudyAgentOptions } from './ports';
 
 export const CLAUDE_CODE_NAME = 'Claude Code';
 export const CLAUDE_CODE_FAILED = 'Claude Code no pudo completar la petición. Inténtalo de nuevo.';
@@ -59,12 +59,12 @@ export function readClaudeCodeOutput(stdout: string, exitCode: number): unknown 
 }
 
 /**
- * Comprueba la salida de `claude auth status --json`, que sale con 1 si no hay sesión. Sin sesión,
- * o si la sesión es una clave de API (en la configuración, porque del entorno ya se quitó), rechaza
- * con un mensaje que dice cómo iniciar sesión con la suscripción. Una salida que no reconoce con
- * código 0 no bloquea la petición: si falta la sesión, la petición fallará igualmente.
+ * Estado de la sesión según la salida de `claude auth status --json`, que sale con 1 si no hay
+ * sesión: `logged-out` sin sesión, `api-key` si la sesión es una clave de API (en la configuración,
+ * porque del entorno ya se quitó) y `unknown` si la salida no se reconoce, sea cual sea el código:
+ * un error de configuración o la falta de `node` (127) no significan que falte la sesión.
  */
-export function checkClaudeCodeLogin(stdout: string, exitCode: number): void {
+export function claudeCodeLogin(stdout: string, exitCode: number): AgentLogin {
   let status: unknown;
   try {
     status = JSON.parse(stdout);
@@ -72,8 +72,20 @@ export function checkClaudeCodeLogin(stdout: string, exitCode: number): void {
     status = undefined;
   }
   const loggedIn = isRecord(status) ? status.loggedIn : undefined;
-  if (loggedIn === false || (loggedIn === undefined && exitCode !== 0)) throw new PublicError(CLAUDE_CODE_LOGIN);
-  if (isRecord(status) && status.authMethod === 'api_key') throw new PublicError(CLAUDE_CODE_API_KEY);
+  if (loggedIn === false) return 'logged-out';
+  if (exitCode !== 0) return 'unknown';
+  if (isRecord(status) && status.authMethod === 'api_key') return 'api-key';
+  return loggedIn === true ? 'ready' : 'unknown';
+}
+
+/**
+ * Rechaza sin sesión o con una clave de API, con un mensaje que dice cómo iniciar sesión con la
+ * suscripción. Un estado que no reconoce no bloquea la petición: si falta la sesión, fallará igual.
+ */
+export function checkClaudeCodeLogin(stdout: string, exitCode: number): void {
+  const login = claudeCodeLogin(stdout, exitCode);
+  if (login === 'logged-out') throw new PublicError(CLAUDE_CODE_LOGIN);
+  if (login === 'api-key') throw new PublicError(CLAUDE_CODE_API_KEY);
 }
 
 /**

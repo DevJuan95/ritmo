@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { MAX_DAILY_POMODOROS, STUDY_LEVELS, type StudyProgress, type StudyRoute } from '../../../shared/study/contract';
+import { Link } from 'react-router';
+import { MAX_DAILY_POMODOROS, STUDY_LEVELS, type AgentSettings, type AgentStatus, type StudyProgress, type StudyRoute } from '../../../shared/study/contract';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
 import {
-  LEVEL_LABELS, canSaveDraft, draftChanged, draftProblem, draftToInput, emptyRouteDraft, moveStage, newStageDraft, oneAtATime, routeProgressView,
+  LEVEL_LABELS, agentSummary, canSaveDraft, draftChanged, draftProblem, draftToInput, emptyRouteDraft, moveStage, newStageDraft, oneAtATime, routeProgressView,
   routeSummary, routeToDraft, stageLimits, stageProgressView, withDraft, type RouteDraft, type RouteDrafts, type StageDraft
 } from '../view';
 import type { RunAction } from '../use-ritmo';
@@ -64,6 +65,7 @@ export function StudyScreen({ run, showError, drafts, onDraftsChange }: StudyScr
       <div className="sheet-head"><h2 id="study-heading">Rutas de estudio</h2><p className="section-subtitle">Traza el camino de un tema en etapas y avanza una tarea a la vez.</p></div>
       <Button variant="outline" className="planner-today" onClick={() => setSelection({ kind: 'new' })}>Nueva ruta</Button>
     </div>
+    <AgentLine showError={showError} />
     <div className="study-layout">
       <nav className="study-index" aria-label="Tus rutas">
         {routes && routes.length === 0 && <p className="empty-state">Todavía no tienes rutas. Empieza por el tema que quieres dominar.</p>}
@@ -84,6 +86,28 @@ export function StudyScreen({ run, showError, drafts, onDraftsChange }: StudyScr
       />}
     </div>
   </section>;
+}
+
+/** Qué agente propondrá las tareas y si está listo, con un enlace a su configuración. */
+function AgentLine({ showError }: { showError: (error: unknown) => void }) {
+  const [agent, setAgent] = useState<{ settings: AgentSettings; statuses?: AgentStatus[] }>();
+
+  useEffect(() => {
+    let active = true;
+    window.ritmo.getAgentSettings().then(settings => {
+      if (!active) return;
+      setAgent({ settings });
+      return window.ritmo.checkStudyAgents().then(statuses => { if (active) setAgent({ settings, statuses }); });
+    }).catch(error => { if (active) showError(error); });
+    return () => { active = false; };
+  }, [showError]);
+
+  if (!agent) return null;
+  const summary = agentSummary(agent.settings, agent.statuses);
+  return <p className="study-agent" data-tone={summary.tone} aria-live="polite">
+    <span>{summary.text}</span>
+    <Link to="/ajustes" className="study-agent-link">{summary.tone === 'ready' ? 'Cambiar agente' : 'Configurar agente'}</Link>
+  </p>;
 }
 
 function RouteItem({ route, progress: stages, active, onSelect }: { route: StudyRoute; progress: StudyProgress; active: boolean; onSelect: () => void }) {

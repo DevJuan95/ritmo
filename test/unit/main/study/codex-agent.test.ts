@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { CODEX_API_KEY, CODEX_FAILED, CODEX_LOGIN, CODEX_OUTPUT_FILE, CODEX_SCHEMA_FILE, checkCodexLogin, codexArgs, readCodexOutput } from '../../../../src/main/study/codex-agent';
+import { CODEX_API_KEY, CODEX_FAILED, CODEX_LOGIN, CODEX_OUTPUT_FILE, CODEX_SCHEMA_FILE, checkCodexLogin, codexArgs, codexLogin, readCodexOutput } from '../../../../src/main/study/codex-agent';
 import { PublicError } from '../../../../src/shared/ipc';
 import { INVALID_AGENT_RESPONSE } from '../../../../src/shared/study/contract';
 
@@ -46,14 +46,17 @@ test('readCodexOutput da un error sin detalles con un código distinto de 0', ()
   }
 });
 
-test('checkCodexLogin acepta la sesión de ChatGPT o un estado que no reconoce con código 0', () => {
+test('checkCodexLogin acepta la sesión de ChatGPT o un estado que no reconoce, sea cual sea el código', () => {
   for (const stdout of ['Logged in using ChatGPT\n', 'WARNING: algo\nLogged in using ChatGPT\n', '']) {
     assert.doesNotThrow(() => checkCodexLogin(stdout, 0));
   }
+  for (const [stdout, exitCode] of [['Error: algo interno', 2], ['', 1], ['env: node: No such file or directory\n', 127]] as const) {
+    assert.doesNotThrow(() => checkCodexLogin(stdout, exitCode));
+  }
 });
 
-test('checkCodexLogin pide iniciar sesión sin sesión o con un código distinto de 0', () => {
-  const cases: Array<[string, number]> = [['Not logged in\n', 1], ['Not logged in\n', 0], ['Error: algo interno', 2], ['', 1]];
+test('checkCodexLogin pide iniciar sesión solo si la salida dice que no hay sesión', () => {
+  const cases: Array<[string, number]> = [['Not logged in\n', 1], ['Not logged in\n', 0]];
   for (const [stdout, exitCode] of cases) {
     assert.throws(() => checkCodexLogin(stdout, exitCode), publicError(CODEX_LOGIN));
   }
@@ -61,4 +64,14 @@ test('checkCodexLogin pide iniciar sesión sin sesión o con un código distinto
 
 test('checkCodexLogin rechaza una sesión con clave de API', () => {
   assert.throws(() => checkCodexLogin('Logged in using an API key - sk-proj-***ABCDE\n', 0), publicError(CODEX_API_KEY));
+});
+
+test('codexLogin distingue la sesión lista, sin sesión, con clave de API o sin confirmar', () => {
+  assert.equal(codexLogin('Logged in using ChatGPT\n', 0), 'ready');
+  assert.equal(codexLogin('Not logged in\n', 1), 'logged-out');
+  assert.equal(codexLogin('Logged in using an API key - sk-***\n', 0), 'api-key');
+  assert.equal(codexLogin('', 0), 'unknown');
+  assert.equal(codexLogin('Error loading config.toml: invalid type\n', 1), 'unknown', 'un error de configuración no es falta de sesión');
+  assert.equal(codexLogin('env: node: No such file or directory\n', 127), 'unknown');
+  assert.equal(codexLogin('Logged in using ChatGPT\n', 1), 'unknown');
 });

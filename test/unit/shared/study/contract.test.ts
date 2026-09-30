@@ -1,7 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  AGENT_MODEL_PATTERN,
   DEFAULT_AGENT_INSTRUCTIONS,
+  DEFAULT_AGENT_SETTINGS,
+  MAX_AGENT_PATH,
+  safeAgentSettings,
   MAX_PROPOSALS,
   MAX_STAGES,
   MAX_TOPICS_PER_STAGE,
@@ -110,4 +114,33 @@ test('valida las propuestas del agente contra las etapas de la ruta', () => {
 test('safeStudyRouteId acepta un texto de 1 a 64 caracteres', () => {
   assert.equal(safeStudyRouteId('route-1'), 'route-1');
   for (const value of ['', 'x'.repeat(65), 42, undefined, null]) assert.throws(() => safeStudyRouteId(value), /La ruta no es válida/);
+});
+
+test('la configuración por defecto del agente es válida y usa modelos ligeros', () => {
+  assert.deepEqual(safeAgentSettings(DEFAULT_AGENT_SETTINGS), DEFAULT_AGENT_SETTINGS);
+  assert.equal(DEFAULT_AGENT_SETTINGS.claude.model, 'haiku');
+  assert.equal(DEFAULT_AGENT_SETTINGS.codex.model, 'gpt-6-luna');
+});
+
+test('safeAgentSettings recorta las rutas y los modelos y admite dejarlos vacíos', () => {
+  assert.deepEqual(safeAgentSettings({
+    provider: 'codex',
+    claude: { path: '  ~/.local/bin/claude ', model: ' sonnet ' },
+    codex: { path: '   ', model: '' },
+  }), { provider: 'codex', claude: { path: '~/.local/bin/claude', model: 'sonnet' }, codex: { path: '', model: '' } });
+  assert.equal(safeAgentSettings({ ...DEFAULT_AGENT_SETTINGS, codex: { path: '/opt/homebrew/bin/codex', model: 'gpt-6-luna' } }).codex.path, '/opt/homebrew/bin/codex');
+});
+
+test('safeAgentSettings rechaza proveedores, rutas y modelos inválidos', () => {
+  const settings = (patch: Record<string, unknown>) => ({ ...DEFAULT_AGENT_SETTINGS, ...patch });
+  assert.throws(() => safeAgentSettings(null), /configuración del agente no es válida/);
+  assert.throws(() => safeAgentSettings(settings({ provider: 'gemini' })), /Elige Claude Code o Codex/);
+  assert.throws(() => safeAgentSettings(settings({ claude: 'claude' })), /configuración del agente no es válida/);
+  for (const path of ['claude', 'bin/claude', '~claude', `/${'a'.repeat(MAX_AGENT_PATH)}`, '/bin/cla\nude', 42]) {
+    assert.throws(() => safeAgentSettings(settings({ claude: { path, model: '' } })), /La ruta de Claude Code debe ser absoluta/);
+  }
+  for (const model of ['--tools', 'haiku sonnet', 7]) {
+    assert.throws(() => safeAgentSettings(settings({ codex: { path: '', model } })), /El modelo de Codex debe ser un nombre sin espacios, como «gpt-6-luna»/);
+  }
+  assert.ok(AGENT_MODEL_PATTERN.test('claude-haiku-4-5[1m]'));
 });

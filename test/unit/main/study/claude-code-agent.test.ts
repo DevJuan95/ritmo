@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { CLAUDE_CODE_API_KEY, CLAUDE_CODE_FAILED, CLAUDE_CODE_LOGIN, checkClaudeCodeLogin, claudeCodeArgs, readClaudeCodeOutput } from '../../../../src/main/study/claude-code-agent';
+import { CLAUDE_CODE_API_KEY, CLAUDE_CODE_FAILED, CLAUDE_CODE_LOGIN, checkClaudeCodeLogin, claudeCodeArgs, claudeCodeLogin, readClaudeCodeOutput } from '../../../../src/main/study/claude-code-agent';
 import { PublicError } from '../../../../src/shared/ipc';
 import { INVALID_AGENT_RESPONSE } from '../../../../src/shared/study/contract';
 
@@ -59,19 +59,20 @@ test('readClaudeCodeOutput da un error sin detalles con is_error o un código di
   }
 });
 
-test('checkClaudeCodeLogin acepta la sesión de claude.ai o un estado que no reconoce con código 0', () => {
+test('checkClaudeCodeLogin acepta la sesión de claude.ai o un estado que no reconoce, sea cual sea el código', () => {
   const status = (fields: Record<string, unknown>) => JSON.stringify({ apiProvider: 'firstParty', ...fields });
   for (const stdout of [status({ loggedIn: true, authMethod: 'claude.ai' }), status({ loggedIn: true, authMethod: 'oauth_token' }), 'Logged in', '[]']) {
     assert.doesNotThrow(() => checkClaudeCodeLogin(stdout, 0));
   }
+  for (const [stdout, exitCode] of [['error: unknown command', 1], ['null', 1], ['env: node: No such file or directory\n', 127]] as const) {
+    assert.doesNotThrow(() => checkClaudeCodeLogin(stdout, exitCode));
+  }
 });
 
-test('checkClaudeCodeLogin pide iniciar sesión sin sesión o con un error que no reconoce', () => {
+test('checkClaudeCodeLogin pide iniciar sesión solo si la salida dice que no hay sesión', () => {
   const cases: Array<[string, number]> = [
     [JSON.stringify({ loggedIn: false, authMethod: 'none' }), 1],
     [JSON.stringify({ loggedIn: false, authMethod: 'none' }), 0],
-    ['error: unknown command', 1],
-    ['null', 1],
   ];
   for (const [stdout, exitCode] of cases) {
     assert.throws(() => checkClaudeCodeLogin(stdout, exitCode), publicError(CLAUDE_CODE_LOGIN));
@@ -81,4 +82,14 @@ test('checkClaudeCodeLogin pide iniciar sesión sin sesión o con un error que n
 test('checkClaudeCodeLogin rechaza una sesión con clave de API', () => {
   const stdout = JSON.stringify({ loggedIn: true, authMethod: 'api_key', apiKeySource: 'apiKeyHelper' });
   assert.throws(() => checkClaudeCodeLogin(stdout, 0), publicError(CLAUDE_CODE_API_KEY));
+});
+
+test('claudeCodeLogin distingue la sesión lista, sin sesión, con clave de API o sin confirmar', () => {
+  assert.equal(claudeCodeLogin(JSON.stringify({ loggedIn: true, authMethod: 'claude.ai' }), 0), 'ready');
+  assert.equal(claudeCodeLogin(JSON.stringify({ loggedIn: false }), 1), 'logged-out');
+  assert.equal(claudeCodeLogin('error: unknown command', 1), 'unknown', 'un error que no reconoce no es falta de sesión');
+  assert.equal(claudeCodeLogin('env: node: No such file or directory\n', 127), 'unknown');
+  assert.equal(claudeCodeLogin(JSON.stringify({ loggedIn: true, authMethod: 'api_key' }), 0), 'api-key');
+  assert.equal(claudeCodeLogin('Logged in', 0), 'unknown');
+  assert.equal(claudeCodeLogin('[]', 0), 'unknown');
 });

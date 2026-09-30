@@ -11,9 +11,6 @@ export const AGENT_KILL_GRACE_MS = 2_000;
 /** Salida máxima que se acepta del CLI; una respuesta válida ocupa unos pocos KB. */
 export const AGENT_MAX_OUTPUT_BYTES = 1_000_000;
 
-/** Nombre o alias de modelo que se pasa al CLI: sin espacios y sin empezar por `-`. */
-export const AGENT_MODEL_PATTERN = /^[A-Za-z0-9][\w.:[\]-]{0,99}$/;
-
 /** Tiempo máximo para comprobar la sesión del CLI (`claude auth status`, `codex login status`). */
 export const AGENT_LOGIN_TIMEOUT_MS = 15_000;
 
@@ -26,10 +23,17 @@ export const AGENT_CANCELLED = 'Se canceló la petición al agente.';
  */
 export const AGENT_API_KEY_VARIABLES = ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'OPENAI_API_KEY', 'CODEX_API_KEY'] as const;
 
-/** Copia de `env` sin las claves de API de `AGENT_API_KEY_VARIABLES`, para lanzar un CLI de agente. */
-export function agentEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+/**
+ * Copia de `env` sin las claves de API de `AGENT_API_KEY_VARIABLES`, para lanzar un CLI de agente.
+ * Con `pathDirs`, esas carpetas van delante del `PATH`, sin repetir ninguna.
+ */
+export function agentEnv(env: NodeJS.ProcessEnv, pathDirs: readonly string[] = []): NodeJS.ProcessEnv {
   const copy = { ...env };
   for (const name of AGENT_API_KEY_VARIABLES) delete copy[name];
+  if (pathDirs.length > 0) {
+    const current = (env.PATH ?? '').split(path.delimiter).filter(Boolean);
+    copy.PATH = [...new Set([...pathDirs, ...current])].join(path.delimiter);
+  }
   return copy;
 }
 
@@ -55,6 +59,12 @@ export interface AgentCliOptions {
    * Sirve para comandos que informan por la salida de error, como `codex login status`.
    */
   mergeStderr?: boolean;
+  /**
+   * Carpetas que se anteponen al `PATH` del CLI. Un CLI instalado con npm es un script con
+   * `#!/usr/bin/env node`, que necesita encontrar `node` en el `PATH`, y una app abierta desde Finder
+   * solo tiene `/usr/bin:/bin:/usr/sbin:/sbin`.
+   */
+  pathDirs?: readonly string[];
 }
 
 export interface AgentCliResult {
@@ -96,7 +106,7 @@ export function runAgentCli(command: string, args: readonly string[], options: A
       }
       child = spawn(command, args, {
         cwd,
-        env: agentEnv(process.env),
+        env: agentEnv(process.env, options.pathDirs),
         stdio: ['ignore', 'pipe', options.mergeStderr ? 'pipe' : 'ignore'],
         detached: true,
       });

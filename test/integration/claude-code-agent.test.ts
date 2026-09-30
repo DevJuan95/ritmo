@@ -123,7 +123,6 @@ test('sin sesión pide iniciarla y no envía la petición', async (t) => {
   const statuses = [
     authStatus({ loggedIn: false, authMethod: 'none' }, 1),
     authStatus({ loggedIn: false, authMethod: 'none' }, 0),
-    authStatus('Error: algo interno', 1),
   ];
   for (const status of statuses) {
     const cli = fakeClaude(t, success({ structured_output: { proposals: [proposal] } }), 0, status);
@@ -139,9 +138,11 @@ test('con una clave de API en la configuración pide usar la suscripción y no e
   assert.equal(cli.calls().length, 1);
 });
 
-test('un estado de sesión que no reconoce con código 0 no bloquea la petición', async (t) => {
-  const cli = fakeClaude(t, success({ structured_output: { proposals: [proposal] } }), 0, authStatus('Logged in', 0));
-  assert.deepEqual(await new ClaudeCodeAgent({ command: cli.command }).propose(context), [proposal]);
+test('un estado de sesión que no reconoce no bloquea la petición, sea cual sea el código', async (t) => {
+  for (const status of [authStatus('Logged in', 0), authStatus('Error: algo interno', 1)]) {
+    const cli = fakeClaude(t, success({ structured_output: { proposals: [proposal] } }), 0, status);
+    assert.deepEqual(await new ClaudeCodeAgent({ command: cli.command }).propose(context), [proposal]);
+  }
 });
 
 test('se puede cancelar mientras comprueba la sesión y no lanza la petición', async (t) => {

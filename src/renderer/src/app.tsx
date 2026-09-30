@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Navigate, Route, Routes } from 'react-router';
 import { Sidebar } from './components/sidebar';
 import { PlannerScreen } from './screens/planner-screen';
+import { SettingsScreen } from './screens/settings-screen';
 import { StudyScreen } from './screens/study-screen';
 import { TodayScreen } from './screens/today-screen';
 import { useRitmo } from './use-ritmo';
@@ -25,6 +26,7 @@ export function App() {
         <Route path="/" element={state && <TodayScreen state={state} run={run} />} />
         <Route path="/planner" element={state && <PlannerScreen state={state} run={run} showError={showError} today={today} date={plannerDate ?? today} onDateChange={date => setPlannerDate(date === today ? undefined : date)} title={plannerTitle} onTitleChange={setPlannerTitle} />} />
         <Route path="/rutas" element={state && <StudyScreen run={run} showError={showError} drafts={studyDrafts} onDraftsChange={setStudyDrafts} />} />
+        <Route path="/ajustes" element={state && <SettingsScreen run={run} showError={showError} />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </main>
