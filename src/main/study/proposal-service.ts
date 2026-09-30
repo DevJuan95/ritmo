@@ -2,7 +2,7 @@ import { PublicError } from '../../shared/ipc';
 import { AGENT_CANCELLED, AGENT_NAMES, safeStudyProvider, safeStudyRouteId, STUDY_PROVIDERS, type AgentSettings, type StudyProvider, type StudyRoute, type TaskProposal } from '../../shared/study/contract';
 import type { TodayPort } from '../state/ports';
 import type { RouteTasksPort } from '../tasks/ports';
-import type { AgentLocator, AgentNoticeRepositoryPort, AgentSettingsReaderPort, ProposalServicePort, StudyAgentFactory, StudyRouteReaderPort } from './ports';
+import type { AgentLocator, AgentNoticeRepositoryPort, AgentSettingsReaderPort, ProposalLifecyclePort, ProposalServicePort, StudyAgentFactory, StudyRouteReaderPort } from './ports';
 
 export const AGENT_BUSY = 'Ya hay una petición al agente en curso. Espera a que termine o cancélala.';
 
@@ -29,10 +29,12 @@ export interface ProposalServiceDeps {
 /**
  * Pide al agente elegido en Ajustes las siguientes tareas de una ruta guardada. Solo envía la ruta
  * si el usuario aceptó el aviso de privacidad de ese proveedor, hace una petición a la vez y la
- * puede cancelar. La sesión del CLI la comprueba el adaptador antes de enviar el prompt.
+ * puede cancelar. La sesión del CLI la comprueba el adaptador antes de enviar el prompt. Al cerrar
+ * la app, `stop()` la cancela y deja de aceptar otras.
  */
-export class ProposalService implements ProposalServicePort {
-  private running: AbortController | undefined;
+export class ProposalService implements ProposalServicePort, ProposalLifecyclePort {
+  private running: { controller: AbortController; done: Promise<void> } | undefined;
+  private stopped = false;
 
   constructor(private readonly deps: ProposalServiceDeps) {}
 
@@ -49,17 +51,19 @@ export class ProposalService implements ProposalServicePort {
 
   async propose(routeId: unknown): Promise<TaskProposal[]> {
     const id = safeStudyRouteId(routeId);
+    if (this.stopped) throw new PublicError(AGENT_CANCELLED);
     if (this.running) throw new PublicError(AGENT_BUSY);
     const route = this.deps.routes.get(id);
     const settings = this.deps.settings.loadAgentSettings();
     const provider = settings.provider;
     if (!this.notices().includes(provider)) throw new PublicError(agentNoticeRequired(provider));
     const controller = new AbortController();
-    this.running = controller;
-    return this.ask(route, settings, controller.signal)
+    const request = this.ask(route, settings, controller.signal)
       // Al cancelar, el adaptador puede fallar de cualquier forma: el usuario solo ve que se canceló.
       .catch(error => { throw controller.signal.aborted ? new PublicError(AGENT_CANCELLED) : error; })
       .finally(() => { this.running = undefined; });
+    this.running = { controller, done: request.then(() => {}, () => {}) };
+    return request;
   }
 
   private async ask(route: StudyRoute, settings: AgentSettings, signal: AbortSignal): Promise<TaskProposal[]> {
@@ -73,6 +77,12 @@ export class ProposalService implements ProposalServicePort {
   }
 
   cancel(): void {
-    this.running?.abort();
+    this.running?.controller.abort();
+  }
+
+  stop(): Promise<void> {
+    this.stopped = true;
+    this.cancel();
+    return this.running?.done ?? Promise.resolve();
   }
 }

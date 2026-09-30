@@ -1,11 +1,12 @@
 import type { Notifier, TimerHandle, Timers } from '../common/ports';
 import type { FocusLifecyclePort } from '../focus/ports';
 import type { StateShutdownPort, StateStorePort } from '../state/ports';
+import type { ProposalLifecyclePort } from '../study/ports';
 import type { Database, LifecycleServicePort, QuitSignals } from './ports';
 
 /**
  * Tiempo máximo de cada fase del cierre ordenado si no se configura otro: la espera de la operación
- * en curso y el desbloqueo. Una operación en curso puede estar reinstalando el helper en
+ * en curso, el desbloqueo y la espera del CLI del agente cancelado (que suele tardar menos de 2 s). Una operación en curso puede estar reinstalando el helper en
  * `blocking/site-blocker.ts`: un diálogo de `osascript` (hasta 120 s) y hasta tres llamadas a `sudo` (hasta
  * 10 s cada una). El desbloqueo al salir no pide autorización, así que solo usa `sudo`.
  * Si se agota, se cancela el cambio de bloqueo en curso (lo que termina su `osascript` o su `sudo`)
@@ -17,6 +18,8 @@ export const TICK_INTERVAL_MS = 1000;
 export interface LifecycleDeps {
   store: StateStorePort & StateShutdownPort;
   focus: FocusLifecyclePort;
+  /** Petición al agente de estudio, que se cancela al empezar el cierre. */
+  proposals: ProposalLifecyclePort;
   notifier: Notifier;
   /** Conexiones SQLite que se cierran al final, en orden. */
   databases: readonly Database[];
@@ -28,6 +31,7 @@ export interface LifecycleDeps {
 export class LifecycleService implements LifecycleServicePort {
   private readonly store: StateStorePort & StateShutdownPort;
   private readonly focus: FocusLifecyclePort;
+  private readonly proposals: ProposalLifecyclePort;
   private readonly notifier: Notifier;
   private readonly databases: readonly Database[];
   private readonly timers: Timers;
@@ -40,6 +44,7 @@ export class LifecycleService implements LifecycleServicePort {
   constructor(deps: LifecycleDeps) {
     this.store = deps.store;
     this.focus = deps.focus;
+    this.proposals = deps.proposals;
     this.notifier = deps.notifier;
     this.databases = deps.databases;
     this.timers = deps.timers;
@@ -70,10 +75,12 @@ export class LifecycleService implements LifecycleServicePort {
   }
 
   /**
-   * Cierre ordenado e idempotente: detiene el tic, deja de aceptar operaciones protegidas, espera
-   * la que esté en curso, quita el bloqueo si hace falta, guarda el estado y cierra SQLite.
+   * Cierre ordenado e idempotente: detiene el tic, cancela la petición al agente en curso, deja de
+   * aceptar operaciones protegidas, espera la que esté en curso, quita el bloqueo si hace falta, guarda
+   * el estado, espera a que termine el CLI del agente y cierra SQLite.
    * La espera y el desbloqueo tienen cada uno el tiempo máximo completo; si se agota en cualquiera,
    * cancela el cambio de bloqueo en curso y guarda `blockError` para que `recover()` lo resuelva al arrancar.
+   * El CLI del agente se cancela en paralelo y se espera, al final, también con el tiempo máximo completo.
    */
   shutdown(): Promise<void> {
     this.stopping ??= this.stop();
@@ -82,6 +89,7 @@ export class LifecycleService implements LifecycleServicePort {
 
   private async stop(): Promise<void> {
     if (this.ticker !== undefined) this.timers.clearInterval(this.ticker);
+    const agentStopped = this.proposals.stop();
     try {
       if (await this.within(this.store.drain())) await this.within(this.store.closeWith(() => this.release()));
     } finally {
@@ -89,7 +97,11 @@ export class LifecycleService implements LifecycleServicePort {
         this.leavePending(this.store.state.blockError ?? 'Ritmo se cerró antes de quitar el bloqueo.');
       }
       try { this.store.seal(); }
-      finally { this.closeDatabases(); }
+      finally {
+        // Sin esperarlo, el CLI podría seguir vivo o dejar su directorio temporal al salir la app.
+        await this.deadline(agentStopped);
+        this.closeDatabases();
+      }
     }
   }
 
@@ -108,16 +120,20 @@ export class LifecycleService implements LifecycleServicePort {
    * dejar un diálogo de administrador ni un `sudo` vivos tras salir, y devuelve `false`.
    */
   private async within(work: Promise<unknown>): Promise<boolean> {
+    if (await this.deadline(work)) return true;
+    this.expired = true;
+    this.focus.abortBlockChange();
+    return false;
+  }
+
+  /** Espera `work` como máximo `timeoutMs`; devuelve `false` si se agota. */
+  private async deadline(work: Promise<unknown>): Promise<boolean> {
     let timeout: TimerHandle;
-    const deadline = new Promise<false>(resolve => {
+    const expired = new Promise<false>(resolve => {
       timeout = this.timers.setTimeout(() => resolve(false), this.timeoutMs);
     });
-    try {
-      if (await Promise.race([work.then(() => true as const), deadline])) return true;
-      this.expired = true;
-      this.focus.abortBlockChange();
-      return false;
-    } finally { this.timers.clearTimeout(timeout); }
+    try { return await Promise.race([work.then(() => true as const), expired]); }
+    finally { this.timers.clearTimeout(timeout); }
   }
 
   private async release(): Promise<void> {

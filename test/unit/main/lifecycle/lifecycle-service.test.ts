@@ -344,7 +344,8 @@ test('al agotarse el tiempo sin nada que desbloquear no inventa un bloqueo pendi
 test('usa un tiempo máximo por defecto', async t => {
   const harness = createHarness(t);
   const lifecycle = new LifecycleService({
-    store: harness.store, focus: harness.focus, notifier: harness.notifier, databases: [harness.repository], timers: harness.clock
+    store: harness.store, focus: harness.focus, proposals: harness.proposals, notifier: harness.notifier,
+    databases: [harness.repository], timers: harness.clock
   });
   harness.store.guarded(() => new Promise<void>(() => {})).catch(() => {});
   const closing = lifecycle.shutdown();
@@ -364,4 +365,60 @@ test('cierra todas las bases aunque falle una y sale con ese error', async t => 
   await assert.rejects(harness.lifecycle.shutdown(), failure);
   assert.equal(closeStudy.mock.callCount(), 1);
   closeTasks.mock.restore();
+});
+
+test('cancela la petición al agente en curso y la espera antes de cerrar SQLite', async t => {
+  const harness = createHarness(t);
+  const { lifecycle, proposals, agent, study } = harness;
+  const route = study.create({ topic: 'Rust', goal: '', level: 'beginner', dailyPomodoros: 2, stages: [{ title: 'Ownership', topics: [] }], instructions: '' });
+  proposals.acceptNotice('claude');
+  agent.hang();
+  const running = proposals.propose(route.id);
+  running.catch(() => {});
+  await settle();
+  await lifecycle.shutdown();
+  await assert.rejects(running, /Se canceló la petición al agente/);
+  assert.equal(repositoryClosed(harness), true);
+  await assert.rejects(proposals.propose(route.id), /Se canceló la petición al agente/);
+});
+
+test('espera al agente como máximo el tiempo máximo y cierra SQLite después', async t => {
+  const harness = createHarness(t, { shutdownTimeoutMs: 5000 });
+  let finish!: () => void;
+  const stop = t.mock.fn(() => new Promise<void>(resolve => { finish = resolve; }));
+  const lifecycle = new LifecycleService({
+    store: harness.store, focus: harness.focus, proposals: { stop }, notifier: harness.notifier,
+    databases: [harness.repository], timers: harness.clock, shutdownTimeoutMs: 5000
+  });
+  harness.store.state.focusCount = 3;
+  const closing = lifecycle.shutdown();
+  await settle();
+  assert.equal(stop.mock.callCount(), 1);
+  assert.equal(harness.readSaved().focusCount, 3, 'guarda el estado sin esperar al agente');
+  assert.equal(repositoryClosed(harness), false);
+  harness.clock.advance(4999);
+  await settle();
+  assert.equal(repositoryClosed(harness), false);
+  harness.clock.advance(1);
+  await closing;
+  assert.equal(repositoryClosed(harness), true);
+  assert.equal(harness.clock.pendingTimers, 0);
+  assert.deepEqual(harness.notifier.sent, [], 'no inventa un bloqueo pendiente');
+  finish();
+});
+
+test('cierra SQLite en cuanto el agente termina, sin agotar el tiempo máximo', async t => {
+  const harness = createHarness(t, { shutdownTimeoutMs: 5000 });
+  let finish!: () => void;
+  const lifecycle = new LifecycleService({
+    store: harness.store, focus: harness.focus, proposals: { stop: () => new Promise<void>(resolve => { finish = resolve; }) },
+    notifier: harness.notifier, databases: [harness.repository], timers: harness.clock, shutdownTimeoutMs: 5000
+  });
+  const closing = lifecycle.shutdown();
+  await settle();
+  harness.clock.advance(1000);
+  finish();
+  await closing;
+  assert.equal(repositoryClosed(harness), true);
+  assert.equal(harness.clock.pendingTimers, 0);
 });

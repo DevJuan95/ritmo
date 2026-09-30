@@ -17,7 +17,7 @@ import { AgentService } from './study/agent-service';
 import { SystemAgentDetector } from './study/agent-detector';
 import { CliStudyAgentFactory } from './study/agent-factory';
 import type {
-  AgentDetector, AgentNoticeRepositoryPort, AgentServicePort, AgentSettingsRepositoryPort, ProposalServicePort, StudyAgentFactory, StudyRepositoryPort,
+  AgentDetector, AgentNoticeRepositoryPort, AgentServicePort, AgentSettingsRepositoryPort, ProposalLifecyclePort, ProposalServicePort, StudyAgentFactory, StudyRepositoryPort,
   StudyRouteReaderPort, StudyServicePort, StudyStagesPort
 } from './study/ports';
 import { ProposalService } from './study/proposal-service';
@@ -48,7 +48,7 @@ export interface MainCradle {
   domains: DomainServicePort;
   study: StudyServicePort;
   agents: AgentServicePort;
-  proposals: ProposalServicePort;
+  proposals: ProposalServicePort & ProposalLifecyclePort;
   lifecycle: LifecycleServicePort;
 }
 
@@ -103,8 +103,8 @@ export function createMainContainer(options: MainContainerOptions): AwilixContai
     proposals: asFunction(({ studyRepository, tasks, agentDetector, agentFactory, store }: MainCradle) => new ProposalService({
       routes: studyRepository, tasks, settings: studyRepository, notices: studyRepository, locator: agentDetector, agents: agentFactory, day: store
     })).singleton(),
-    lifecycle: asFunction(({ store, focus, notifier, taskRepository, studyRepository, timers, shutdownTimeoutMs }: MainCradle) =>
-      new LifecycleService({ store, focus, notifier, databases: [taskRepository, studyRepository], timers, shutdownTimeoutMs })).singleton()
+    lifecycle: asFunction(({ store, focus, proposals, notifier, taskRepository, studyRepository, timers, shutdownTimeoutMs }: MainCradle) =>
+      new LifecycleService({ store, focus, proposals, notifier, databases: [taskRepository, studyRepository], timers, shutdownTimeoutMs })).singleton()
   });
   return container;
 }
