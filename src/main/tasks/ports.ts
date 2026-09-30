@@ -14,6 +14,8 @@ export interface TaskRepositoryPort {
   unlinkStages(routeId: string, keep: readonly string[]): void;
   /** Tareas vinculadas a la ruta, de todos los días, por día. */
   listByRoute(routeId: string): Task[];
+  /** Borra las tareas vinculadas a la ruta, de todos los días. */
+  deleteByRoute(routeId: string): void;
   importLegacy(tasks: ReadonlyArray<{ id: string; title: string; done: boolean }>, day: string): void;
   close(): void;
 }
@@ -32,7 +34,10 @@ export interface TaskServicePort extends TaskCreatorPort {
   update(id: unknown, patch: unknown): void;
 }
 
-/** Lo que las rutas de estudio necesitan de las tareas: su avance por etapa y soltar las de etapas borradas. */
+/**
+ * Lo que las rutas de estudio necesitan de las tareas: su avance por etapa, soltar las de etapas
+ * borradas y borrar las de una ruta borrada.
+ */
 export interface StudyTasksPort {
   stageProgress(): Record<string, DaySummary>;
   /**
@@ -40,6 +45,8 @@ export interface StudyTasksPort {
    * actualiza las de hoy en el estado.
    */
   unlinkStages(routeId: string, keep: readonly string[]): void;
+  /** Borra las tareas vinculadas a la ruta, de todos los días, y actualiza las de hoy en el estado. */
+  deleteRouteTasks(routeId: string): void;
 }
 
 /** Lo que la petición al agente necesita de las tareas: el historial de una ruta. */

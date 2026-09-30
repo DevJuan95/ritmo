@@ -141,6 +141,22 @@ test('resume el avance por etapa y desvincula las tareas de etapas quitadas', t 
   assert.deepEqual(tasks.stageProgress(), { [traits.id]: { total: 1, done: 0 } });
 });
 
+test('borra las tareas de una ruta de todos los días y publica el cambio', t => {
+  const { tasks, store, study, repository, published } = createHarness(t);
+  const route = study.create(rustRoute);
+  const [ownership, traits] = route.stages;
+  tasks.add('Hoy', undefined, { routeId: route.id, stageId: ownership.id });
+  tasks.add('Mañana', '2026-09-30', { routeId: route.id, stageId: traits.id });
+  tasks.add('Suelta', undefined);
+  const version = store.publicState().tasksVersion;
+
+  tasks.deleteRouteTasks(route.id);
+  assert.deepEqual(store.state.tasks.map(task => task.title), ['Suelta'], 'la lista de hoy queda al día');
+  assert.deepEqual(repository.listByDay('2026-09-30'), []);
+  assert.deepEqual(tasks.stageProgress(), {});
+  assert.equal(published.at(-1)?.tasksVersion, version + 1);
+});
+
 test('da el historial de tareas de una ruta para el agente', t => {
   const { tasks, store, study } = createHarness(t);
   const route = study.create(rustRoute);

@@ -173,6 +173,18 @@ test('desvincula las tareas de las etapas que ya no están en la ruta', t => {
   assert.deepEqual(links(), [['Uno', null, null], ['Dos', null, null], ['Otra ruta', 'r2', 's9']]);
 });
 
+test('borra las tareas vinculadas a una ruta, de todos los días', t => {
+  const { repository } = openRepository(t);
+  repository.create('Uno', '2026-09-29', { routeId: 'r1', stageId: 's1' });
+  repository.create('Dos', '2026-10-15', { routeId: 'r1', stageId: 's2' });
+  repository.create('Otra ruta', '2026-09-29', { routeId: 'r2', stageId: 's9' });
+  repository.create('Suelta', '2026-09-29');
+  repository.deleteByRoute('r1');
+  assert.deepEqual(repository.listByDay('2026-09-29').map(task => task.title), ['Otra ruta', 'Suelta']);
+  assert.deepEqual(repository.listByDay('2026-10-15'), []);
+  assert.deepEqual(repository.listByRoute('r1'), []);
+});
+
 test('añade las columnas del vínculo a una base creada antes de las rutas', t => {
   const dbPath = path.join(tempDir(t), 'ritmo.db');
   const old = new DatabaseSync(dbPath);

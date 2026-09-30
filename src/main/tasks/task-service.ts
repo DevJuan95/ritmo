@@ -60,6 +60,11 @@ export class TaskService implements TaskServicePort, StudyTasksPort, RouteTasksP
     this.refreshToday();
   }
 
+  deleteRouteTasks(routeId: string): void {
+    this.repository.deleteByRoute(routeId);
+    this.refreshToday();
+  }
+
   routeTasks(routeId: string): StudyTaskRecord[] {
     // Un vínculo siempre lleva ruta y etapa: una tarea con `routeId` tiene `stageId`.
     return this.repository.listByRoute(routeId).map(task => ({ title: task.title, stageId: task.stageId as string, done: task.done, plannedDate: task.plannedDate }));

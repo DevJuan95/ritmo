@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, NavLink, Navigate, Route, Routes, useNavigate, useParams } from 'react-router';
 import type { AgentSettings, AgentStatus, StudyProgress, StudyProvider, StudyRoute } from '../../../shared/study/contract';
+import { DeleteRouteButton } from '../components/delete-route-dialog';
 import { ProposalsPanel } from '../components/proposals-panel';
 import { RoadmapPanel } from '../components/roadmap-panel';
 import { RoadmapView } from '../components/roadmap-view';
@@ -171,7 +172,6 @@ export function StudyScreen({ run, showError, drafts, onDraftsChange, proposals,
           await load();
           void navigate(`/rutas/${route.id}`, { replace: true });
         }}
-        onDeleted={async () => {}}
       />
     </section>} />
     <Route path="agente" element={<section className="study-panel" aria-labelledby="agent-route-heading">
@@ -209,7 +209,8 @@ interface RoutePageProps {
 
 /**
  * Página de una ruta: su tema, su objetivo y en qué etapa va, y tres pestañas. Etapas para leer el
- * roadmap, Próximas tareas para pedirle tareas al agente y Opciones para editar o eliminar la ruta.
+ * roadmap, Próximas tareas para pedirle tareas al agente y Opciones para editarla. «Eliminar ruta»,
+ * en la cabecera, pide confirmación y borra también sus tareas vinculadas.
  */
 function RoutePage({ routes, progress, agent, agentStatus, drafts, setDraft, proposals, today, run, reload, onError, acceptNotice }: RoutePageProps) {
   const { id } = useParams();
@@ -225,7 +226,15 @@ function RoutePage({ routes, progress, agent, agentStatus, drafts, setDraft, pro
   return <section className="study-panel" aria-labelledby="route-heading">
     <BackLink />
     <header className="route-hero">
-      <h2 id="route-heading">{route.topic}</h2>
+      <div className="route-hero-title">
+        <h2 id="route-heading">{route.topic}</h2>
+        <DeleteRouteButton route={route} progress={progress} run={run} onDeleted={async () => {
+          setDraft(key, undefined);
+          proposals.update(route.id, () => []);
+          await reload();
+          void navigate('/rutas', { replace: true });
+        }} />
+      </div>
       {route.goal && <p className="roadmap-goal">{route.goal}</p>}
       <div className="route-hero-progress">
         <StageMarks route={route} progress={progress} />
@@ -270,12 +279,6 @@ function RoutePage({ routes, progress, agent, agentStatus, drafts, setDraft, pro
           setDraft(key, undefined);
           await reload();
           void navigate(`/rutas/${saved.id}`, { replace: true });
-        }}
-        onDeleted={async () => {
-          setDraft(key, undefined);
-          proposals.update(route.id, () => []);
-          await reload();
-          void navigate('/rutas', { replace: true });
         }}
       />} />
       <Route path="*" element={<Navigate to={base} replace />} />
