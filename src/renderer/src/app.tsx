@@ -2,16 +2,18 @@ import { useState } from 'react';
 import { Navigate, Route, Routes } from 'react-router';
 import { Sidebar } from './components/sidebar';
 import { PlannerScreen } from './screens/planner-screen';
+import { StudyScreen } from './screens/study-screen';
 import { TodayScreen } from './screens/today-screen';
 import { useRitmo } from './use-ritmo';
 import { useToday } from './use-today';
-import { dateLabel, focusCountText } from './view';
+import { dateLabel, focusCountText, type RouteDrafts } from './view';
 
 export function App() {
   const today = useToday();
   // Sin fecha elegida, el Planner sigue al día actual, también después de medianoche.
   const [plannerDate, setPlannerDate] = useState<string>();
   const [plannerTitle, setPlannerTitle] = useState('');
+  const [studyDrafts, setStudyDrafts] = useState<RouteDrafts>({});
   const { state, error, run, showError } = useRitmo();
   return <div className="app-shell">
     <Sidebar />
@@ -22,6 +24,7 @@ export function App() {
       <Routes>
         <Route path="/" element={state && <TodayScreen state={state} run={run} />} />
         <Route path="/planner" element={state && <PlannerScreen state={state} run={run} showError={showError} today={today} date={plannerDate ?? today} onDateChange={date => setPlannerDate(date === today ? undefined : date)} title={plannerTitle} onTitleChange={setPlannerTitle} />} />
+        <Route path="/rutas" element={state && <StudyScreen run={run} showError={showError} drafts={studyDrafts} onDraftsChange={setStudyDrafts} />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </main>
