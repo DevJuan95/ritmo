@@ -21,7 +21,16 @@
 
 ## 🚀 Empezar
 
-Necesitas macOS, Node.js 24 (ver `.nvmrc`) y npm.
+Para instalarla en un Mac con Apple Silicon, genera el `.dmg` y arrastra Ritmo a Aplicaciones:
+
+```bash
+npm install
+npm run dist:mac   # release/Ritmo-<versión>-arm64.dmg
+```
+
+La app va firmada ad hoc, sin cuenta de Apple Developer ni notarización: la primera vez, ábrela con clic derecho → **Abrir**. Si macOS aun así la bloquea, ve a **Ajustes del Sistema → Privacidad y seguridad** y pulsa «Abrir igualmente».
+
+Para abrirla desde el código necesitas Node.js 24 (ver `.nvmrc`) y npm:
 
 ```bash
 npm install
@@ -53,6 +62,7 @@ Desde la terminal, Claude Code o Codex también pueden leer tus rutas y añadir 
 | Comando | Qué hace |
 | --- | --- |
 | `npm start` | Compila a `out/` con electron-vite y abre la app |
+| `npm run dist:mac` | Genera `Ritmo.app` y su `.dmg` para Apple Silicon en `release/` |
 | `npm run dev` | Abre la app con recarga en caliente de la interfaz |
 | `npm run typecheck` | Comprueba los tipos sin generar archivos |
 | `npm test` | Compila y ejecuta todas las pruebas |

@@ -120,7 +120,7 @@ Registros de `createMainContainer()`. En `MainCradle`, los servicios y los repos
 
 | Registro | Fábrica | Puertos sin inyectar |
 | --- | --- | --- |
-| `userDataPath`, `resourcesPath`, `publish`, `notificationApi` | Valores que pasa `app.ts`: `app.getPath('userData')`, `<app.getAppPath()>/resources` (con `block-sites.sh`, `install-block-helper.sh` y el icono), la función que envía el estado por `webContents.send('state', …)` si la ventana existe, y `Notification` de Electron. | — |
+| `userDataPath`, `resourcesPath`, `publish`, `notificationApi` | Valores que pasa `app.ts`: `app.getPath('userData')`, `<app.getAppPath()>/resources` sin empaquetar o `process.resourcesPath` en `Ritmo.app` (con `block-sites.sh`, `install-block-helper.sh` y el icono), la función que envía el estado por `webContents.send('state', …)` si la ventana existe, y `Notification` de Electron. | — |
 | `now` | Valor: `options.now`, o `Date.now` si no se pasa (`app.ts` no lo pasa). | — |
 | `timers` | Valor: `options.timers`, o `systemTimers` si no se pasa (`app.ts` no lo pasa). | — |
 | `shutdownTimeoutMs` | Valor: `options.shutdownTimeoutMs`; sin él, `LifecycleService` usa `DEFAULT_SHUTDOWN_TIMEOUT_MS` (160 s por fase del cierre). | — |

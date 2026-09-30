@@ -1,0 +1,38 @@
+# Empaqueta la app compilada en out/ como Ritmo.app y la distribuye en un .dmg (npm run dist:mac).
+appId: com.ritmo.app
+productName: Ritmo
+copyright: Copyright © 2026 Juan Hoyos
+directories:
+  output: release
+files:
+  - out/**
+  - package.json
+# El servidor MCP se ejecuta con el `node` del sistema, que no lee app.asar.
+asarUnpack:
+  - out/main/mcp.js
+  - out/main/chunks/**
+# El helper de bloqueo, su instalador y el icono van a Contents/Resources (process.resourcesPath),
+# fuera de app.asar, para que `osascript` y `sudo` puedan leerlos y ejecutarlos.
+extraResources:
+  - from: resources
+    to: .
+    filter:
+      - block-sites.sh
+      - install-block-helper.sh
+      - icon.png
+mac:
+  target:
+    - target: dmg
+      arch: arm64
+  icon: resources/icon.png
+  category: public.app-category.productivity
+  # Firma ad hoc: sin cuenta de Apple Developer. macOS pide abrirla con clic derecho → Abrir la primera vez.
+  identity: '-'
+  # El runtime endurecido solo sirve para notarizar, y con firma ad hoc impide cargar los frameworks de Electron.
+  hardenedRuntime: false
+# Solo los idiomas de la interfaz; Electron trae decenas de .lproj.
+electronLanguages:
+  - es
+  - en
+dmg:
+  artifactName: Ritmo-${version}-${arch}.dmg

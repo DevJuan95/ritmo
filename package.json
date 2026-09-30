@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Pomodoro, tareas diarias y bloqueo de distracciones para macOS",
+  "author": "Juan Hoyos",
   "main": "out/main/index.js",
   "engines": {
     "node": ">=24"
@@ -12,6 +13,7 @@
     "clean": "node -e \"for (const dir of ['dist', 'out']) require('node:fs').rmSync(dir, { recursive: true, force: true })\"",
     "dev": "electron-vite dev",
     "start": "npm run build && electron-vite preview --skipBuild",
+    "dist:mac": "npm run build && electron-builder --mac dmg --arm64",
     "test": "npm run build && tsc && npm run test:all",
     "test:all": "node --test \"dist/test/**/*.test.js\"",
     "test:unit": "npm run clean && tsc && node --test \"dist/test/unit/**/*.test.js\"",
@@ -27,22 +29,23 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^5.2.0",
     "c8": "^12.0.0",
-    "electron": "^44.4.5",
-    "electron-vite": "^5.0.0",
-    "tailwindcss": "^4.3.3",
-    "typescript": "^5.9.0",
-    "vite": "^7.3.6"
-  },
-  "dependencies": {
-    "awilix": "^13.0.5",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "electron": "^44.4.5",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0",
     "lucide-react": "^1.48.0",
     "radix-ui": "^1.6.7",
     "react": "^19.3.0",
     "react-day-picker": "^10.0.1",
     "react-dom": "^19.3.0",
     "react-router": "^8.4.0",
-    "tailwind-merge": "^3.7.0"
+    "tailwind-merge": "^3.7.0",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5.9.0",
+    "vite": "^7.3.6"
+  },
+  "dependencies": {
+    "awilix": "^13.0.5"
   }
 }

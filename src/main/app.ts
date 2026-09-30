@@ -6,8 +6,9 @@ import { registerHandlers } from './ipc/register';
 import { createQuitSignals } from './lifecycle/quit-signals';
 import { initialWindowSize } from './window-size';
 
-// `app.getAppPath()` es la raíz del proyecto, que contiene `resources/` y la salida `out/`.
-const resourcesPath = path.join(app.getAppPath(), 'resources');
+// Sin empaquetar, `app.getAppPath()` es la raíz del proyecto, que contiene `resources/` y la salida `out/`.
+// En Ritmo.app, electron-builder copia esos archivos a Contents/Resources, fuera de app.asar.
+const resourcesPath = app.isPackaged ? process.resourcesPath : path.join(app.getAppPath(), 'resources');
 const iconPath = path.join(resourcesPath, 'icon.png');
 let window: BrowserWindow | undefined;
 
