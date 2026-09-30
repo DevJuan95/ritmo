@@ -8,7 +8,7 @@ import type { Task } from '../../../../src/shared/tasks/contract';
 import {
   LEVEL_LABELS, calendarRange, canSaveDraft, completionText, dateLabel, dayButtonLabel, dayIndicator, dayToDate, domainsLocked, draftChanged, draftProblem,
   draftToInput, emptyRouteDraft, errorMessage, focusCountText, isPlannableDate, monthOf, moveStage, newStageDraft, oneAtATime, parseTopics, plannedDateToSave,
-  routeProgressView, routeSummary, routeToDraft, stageLimits, stageProgressView, tasksRevision, timerActions, timerView, withDraft
+  linkFromStage, routeProgressView, routeSummary, routeToDraft, stageLimits, stageOptions, stageProgressView, taskStageValue, tasksRevision, timerActions, timerView, withDraft
 } from '../../../../src/renderer/src/view';
 import { buildState } from '../../../helpers/harness';
 
@@ -25,7 +25,7 @@ function publicState(overrides: Partial<AppState> = {}, busy = false): PublicSta
 }
 
 function task(id: string, done: boolean): Task {
-  return { id, title: id, done, plannedDate: '2026-09-29', createdAt: '', completedAt: done ? '' : null };
+  return { id, title: id, done, plannedDate: '2026-09-29', createdAt: '', completedAt: done ? '' : null, routeId: null, stageId: null };
 }
 
 test('resume el avance de tareas o muestra el texto vacío', () => {
@@ -286,4 +286,29 @@ test('los borradores se guardan y se quitan por clave sin tocar los demás', () 
   assert.deepEqual(withDraft(drafts, 'a', other), { a: other, b: other });
   assert.deepEqual(withDraft(drafts, 'a', undefined), { b: other });
   assert.deepEqual(withDraft(drafts, 'c', undefined), drafts);
+});
+
+test('el selector de etapa agrupa las etapas numeradas por ruta', () => {
+  const go = studyRoute({ id: 'r2', topic: 'Go', stages: [{ id: 's3', title: 'Goroutines', topics: [] }] });
+  assert.deepEqual(stageOptions([studyRoute(), go]), [
+    { label: 'Rust', options: [{ value: 's1', label: '1. Ownership' }, { value: 's2', label: '2. Traits' }] },
+    { label: 'Go', options: [{ value: 's3', label: '1. Goroutines' }] }
+  ]);
+  assert.deepEqual(stageOptions([]), []);
+});
+
+test('la etapa elegida se convierte en el vínculo de la tarea', () => {
+  const routes = [studyRoute(), studyRoute({ id: 'r2', stages: [{ id: 's3', title: 'Goroutines', topics: [] }] })];
+  assert.deepEqual(linkFromStage(routes, 's2'), { routeId: 'r1', stageId: 's2' });
+  assert.deepEqual(linkFromStage(routes, 's3'), { routeId: 'r2', stageId: 's3' });
+  assert.equal(linkFromStage(routes, ''), null);
+  assert.equal(linkFromStage(routes, 'borrada'), null);
+});
+
+test('el selector muestra la etapa de la tarea solo si sigue en su ruta', () => {
+  const routes = [studyRoute()];
+  assert.equal(taskStageValue(routes, { routeId: 'r1', stageId: 's2' }), 's2');
+  assert.equal(taskStageValue(routes, { routeId: null, stageId: null }), '');
+  assert.equal(taskStageValue(routes, { routeId: 'r2', stageId: 's2' }), '');
+  assert.equal(taskStageValue(routes, { routeId: 'r1', stageId: 'borrada' }), '');
 });

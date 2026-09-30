@@ -1,6 +1,7 @@
 import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { TaskRepository } from '../../../../src/main/tasks/task-repository';
 import { FakeClock, sequentialIds } from '../../../helpers/fakes';
 import { tempDir } from '../../../helpers/temp';
@@ -17,7 +18,7 @@ test('guarda tareas por fecha y las recupera tras reabrir la base', t => {
   const task = repository.create('Preparar informe', '2026-10-02');
   assert.deepEqual(task, {
     id: 'task-1', title: 'Preparar informe', plannedDate: '2026-10-02',
-    createdAt: new Date(clock.now()).toISOString(), completedAt: null, done: false
+    createdAt: new Date(clock.now()).toISOString(), completedAt: null, done: false, routeId: null, stageId: null
   });
   assert.equal(repository.listByDay('2026-10-01').length, 0);
   repository.close();
@@ -127,4 +128,62 @@ test('sin generador inyectado usa UUID aleatorios', t => {
   const second = repository.create('Otra', '2026-09-29');
   assert.match(first.id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
   assert.notEqual(first.id, second.id);
+});
+
+test('guarda el vínculo con una etapa al crear y lo cambia o lo quita al editar', t => {
+  const { repository, dbPath } = openRepository(t);
+  const linked = repository.create('Leer el capítulo 4', '2026-09-29', { routeId: 'r1', stageId: 's1' });
+  assert.deepEqual([linked.routeId, linked.stageId], ['r1', 's1']);
+  const loose = repository.create('Suelta', '2026-09-29', null);
+  assert.deepEqual([loose.routeId, loose.stageId], [null, null]);
+
+  assert.deepEqual(repository.update(linked.id, { title: 'Leer el capítulo 5' }), { ...linked, title: 'Leer el capítulo 5' }, 'editar otro campo conserva el vínculo');
+  const moved = repository.update(loose.id, { link: { routeId: 'r1', stageId: 's2' } });
+  assert.deepEqual([moved.routeId, moved.stageId], ['r1', 's2']);
+  const unlinked = repository.update(linked.id, { link: null });
+  assert.deepEqual([unlinked.routeId, unlinked.stageId], [null, null]);
+  assert.throws(() => repository.create('Mal', '2026-09-29', { routeId: 'r1' } as never), /etapa válida/);
+  assert.throws(() => repository.update(loose.id, { link: { routeId: '', stageId: 's1' } }), /etapa válida/);
+  repository.close();
+
+  const reopened = new TaskRepository(dbPath);
+  t.after(() => reopened.close());
+  assert.deepEqual(reopened.listByDay('2026-09-29').map(task => [task.title, task.routeId, task.stageId]), [['Leer el capítulo 5', null, null], ['Suelta', 'r1', 's2']]);
+});
+
+test('resume por etapa las tareas vinculadas de todos los días', t => {
+  const { repository } = openRepository(t);
+  const first = repository.create('Una', '2026-09-01', { routeId: 'r1', stageId: 's1' });
+  repository.create('Dos', '2026-10-15', { routeId: 'r1', stageId: 's1' });
+  repository.create('Tres', '2026-09-29', { routeId: 'r1', stageId: 's2' });
+  repository.create('Suelta', '2026-09-29');
+  repository.update(first.id, { done: true });
+  assert.deepEqual(repository.summarizeByStage(), { s1: { total: 2, done: 1 }, s2: { total: 1, done: 0 } });
+});
+
+test('desvincula las tareas de las etapas que ya no están en la ruta', t => {
+  const { repository } = openRepository(t);
+  repository.create('Uno', '2026-09-29', { routeId: 'r1', stageId: 's1' });
+  repository.create('Dos', '2026-09-29', { routeId: 'r1', stageId: 's2' });
+  repository.create('Otra ruta', '2026-09-29', { routeId: 'r2', stageId: 's9' });
+  repository.unlinkStages('r1', ['s1']);
+  const links = () => repository.listByDay('2026-09-29').map(task => [task.title, task.routeId, task.stageId]);
+  assert.deepEqual(links(), [['Uno', 'r1', 's1'], ['Dos', null, null], ['Otra ruta', 'r2', 's9']]);
+  repository.unlinkStages('r1', []);
+  assert.deepEqual(links(), [['Uno', null, null], ['Dos', null, null], ['Otra ruta', 'r2', 's9']]);
+});
+
+test('añade las columnas del vínculo a una base creada antes de las rutas', t => {
+  const dbPath = path.join(tempDir(t), 'ritmo.db');
+  const old = new DatabaseSync(dbPath);
+  old.exec(`
+    CREATE TABLE tasks (id TEXT PRIMARY KEY, title TEXT NOT NULL, planned_date TEXT NOT NULL, created_at TEXT NOT NULL, completed_at TEXT);
+    INSERT INTO tasks VALUES ('vieja', 'Antes de las rutas', '2026-09-29', '2026-09-01T00:00:00.000Z', NULL);
+  `);
+  old.close();
+  const repository = new TaskRepository(dbPath);
+  t.after(() => repository.close());
+  assert.deepEqual(repository.listByDay('2026-09-29').map(task => [task.id, task.routeId, task.stageId]), [['vieja', null, null]]);
+  repository.update('vieja', { link: { routeId: 'r1', stageId: 's1' } });
+  assert.deepEqual(repository.summarizeByStage(), { s1: { total: 1, done: 0 } });
 });

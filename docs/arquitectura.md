@@ -36,11 +36,11 @@ flowchart LR
   api -- "onState(callback)" --> ui
 ```
 
-Canales: `get-state` (`state`), `start-focus`, `finish-focus`, `start-break` y `finish-break` (`focus`), `add-task`, `toggle-task`, `delete-task`, `get-tasks-for-day`, `get-task-summary` y `update-task` (`tasks`), `add-domain`, `remove-domain` y `retry-unblock` (`blocking`), y `list-study-routes`, `create-study-route`, `update-study-route` y `delete-study-route` (`study`), en `invoke`, y `state`, que va del proceso principal al renderer. `retry-unblock` y `finish-focus` llaman al mismo método, `FocusService.finishFocus()`. `get-task-summary` devuelve el resumen de tareas del rango que muestra el calendario del Planner en una sola consulta, en lugar de pedir cada día con `get-tasks-for-day`. `test/contract/` comprueba que `RitmoAPI`, el preload e `ipc/register.ts` sigan sincronizados.
+Canales: `get-state` (`state`), `start-focus`, `finish-focus`, `start-break` y `finish-break` (`focus`), `add-task`, `toggle-task`, `delete-task`, `get-tasks-for-day`, `get-task-summary` y `update-task` (`tasks`), `add-domain`, `remove-domain` y `retry-unblock` (`blocking`), y `list-study-routes`, `create-study-route`, `update-study-route`, `delete-study-route` y `get-study-progress` (`study`), en `invoke`, y `state`, que va del proceso principal al renderer. `retry-unblock` y `finish-focus` llaman al mismo método, `FocusService.finishFocus()`. `add-task` y `update-task` aceptan el vínculo de la tarea con una etapa; `get-study-progress` devuelve el avance de todas las etapas, por `stageId`, en una consulta. `get-task-summary` devuelve el resumen de tareas del rango que muestra el calendario del Planner en una sola consulta, en lugar de pedir cada día con `get-tasks-for-day`. `test/contract/` comprueba que `RitmoAPI`, el preload e `ipc/register.ts` sigan sincronizados.
 
 ### 1.1 Contratos compartidos
 
-Lo que cruza procesos está en `src/shared/`, con un contrato por módulo en `src/shared/<módulo>/contract.ts` (`focus`, `tasks`, `blocking`, `state` y `study`). Cada uno declara sus tipos, su parte de `AppState`, la API que ofrece al renderer, sus canales IPC y la validación de su entrada, que usan los servicios del proceso principal y la vista. `study/contract.ts` es el contrato de las rutas de estudio (#36): por ahora su API solo crea, edita, lista y borra rutas, y la pantalla Rutas del renderer (`screens/study-screen.tsx`) la usa para editarlas con la lógica sin DOM de `view.ts`. `src/shared/ipc.ts` guarda lo común a todos los canales: `PublicError`, `IpcResult`, `ApiError` y los tipos auxiliares `ChannelMap` y `UnvalidatedArgs`. `src/shared/api.ts` solo compone: `RitmoAPI`, `RitmoChannels`, `RitmoEvents` y el tipo de `window.ritmo`.
+Lo que cruza procesos está en `src/shared/`, con un contrato por módulo en `src/shared/<módulo>/contract.ts` (`focus`, `tasks`, `blocking`, `state` y `study`). Cada uno declara sus tipos, su parte de `AppState`, la API que ofrece al renderer, sus canales IPC y la validación de su entrada, que usan los servicios del proceso principal y la vista. `study/contract.ts` es el contrato de las rutas de estudio (#36): por ahora su API crea, edita, lista y borra rutas y da el avance de sus etapas según las tareas vinculadas (`tasks/contract.ts` define el vínculo, `TaskLink`), y la pantalla Rutas del renderer (`screens/study-screen.tsx`) la usa para editarlas con la lógica sin DOM de `view.ts`. `src/shared/ipc.ts` guarda lo común a todos los canales: `PublicError`, `IpcResult`, `ApiError` y los tipos auxiliares `ChannelMap` y `UnvalidatedArgs`. `src/shared/api.ts` solo compone: `RitmoAPI`, `RitmoChannels`, `RitmoEvents` y el tipo de `window.ritmo`.
 
 Los canales son solo tipos: el preload se ejecuta con sandbox y no puede cargar módulos locales, así que importa los contratos con `import type` y repite `GENERIC_ERROR_MESSAGE`. `ChannelMap` asigna a cada método de la API de un módulo su canal y toma de él la firma. Con `RitmoChannels`, el preload solo compila si invoca un canal existente con los argumentos de su método, y el `ipc.ts` de cada módulo solo si registra canales de su propio contrato con la misma aridad, porque recibe un `Handle<FocusChannels>` (o el de su módulo); allí los argumentos llegan como `unknown` y los valida el servicio.
 
@@ -49,9 +49,9 @@ flowchart LR
   api["api.ts<br/>RitmoAPI, RitmoChannels, RitmoEvents"]
   state["state/contract.ts<br/>AppState, PublicState, todayKey"]
   focus["focus/contract.ts<br/>Session, MINUTES"]
-  tasks["tasks/contract.ts<br/>Task, safeTaskTitle, safePlannedDate"]
+  tasks["tasks/contract.ts<br/>Task, TaskLink, safeTaskTitle,<br/>safePlannedDate, safeTaskLink"]
   blocking["blocking/contract.ts<br/>normalizeDomains, DEFAULT_DOMAINS"]
-  study["study/contract.ts<br/>StudyRoute, StudyAPI, safeStudyRoute, safeTaskProposals"]
+  study["study/contract.ts<br/>StudyRoute, StudyProgress, StudyAPI,<br/>safeStudyRoute, safeTaskProposals"]
   ipc["ipc.ts<br/>PublicError, IpcResult, ChannelMap"]
 
   api --> state
@@ -74,7 +74,7 @@ flowchart LR
 
 `src/main/app.ts` es la raíz de composición. Crea con `createMainContainer()` (`src/main/container.ts`, Awilix) un contenedor en el que todo es singleton, le pasa lo que viene de Electron (`userData`, la carpeta `resources/`, `Notification` y la función que publica el estado) y resuelve de él `lifecycle`. Después conecta las vías de salida con el cierre ordenado, registra los manejadores IPC con `ipcMain` y el propio `container.cradle`. Solo `app.ts` y el preload importan `electron`, y solo `container.ts` importa Awilix. Los servicios no conocen el contenedor: las fábricas de `container.ts` llaman a sus constructores de forma explícita y los servicios reciben lo de Electron a través de puertos.
 
-`src/main/` está dividido en módulos por contexto (`common/`, `state/`, `focus/`, `blocking/`, `tasks/`, `study/`, `lifecycle/` e `ipc/`; ver «Módulos» en el [glosario](glosario.md)). Cada módulo declara en su `ports.ts` los puertos de salida que necesita y las interfaces de su servicio (`StateStorePort`, `PublicStatePort`, `StateShutdownPort`, `FocusServicePort`, `FocusLifecyclePort`, `TaskServicePort`, `DomainServicePort`, `StudyServicePort`, `LifecycleServicePort`), que la clase implementa. Cada consumidor recibe solo la interfaz con lo que usa. Los consumidores, `MainCradle` incluido, dependen solo de esas interfaces, y los módulos se importan entre sí solo a través de `ports.ts`: `container.ts` es el único que construye las clases de servicio.
+`src/main/` está dividido en módulos por contexto (`common/`, `state/`, `focus/`, `blocking/`, `tasks/`, `study/`, `lifecycle/` e `ipc/`; ver «Módulos» en el [glosario](glosario.md)). Cada módulo declara en su `ports.ts` los puertos de salida que necesita y las interfaces de su servicio (`StateStorePort`, `PublicStatePort`, `StateShutdownPort`, `FocusServicePort`, `FocusLifecyclePort`, `TaskServicePort`, `StudyTasksPort`, `DomainServicePort`, `StudyServicePort`, `LifecycleServicePort`), que la clase implementa. Cada consumidor recibe solo la interfaz con lo que usa. Los consumidores, `MainCradle` incluido, dependen solo de esas interfaces, y los módulos se importan entre sí solo a través de `ports.ts`: `container.ts` es el único que construye las clases de servicio.
 
 El grafo de dependencias se divide en vistas: composición, entrada por IPC, servicios entre sí y adaptadores con sus efectos externos. En todas, en rojo va lo que depende de Electron; las flechas continuas son dependencias en tiempo de ejecución, rotuladas con el puerto o la interfaz de servicio por la que pasan, y las discontinuas indican que `container.ts` registra el módulo.
 
@@ -103,7 +103,7 @@ flowchart LR
   classDef electron fill:#fde2e2,stroke:#c0392b,color:#000
 ```
 
-Registros de `createMainContainer()`. En `MainCradle`, los servicios y los repositorios se tipan con su interfaz: `taskRepository` como `TaskRepositoryPort`, `studyRepository` como `StudyRepositoryPort`, `store` como `StateStorePort & PublicStatePort & StateShutdownPort`, `focus` como `FocusServicePort & FocusLifecyclePort`, `tasks` como `TaskServicePort`, `domains` como `DomainServicePort`, `study` como `StudyServicePort` y `lifecycle` como `LifecycleServicePort`.
+Registros de `createMainContainer()`. En `MainCradle`, los servicios y los repositorios se tipan con su interfaz: `taskRepository` como `TaskRepositoryPort`, `studyRepository` como `StudyRepositoryPort & StudyStagesPort`, `store` como `StateStorePort & PublicStatePort & StateShutdownPort`, `focus` como `FocusServicePort & FocusLifecyclePort`, `tasks` como `TaskServicePort & StudyTasksPort`, `domains` como `DomainServicePort`, `study` como `StudyServicePort` y `lifecycle` como `LifecycleServicePort`.
 
 | Registro | Fábrica | Puertos sin inyectar |
 | --- | --- | --- |
@@ -118,9 +118,9 @@ Registros de `createMainContainer()`. En `MainCradle`, los servicios y los repos
 | `studyRepository` | `new StudyRepository(<userData>/ritmo.db, { now })`, con su propia conexión al mismo archivo; lo cierran el cierre ordenado y `container.dispose()` (`close()` es idempotente). | `IdGenerator` (`crypto.randomUUID`) |
 | `store` | `new StateStore(<userData>/state.json, { tasks: taskRepository, publish, now })` | — |
 | `focus` | `new FocusService(store, { blocker, notifier, sound })` | — |
-| `tasks` | `new TaskService(store, taskRepository)` | — |
+| `tasks` | `new TaskService(store, taskRepository, studyRepository)` | — |
 | `domains` | `new DomainService(store)` | — |
-| `study` | `new StudyService(studyRepository)` | — |
+| `study` | `new StudyService(studyRepository, tasks)` | — |
 | `lifecycle` | `new LifecycleService({ store, focus, notifier, databases: [taskRepository, studyRepository], timers, shutdownTimeoutMs })` | — |
 
 Orden de arranque en `app.ts`: se crea el contenedor y se resuelve `lifecycle` (con él, `store`, `focus`, los repositorios y los adaptadores). `lifecycle.listen()` conecta `createQuitSignals({ app, powerMonitor, process })` con el cierre ordenado; después vienen `registerHandlers(ipcMain, container.cradle)` y la ventana. Por último, `lifecycle.start()` llama a `focus.recover()` y `store.rollDay()`, hace un primer `focus.tick()`, que cierra de inmediato una sesión que venció con la app cerrada, y programa el tic cada segundo con `Timers`.
@@ -164,7 +164,7 @@ flowchart LR
 
 ### 2.3 Entre servicios
 
-Los servicios guardan a través de `StateStore`, salvo `StudyService`, que solo usa su repositorio; `LifecycleService` es el único que depende de otro servicio de dominio (`FocusService`) y cierra las dos conexiones SQLite como `Database`.
+Los servicios guardan a través de `StateStore`, salvo `StudyService`, que usa su repositorio y pide a `TaskService` (`StudyTasksPort`) el avance de las etapas y que desvincule las tareas de las etapas que se quitan, para que las tareas de hoy queden al día. `TaskService` comprueba con `StudyStagesPort`, que implementa `StudyRepository`, que la etapa de un vínculo existe. `LifecycleService` depende de `FocusService` y cierra las dos conexiones SQLite como `Database`.
 
 ```mermaid
 flowchart LR
@@ -187,6 +187,8 @@ flowchart LR
   lifecycle -- "Database" --> studyRepo
   store -- "TaskRepositoryPort" --> repo
   studyService -- "StudyRepositoryPort" --> studyRepo
+  studyService -- "StudyTasksPort" --> taskService
+  taskService -- "StudyStagesPort" --> studyRepo
 ```
 
 ### 2.4 Foco y bloqueo: adaptadores y efectos externos
@@ -238,7 +240,7 @@ flowchart LR
   lifecycle -- "QuitSignals" --> quit
   store -- "PublishState" --> send
   store --> json
-  repo -- "tasks" --> db
+  repo -- "tasks<br/>(route_id, stage_id)" --> db
   studyRepo -- "study_routes,<br/>study_stages" --> db
   notifier --> notification
   quit --> salida

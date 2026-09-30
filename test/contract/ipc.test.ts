@@ -67,7 +67,7 @@ const sampleCalls: { [K in Exclude<keyof RitmoAPI, 'onState'>]: Parameters<Ritmo
   finishFocus: [],
   startBreak: ['shortBreak'],
   finishBreak: [],
-  addTask: ['Tarea', '2026-09-30'],
+  addTask: ['Tarea', '2026-09-30', null],
   toggleTask: ['id-1'],
   deleteTask: ['id-1'],
   getTasksForDay: ['2026-09-29'],
@@ -79,7 +79,8 @@ const sampleCalls: { [K in Exclude<keyof RitmoAPI, 'onState'>]: Parameters<Ritmo
   listStudyRoutes: [],
   createStudyRoute: [studyRoute],
   updateStudyRoute: ['study-1', studyRoute],
-  deleteStudyRoute: ['study-1']
+  deleteStudyRoute: ['study-1'],
+  getStudyProgress: []
 };
 
 test('cada método del preload invoca un canal registrado por el proceso principal con sus argumentos', async t => {

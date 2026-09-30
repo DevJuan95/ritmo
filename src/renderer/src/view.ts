@@ -1,9 +1,9 @@
 import type { RitmoAPI } from '../../shared/api.js';
 import { MINUTES } from '../../shared/focus/contract.js';
 import { GENERIC_ERROR_MESSAGE, type PublicError } from '../../shared/ipc.js';
-import { DEFAULT_AGENT_INSTRUCTIONS, MAX_STAGES, safeStudyRoute, type StudyLevel, type StudyRoute, type StudyRouteInput } from '../../shared/study/contract.js';
+import { DEFAULT_AGENT_INSTRUCTIONS, MAX_STAGES, safeStudyRoute, type StageProgress, type StudyLevel, type StudyProgress, type StudyRoute, type StudyRouteInput } from '../../shared/study/contract.js';
 import { todayKey, type PublicState } from '../../shared/state/contract.js';
-import { FIRST_PLANNED_DATE, LAST_PLANNED_DATE, safePlannedDate, type DaySummary, type Task } from '../../shared/tasks/contract.js';
+import { FIRST_PLANNED_DATE, LAST_PLANNED_DATE, safePlannedDate, type DaySummary, type Task, type TaskLink } from '../../shared/tasks/contract.js';
 
 // Lógica de presentación sin DOM: los módulos de render solo copian estos valores a la página.
 
@@ -293,12 +293,6 @@ export function routeSummary(route: StudyRoute): string {
   return `${stages} ${stages === 1 ? 'etapa' : 'etapas'}, ${pomodoros} ${pomodoros === 1 ? 'pomodoro' : 'pomodoros'} al día, ${LEVEL_LABELS[route.level].toLowerCase()}`;
 }
 
-/** Tareas de una etapa y cuántas están completadas. */
-export interface StageProgress {
-  done: number;
-  total: number;
-}
-
 export interface StageProgressView {
   text: string;
   /** Ancho de la barra de avance, p. ej. «40%». */
@@ -330,7 +324,7 @@ export interface RouteProgressView {
 export type StageState = 'done' | 'current' | 'next';
 
 /** Avance de una ruta: cuántas etapas están completas y en cuál va. */
-export function routeProgressView(route: StudyRoute, progress: Readonly<Record<string, StageProgress>>): RouteProgressView {
+export function routeProgressView(route: StudyRoute, progress: Readonly<StudyProgress>): RouteProgressView {
   const complete = route.stages.map(stage => stageProgressView(progress[stage.id]).complete);
   const completed = complete.filter(Boolean).length;
   const index = complete.indexOf(false);
@@ -342,4 +336,36 @@ export function routeProgressView(route: StudyRoute, progress: Readonly<Record<s
     stages: complete.map((done, stage): StageState => done ? 'done' : stage === current ? 'current' : 'next'),
     text: current === null ? 'Ruta completada' : `Etapa ${current + 1} de ${total}: ${route.stages[current].title}`
   };
+}
+
+export interface StageOption {
+  /** El `stageId`; el vínculo completo sale de `linkFromStage()`. */
+  value: string;
+  label: string;
+}
+
+/** Etapas de una ruta para el selector de etapa de una tarea, con la ruta como grupo. */
+export interface StageOptionGroup {
+  label: string;
+  options: StageOption[];
+}
+
+export function stageOptions(routes: readonly StudyRoute[]): StageOptionGroup[] {
+  return routes.map(route => ({
+    label: route.topic,
+    options: route.stages.map((stage, index) => ({ value: stage.id, label: `${index + 1}. ${stage.title}` }))
+  }));
+}
+
+/** El vínculo de la etapa elegida en el selector; vacío o una etapa que ya no existe, ninguno. */
+export function linkFromStage(routes: readonly StudyRoute[], stageId: string): TaskLink | null {
+  const route = stageId ? routes.find(item => item.stages.some(stage => stage.id === stageId)) : undefined;
+  return route ? { routeId: route.id, stageId } : null;
+}
+
+/** Valor del selector de etapa de una tarea: su etapa si sigue en las rutas cargadas, o vacío. */
+export function taskStageValue(routes: readonly StudyRoute[], task: Pick<Task, 'routeId' | 'stageId'>): string {
+  const { routeId, stageId } = task;
+  if (!stageId) return '';
+  return routes.some(route => route.id === routeId && route.stages.some(stage => stage.id === stageId)) ? stageId : '';
 }

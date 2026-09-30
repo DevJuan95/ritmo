@@ -73,12 +73,14 @@ export function createHarness(t: TestContext, options: HarnessOptions = {}): Har
   const store = open();
   const focus = new FocusService(store, { blocker, notifier, sound });
 
+  const tasks = new TaskService(store, repository, studyRepository);
+
   return {
     directory, statePath, dbPath, clock, blocker, notifier, sound, published, repository, studyRepository, store, focus,
     lifecycle: new LifecycleService({ store, focus, notifier, databases: [repository, studyRepository], timers: clock, shutdownTimeoutMs: options.shutdownTimeoutMs }),
-    tasks: new TaskService(store, repository),
+    tasks,
     domains: new DomainService(store),
-    study: new StudyService(studyRepository),
+    study: new StudyService(studyRepository, tasks),
     reopen: open,
     readSaved: () => JSON.parse(fs.readFileSync(statePath, 'utf8'))
   };

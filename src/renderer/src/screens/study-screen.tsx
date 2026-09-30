@@ -1,17 +1,13 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { MAX_DAILY_POMODOROS, STUDY_LEVELS, type StudyRoute } from '../../../shared/study/contract';
+import { MAX_DAILY_POMODOROS, STUDY_LEVELS, type StudyProgress, type StudyRoute } from '../../../shared/study/contract';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
 import {
   LEVEL_LABELS, canSaveDraft, draftChanged, draftProblem, draftToInput, emptyRouteDraft, moveStage, newStageDraft, oneAtATime, routeProgressView,
-  routeSummary, routeToDraft, stageLimits, stageProgressView, withDraft, type RouteDraft, type RouteDrafts, type StageDraft,
-  type StageProgress
+  routeSummary, routeToDraft, stageLimits, stageProgressView, withDraft, type RouteDraft, type RouteDrafts, type StageDraft
 } from '../view';
 import type { RunAction } from '../use-ritmo';
-
-// Las tareas todavía no se vinculan a una etapa: hasta entonces, ninguna etapa tiene avance.
-const NO_PROGRESS: Readonly<Record<string, StageProgress>> = {};
 
 type Selection = { kind: 'new' } | { kind: 'route'; id: string };
 
@@ -30,23 +26,29 @@ interface StudyScreenProps {
 
 export function StudyScreen({ run, showError, drafts, onDraftsChange }: StudyScreenProps) {
   const [routes, setRoutes] = useState<StudyRoute[]>();
+  const [progress, setProgress] = useState<StudyProgress>({});
   const [selection, setSelection] = useState<Selection>();
 
+  // El avance se pide junto con las rutas: al quitar etapas, sus tareas dejan de contar.
+  const fetchAll = useCallback(() => Promise.all([window.ritmo.listStudyRoutes(), window.ritmo.getStudyProgress()]), []);
+
   const load = useCallback(async () => {
-    const items = await window.ritmo.listStudyRoutes();
+    const [items, stages] = await fetchAll();
     setRoutes(items);
+    setProgress(stages);
     return items;
-  }, []);
+  }, [fetchAll]);
 
   useEffect(() => {
     let active = true;
-    window.ritmo.listStudyRoutes().then(items => {
+    fetchAll().then(([items, stages]) => {
       if (!active) return;
       setRoutes(items);
+      setProgress(stages);
       setSelection(current => current ?? (items[0] ? { kind: 'route', id: items[0].id } : { kind: 'new' }));
     }).catch(error => { if (active) showError(error); });
     return () => { active = false; };
-  }, [showError]);
+  }, [fetchAll, showError]);
 
   const selected = selection?.kind === 'route' ? routes?.find(route => route.id === selection.id) : undefined;
   const editorKey = selected ? `${selected.id}:${selected.updatedAt}` : 'nueva';
@@ -66,12 +68,13 @@ export function StudyScreen({ run, showError, drafts, onDraftsChange }: StudyScr
       <nav className="study-index" aria-label="Tus rutas">
         {routes && routes.length === 0 && <p className="empty-state">Todavía no tienes rutas. Empieza por el tema que quieres dominar.</p>}
         <ul className="study-route-list">
-          {routes?.map(route => <RouteItem key={route.id} route={route} active={route.id === selected?.id} onSelect={() => setSelection({ kind: 'route', id: route.id })} />)}
+          {routes?.map(route => <RouteItem key={route.id} route={route} progress={progress} active={route.id === selected?.id} onSelect={() => setSelection({ kind: 'route', id: route.id })} />)}
         </ul>
       </nav>
       {selection && (selection.kind === 'new' || selected) && <RouteEditor
         key={editorKey}
         route={selected}
+        progress={progress}
         saved={drafts[editorKey]}
         onDraftChange={draft => setDraft(editorKey, draft)}
         newStageKey={stageKey}
@@ -83,8 +86,8 @@ export function StudyScreen({ run, showError, drafts, onDraftsChange }: StudyScr
   </section>;
 }
 
-function RouteItem({ route, active, onSelect }: { route: StudyRoute; active: boolean; onSelect: () => void }) {
-  const progress = routeProgressView(route, NO_PROGRESS);
+function RouteItem({ route, progress: stages, active, onSelect }: { route: StudyRoute; progress: StudyProgress; active: boolean; onSelect: () => void }) {
+  const progress = routeProgressView(route, stages);
   return <li>
     <button type="button" className="study-route" aria-current={active ? 'true' : undefined} onClick={onSelect}>
       <span className="study-route-topic">{route.topic}</span>
@@ -99,6 +102,8 @@ function RouteItem({ route, active, onSelect }: { route: StudyRoute; active: boo
 
 interface RouteEditorProps {
   route: StudyRoute | undefined;
+  /** Avance de las etapas guardadas; una etapa nueva aún no tiene tareas. */
+  progress: StudyProgress;
   /** Borrador sin guardar que se conservó de una visita anterior. */
   saved: RouteDraft | undefined;
   /** Conserva el borrador fuera del editor, o lo olvida con `undefined` si no tiene cambios. */
@@ -109,7 +114,7 @@ interface RouteEditorProps {
   onDeleted: () => Promise<void>;
 }
 
-function RouteEditor({ route, saved, onDraftChange, newStageKey, run, onSaved, onDeleted }: RouteEditorProps) {
+function RouteEditor({ route, progress: stages, saved, onDraftChange, newStageKey, run, onSaved, onDeleted }: RouteEditorProps) {
   const [initial] = useState<RouteDraft>(() => route ? routeToDraft(route) : emptyRouteDraft(newStageKey()));
   const [draft, setDraftState] = useState(() => saved ?? initial);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -168,7 +173,7 @@ function RouteEditor({ route, saved, onDraftChange, newStageKey, run, onSaved, o
       <p className="section-subtitle">En orden, de la primera a la última. Separa los temas con comas.</p>
       <ol className="study-stage-list">
         {draft.stages.map((stage, index) => {
-          const progress = stageProgressView(stage.id ? NO_PROGRESS[stage.id] : undefined);
+          const progress = stageProgressView(stage.id ? stages[stage.id] : undefined);
           const name = stage.title.trim() || `etapa ${index + 1}`;
           return <li key={stage.key} className="study-stage">
             <span className="study-stage-number" aria-hidden="true">{index + 1}</span>

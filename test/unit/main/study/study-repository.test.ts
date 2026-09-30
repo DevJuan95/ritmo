@@ -108,3 +108,14 @@ test('comparte ritmo.db con el repositorio de tareas, cada uno con su conexión'
   assert.deepEqual(repository.list(), [route]);
   assert.equal(tasks.listByDay('2026-09-29').length, 1);
 });
+
+test('comprueba que una etapa existe y pertenece a la ruta', t => {
+  const { repository } = openRepository(t);
+  const rust = repository.create(input());
+  const go = repository.create(input({ topic: 'Go' }));
+  assert.equal(repository.hasStage(rust.id, rust.stages[0].id), true);
+  assert.equal(repository.hasStage(go.id, rust.stages[0].id), false);
+  assert.equal(repository.hasStage(rust.id, 'inventada'), false);
+  repository.delete(rust.id);
+  assert.equal(repository.hasStage(rust.id, rust.stages[0].id), false);
+});
