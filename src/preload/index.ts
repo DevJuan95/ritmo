@@ -1,10 +1,12 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { ApiError, IpcResult, PublicState, RitmoAPI } from '../shared/contracts';
+import type { RitmoAPI, RitmoChannel, RitmoChannels, RitmoEvents } from '../shared/api';
+import type { ApiError, IpcResult } from '../shared/ipc';
 
 // El preload con sandbox no puede cargar módulos locales mediante require().
 const GENERIC_ERROR_MESSAGE = 'No se pudo completar la operación. Inténtalo de nuevo.';
 
-async function invoke<T>(channel: string, ...args: unknown[]): Promise<T> {
+async function invoke<C extends RitmoChannel>(channel: C, ...args: Parameters<RitmoChannels[C]>): Promise<Awaited<ReturnType<RitmoChannels[C]>>> {
+  type T = Awaited<ReturnType<RitmoChannels[C]>>;
   let result: IpcResult<T>;
   try { result = await ipcRenderer.invoke(channel, ...args) as IpcResult<T>; }
   catch { throw { kind: 'ritmo-api-error', message: GENERIC_ERROR_MESSAGE } satisfies ApiError; }
@@ -30,9 +32,10 @@ const ritmo: RitmoAPI = {
   removeDomain: domain => invoke('remove-domain', domain),
   retryUnblock: () => invoke('retry-unblock'),
   onState: callback => {
-    const listener = (_event: Electron.IpcRendererEvent, state: PublicState) => callback(state);
-    ipcRenderer.on('state', listener);
-    return () => ipcRenderer.removeListener('state', listener);
+    const channel = 'state' satisfies keyof RitmoEvents;
+    const listener = (_event: Electron.IpcRendererEvent, state: RitmoEvents[typeof channel]) => callback(state);
+    ipcRenderer.on(channel, listener);
+    return () => ipcRenderer.removeListener(channel, listener);
   }
 };
 

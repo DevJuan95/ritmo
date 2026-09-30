@@ -1,12 +1,11 @@
-import { PublicError } from '../../shared/contracts';
+import { PublicError } from '../../shared/ipc';
+import { safePlannedDate, safeTaskTitle, type Task, type TaskPatch, type TaskSummary } from '../../shared/tasks/contract';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
-import type { Task, TaskSummary } from '../../shared/contracts';
 import type { Clock } from '../common/ports';
-import type { IdGenerator, TaskPatch, TaskRepositoryPort } from './ports';
-import { safePlannedDate, safeTaskTitle } from '../../shared/validation';
+import type { IdGenerator, TaskRepositoryPort } from './ports';
 
 interface TaskRow {
   id: string;

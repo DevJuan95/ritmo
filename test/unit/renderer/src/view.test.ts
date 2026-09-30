@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { GENERIC_ERROR_MESSAGE, type AppState, type PublicState, type RitmoAPI, type Task } from '../../../../src/shared/contracts';
+import type { RitmoAPI } from '../../../../src/shared/api';
+import { GENERIC_ERROR_MESSAGE } from '../../../../src/shared/ipc';
+import type { AppState, PublicState } from '../../../../src/shared/state/contract';
+import type { Task } from '../../../../src/shared/tasks/contract';
 import { calendarRange, completionText, dateLabel, dayButtonLabel, dayIndicator, dayToDate, domainsLocked, errorMessage, focusCountText, isPlannableDate, monthOf, plannedDateToSave, tasksRevision, timerActions, timerView } from '../../../../src/renderer/src/view';
 import { buildState } from '../../../helpers/harness';
 

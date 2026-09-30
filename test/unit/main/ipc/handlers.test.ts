@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import type { PublicState, Task } from '../../../../src/shared/contracts';
+import type { PublicState } from '../../../../src/shared/state/contract';
+import type { Task } from '../../../../src/shared/tasks/contract';
 import { registerHandlers } from '../../../../src/main/ipc/handlers';
 import { FakeIpc } from '../../../helpers/fakes';
 import { createHarness } from '../../../helpers/harness';

@@ -1,4 +1,4 @@
-import type { AppState, PublicState } from '../../shared/contracts';
+import type { AppState, PublicState } from '../../shared/state/contract';
 import type { Clock } from '../common/ports';
 
 export type PublishState = (state: PublicState) => void;

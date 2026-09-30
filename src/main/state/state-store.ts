@@ -1,8 +1,9 @@
-import { PENDING_BLOCK_MESSAGE, PublicError } from '../../shared/contracts';
+import { PENDING_BLOCK_MESSAGE, DEFAULT_DOMAINS, normalizeDomains } from '../../shared/blocking/contract';
+import { PublicError } from '../../shared/ipc';
+import { todayKey, type AppState, type PublicState } from '../../shared/state/contract';
+import { safePlannedDate, safeTaskTitle } from '../../shared/tasks/contract';
 import fs from 'node:fs';
 import path from 'node:path';
-import type { AppState, PublicState } from '../../shared/contracts';
-import { DEFAULT_DOMAINS, normalizeDomains, safePlannedDate, safeTaskTitle, todayKey } from '../../shared/validation';
 import type { Clock } from '../common/ports';
 import type { TaskRepositoryPort } from '../tasks/ports';
 import type { PublicStatePort, PublishState, StateShutdownPort, StateStorePort } from './ports';

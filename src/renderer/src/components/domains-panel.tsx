@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import type { PublicState } from '../../../shared/contracts';
+import type { PublicState } from '../../../shared/state/contract';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Input } from './ui/input';

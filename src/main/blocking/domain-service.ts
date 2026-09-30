@@ -1,5 +1,5 @@
-import { PublicError } from '../../shared/contracts';
-import { normalizeDomain, normalizeDomains } from '../../shared/validation';
+import { normalizeDomain, normalizeDomains } from '../../shared/blocking/contract';
+import { PublicError } from '../../shared/ipc';
 import type { StateStorePort } from '../state/ports';
 import type { DomainServicePort } from './ports';
 

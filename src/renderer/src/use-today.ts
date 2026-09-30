@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { todayKey } from '../../shared/validation';
+import { todayKey } from '../../shared/state/contract';
 
 /**
  * Clave del día local que se actualiza sola al pasar la medianoche.

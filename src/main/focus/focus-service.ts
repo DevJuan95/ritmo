@@ -1,5 +1,5 @@
-import { PublicError } from '../../shared/contracts';
-import { MINUTES } from '../../shared/validation';
+import { MINUTES } from '../../shared/focus/contract';
+import { PublicError } from '../../shared/ipc';
 import type { BlockAction, ChangeBlockOptions, SiteBlocker } from '../blocking/ports';
 import type { Notifier } from '../common/ports';
 import type { StateStorePort } from '../state/ports';

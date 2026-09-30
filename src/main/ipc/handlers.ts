@@ -1,4 +1,5 @@
-import { PublicError, type IpcResult } from '../../shared/contracts';
+import type { RitmoChannel, RitmoChannels } from '../../shared/api';
+import { PublicError, type IpcResult, type UnvalidatedArgs } from '../../shared/ipc';
 import type { DomainServicePort } from '../blocking/ports';
 import type { FocusServicePort } from '../focus/ports';
 import type { PublicStatePort } from '../state/ports';
@@ -13,9 +14,14 @@ export interface Services {
 }
 
 export function registerHandlers(ipc: IpcRegistrar, { store, focus, tasks, domains }: Services): void {
-  function handle<T>(channel: string, work: (...args: any[]) => T | Promise<T>): void {
+  // Cada canal existe en el contrato, recibe tantos argumentos como su método y devuelve lo que este promete.
+  function handle<C extends RitmoChannel>(
+    channel: C,
+    work: (...args: UnvalidatedArgs<RitmoChannels[C]>) => ReturnType<RitmoChannels[C]> | Awaited<ReturnType<RitmoChannels[C]>>
+  ): void {
+    type T = Awaited<ReturnType<RitmoChannels[C]>>;
     ipc.handle(channel, async (_event, ...args): Promise<IpcResult<T>> => {
-      try { return { ok: true, value: await work(...args) }; }
+      try { return { ok: true, value: await work(...args as UnvalidatedArgs<RitmoChannels[C]>) }; }
       catch (error) {
         if (error instanceof PublicError) {
           if (error.cause) console.error(`Causa de error en IPC (${channel}):`, error.cause);

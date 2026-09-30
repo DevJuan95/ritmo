@@ -1,5 +1,8 @@
-import { GENERIC_ERROR_MESSAGE, type DaySummary, type PublicState, type RitmoAPI, type Task } from '../../shared/contracts.js';
-import { FIRST_PLANNED_DATE, LAST_PLANNED_DATE, MINUTES, safePlannedDate, todayKey } from '../../shared/validation.js';
+import type { RitmoAPI } from '../../shared/api.js';
+import { MINUTES } from '../../shared/focus/contract.js';
+import { GENERIC_ERROR_MESSAGE } from '../../shared/ipc.js';
+import { todayKey, type PublicState } from '../../shared/state/contract.js';
+import { FIRST_PLANNED_DATE, LAST_PLANNED_DATE, safePlannedDate, type DaySummary, type Task } from '../../shared/tasks/contract.js';
 
 // Lógica de presentación sin DOM: los módulos de render solo copian estos valores a la página.
 

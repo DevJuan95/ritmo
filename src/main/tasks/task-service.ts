@@ -1,8 +1,7 @@
-import { PublicError } from '../../shared/contracts';
-import type { Task, TaskSummary } from '../../shared/contracts';
-import { safePlannedDate } from '../../shared/validation';
+import { PublicError } from '../../shared/ipc';
+import { safePlannedDate, type Task, type TaskPatch, type TaskSummary } from '../../shared/tasks/contract';
 import type { StateStorePort } from '../state/ports';
-import type { TaskPatch, TaskRepositoryPort, TaskServicePort } from './ports';
+import type { TaskRepositoryPort, TaskServicePort } from './ports';
 
 export class TaskService implements TaskServicePort {
   constructor(private readonly store: StateStorePort, private readonly repository: TaskRepositoryPort) {}
