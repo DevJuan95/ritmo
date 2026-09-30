@@ -17,6 +17,8 @@ export interface StateStoreDeps {
 export class StateStore implements StateStorePort, TodayPort, PublicStatePort, StateShutdownPort {
   state: AppState;
   busy = false;
+  /** Contador de cambios de tareas; va en el estado público y no se guarda. */
+  private tasksVersion = 0;
   /** Tras `closeWith`, ya no se aceptan operaciones protegidas. */
   closing = false;
   /** Tras `seal`, el estado en disco es el definitivo: una operación que termine tarde ya no lo cambia. */
@@ -82,8 +84,10 @@ export class StateStore implements StateStorePort, TodayPort, PublicStatePort, S
   }
 
   publicState(): PublicState {
-    return { ...this.state, blockError: this.state.blockError ? PENDING_BLOCK_MESSAGE : null, busy: this.busy, now: this.now() };
+    return { ...this.state, blockError: this.state.blockError ? PENDING_BLOCK_MESSAGE : null, busy: this.busy, now: this.now(), tasksVersion: this.tasksVersion };
   }
+
+  tasksChanged(): void { this.tasksVersion++; }
 
   publish(): void { this.publishState(this.publicState()); }
 

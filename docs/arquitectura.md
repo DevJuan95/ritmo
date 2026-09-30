@@ -24,10 +24,17 @@ flowchart LR
     ipc["ipc/register.ts y<br/>&lt;módulo&gt;/ipc.ts"]
     services["FocusService<br/>TaskService<br/>DomainService<br/>StudyService<br/>AgentService<br/>ProposalService"]
     store["StateStore"]
+    bridge["BridgeService<br/>SocketBridgeServer"]
     ipc --> services
     ipc -- "get-state" --> store
     services --> store
   end
+
+  subgraph terminal["Terminal (Claude Code o Codex)"]
+    mcp["Servidor MCP de Ritmo<br/>node out/main/mcp.js"]
+  end
+  mcp -- "socket Unix ritmo.sock:<br/>una línea de JSON por petición" --> bridge
+  bridge -- "lee rutas,<br/>añade tareas" --> services
 
   ui -- "llamadas a window.ritmo" --> api
   api -- "ipcRenderer.invoke(canal, ...args)" --> ipc
@@ -38,9 +45,11 @@ flowchart LR
 
 Canales: `get-state` (`state`), `start-focus`, `finish-focus`, `start-break` y `finish-break` (`focus`), `add-task`, `toggle-task`, `delete-task`, `get-tasks-for-day`, `get-task-summary` y `update-task` (`tasks`), `add-domain`, `remove-domain` y `retry-unblock` (`blocking`), y `list-study-routes`, `create-study-route`, `update-study-route`, `delete-study-route`, `get-study-progress`, `get-agent-settings`, `save-agent-settings`, `check-study-agents`, `get-agent-notices`, `accept-agent-notice`, `propose-study-tasks` y `cancel-study-proposals` (`study`), en `invoke`, y `state`, que va del proceso principal al renderer. `retry-unblock` y `finish-focus` llaman al mismo método, `FocusService.finishFocus()`. `add-task` y `update-task` aceptan el vínculo de la tarea con una etapa; `get-study-progress` devuelve el avance de todas las etapas, por `stageId`, en una consulta. `check-study-agents` busca el CLI de cada proveedor y comprueba su sesión sin enviar ningún prompt. `propose-study-tasks` es el único canal que envía datos fuera del Mac: exige el aviso de privacidad del proveedor aceptado (`accept-agent-notice`), devuelve las propuestas sin crear tareas y rechaza con `AGENT_CANCELLED` si llega `cancel-study-proposals`; las propuestas aceptadas se crean con `add-task`. `get-task-summary` devuelve el resumen de tareas del rango que muestra el calendario del Planner en una sola consulta, en lugar de pedir cada día con `get-tasks-for-day`. `test/contract/` comprueba que `RitmoAPI`, el preload e `ipc/register.ts` sigan sincronizados.
 
+Además del renderer, el proceso principal atiende al servidor MCP de Ritmo (`src/mcp/`), un proceso de Node aparte que Claude Code o Codex lanzan desde la terminal con `node out/main/mcp.js`. Habla MCP (JSON-RPC 2.0) por su entrada y su salida estándar y ofrece tres herramientas: `list_study_routes`, `get_study_route` y `add_study_task`. No abre `ritmo.db`: cada llamada es una petición al puente para agentes de terminal, un socket Unix (`<userData>/ritmo.sock`, permisos 0600) que abre `SocketBridgeServer` (`main/bridge/socket-server.ts`) en el proceso principal. `BridgeService` valida la petición con `safeBridgeRequest()` (`shared/bridge/contract.ts`) y la atiende con los mismos servicios que el renderer, así que las tareas nuevas pasan por `TaskService` y la conexión SQLite de la app, y la ventana las ve al momento: cada cambio de tareas sube `tasksVersion` del estado público, y con él el Planner y el avance de Rutas vuelven a pedir sus datos aunque la tarea sea de otro día. Solo lee rutas y añade tareas vinculadas; si la app está cerrada, la herramienta lo dice y no hace nada. Un `PublicError` cruza el socket con su mensaje, y cualquier otro error, sin detalle.
+
 ### 1.1 Contratos compartidos
 
-Lo que cruza procesos está en `src/shared/`, con un contrato por módulo en `src/shared/<módulo>/contract.ts` (`focus`, `tasks`, `blocking`, `state` y `study`). Cada uno declara sus tipos, su parte de `AppState`, la API que ofrece al renderer, sus canales IPC y la validación de su entrada, que usan los servicios del proceso principal y la vista. `study/contract.ts` es el contrato de las rutas de estudio (#36): por ahora su API crea, edita, lista y borra rutas y da el avance de sus etapas según las tareas vinculadas (`tasks/contract.ts` define el vínculo, `TaskLink`), y la pantalla Rutas del renderer (`screens/study-screen.tsx`) la usa para editarlas con la lógica sin DOM de `view.ts`. También lee y guarda la configuración del agente (`AgentSettings`: proveedor, ruta y modelo de cada CLI, validada con `safeAgentSettings()`) y da el estado de cada CLI (`AgentStatus`), que muestra la pantalla Ajustes (`screens/settings-screen.tsx`). `src/shared/ipc.ts` guarda lo común a todos los canales: `PublicError`, `IpcResult`, `ApiError` y los tipos auxiliares `ChannelMap` y `UnvalidatedArgs`. `src/shared/api.ts` solo compone: `RitmoAPI`, `RitmoChannels`, `RitmoEvents` y el tipo de `window.ritmo`.
+Lo que cruza procesos está en `src/shared/`, con un contrato por módulo en `src/shared/<módulo>/contract.ts` (`focus`, `tasks`, `blocking`, `state` y `study`). Cada uno declara sus tipos, su parte de `AppState`, la API que ofrece al renderer, sus canales IPC y la validación de su entrada, que usan los servicios del proceso principal y la vista. `study/contract.ts` es el contrato de las rutas de estudio (#36): por ahora su API crea, edita, lista y borra rutas y da el avance de sus etapas según las tareas vinculadas (`tasks/contract.ts` define el vínculo, `TaskLink`), y la pantalla Rutas del renderer (`screens/study-screen.tsx`) la usa para editarlas con la lógica sin DOM de `view.ts`. También lee y guarda la configuración del agente (`AgentSettings`: proveedor, ruta y modelo de cada CLI, validada con `safeAgentSettings()`) y da el estado de cada CLI (`AgentStatus`), que muestra la pantalla Ajustes (`screens/settings-screen.tsx`). `src/shared/bridge/contract.ts` no habla con el renderer: es el protocolo del puente para agentes de terminal (peticiones `list-routes`, `get-route` y `add-task`, su validación y sus respuestas), que usan `main/bridge/` y el servidor MCP de `src/mcp/`. `src/shared/ipc.ts` guarda lo común a todos los canales: `PublicError`, `IpcResult`, `ApiError` y los tipos auxiliares `ChannelMap` y `UnvalidatedArgs`. `src/shared/api.ts` solo compone: `RitmoAPI`, `RitmoChannels`, `RitmoEvents` y el tipo de `window.ritmo`.
 
 Los canales son solo tipos: el preload se ejecuta con sandbox y no puede cargar módulos locales, así que importa los contratos con `import type` y repite `GENERIC_ERROR_MESSAGE`. `ChannelMap` asigna a cada método de la API de un módulo su canal y toma de él la firma. Con `RitmoChannels`, el preload solo compila si invoca un canal existente con los argumentos de su método, y el `ipc.ts` de cada módulo solo si registra canales de su propio contrato con la misma aridad, porque recibe un `Handle<FocusChannels>` (o el de su módulo); allí los argumentos llegan como `unknown` y los valida el servicio.
 
@@ -53,6 +62,7 @@ flowchart LR
   blocking["blocking/contract.ts<br/>normalizeDomains, DEFAULT_DOMAINS"]
   study["study/contract.ts<br/>StudyRoute, StudyProgress, StudyAPI,<br/>AgentSettings, AgentStatus,<br/>safeStudyRoute, safeAgentSettings,<br/>safeTaskProposals"]
   ipc["ipc.ts<br/>PublicError, IpcResult, ChannelMap"]
+  bridgeContract["bridge/contract.ts<br/>BridgeRequest, BridgeResponse,<br/>safeBridgeRequest"]
 
   api --> state
   api --> focus
@@ -68,13 +78,16 @@ flowchart LR
   state --> ipc
   study -- "safeTaskTitle" --> tasks
   study --> ipc
+  bridgeContract -- "safeStudyRouteId" --> study
+  bridgeContract -- "safeTaskTitle, safePlannedDate,<br/>safeTaskLink" --> tasks
+  bridgeContract --> ipc
 ```
 
 ## 2. Servicios y dependencias
 
 `src/main/app.ts` es la raíz de composición. Crea con `createMainContainer()` (`src/main/container.ts`, Awilix) un contenedor en el que todo es singleton, le pasa lo que viene de Electron (`userData`, la carpeta `resources/`, `Notification` y la función que publica el estado) y resuelve de él `lifecycle`. Después conecta las vías de salida con el cierre ordenado, registra los manejadores IPC con `ipcMain` y el propio `container.cradle`. Solo `app.ts` y el preload importan `electron`, y solo `container.ts` importa Awilix. Los servicios no conocen el contenedor: las fábricas de `container.ts` llaman a sus constructores de forma explícita y los servicios reciben lo de Electron a través de puertos.
 
-`src/main/` está dividido en módulos por contexto (`common/`, `state/`, `focus/`, `blocking/`, `tasks/`, `study/`, `lifecycle/` e `ipc/`; ver «Módulos» en el [glosario](glosario.md)). Cada módulo declara en su `ports.ts` los puertos de salida que necesita y las interfaces de su servicio (`StateStorePort`, `PublicStatePort`, `StateShutdownPort`, `FocusServicePort`, `FocusLifecyclePort`, `TaskServicePort`, `StudyTasksPort`, `RouteTasksPort`, `TodayPort`, `DomainServicePort`, `StudyServicePort`, `AgentServicePort`, `ProposalServicePort`, `ProposalLifecyclePort`, `LifecycleServicePort`), que la clase implementa. Cada consumidor recibe solo la interfaz con lo que usa. Los consumidores, `MainCradle` incluido, dependen solo de esas interfaces, y los módulos se importan entre sí solo a través de `ports.ts`: `container.ts` es el único que construye las clases de servicio.
+`src/main/` está dividido en módulos por contexto (`common/`, `state/`, `focus/`, `blocking/`, `tasks/`, `study/`, `bridge/`, `lifecycle/` e `ipc/`; ver «Módulos» en el [glosario](glosario.md)). Cada módulo declara en su `ports.ts` los puertos de salida que necesita y las interfaces de su servicio (`StateStorePort`, `PublicStatePort`, `StateShutdownPort`, `FocusServicePort`, `FocusLifecyclePort`, `TaskServicePort`, `TaskCreatorPort`, `StudyTasksPort`, `RouteTasksPort`, `TodayPort`, `DomainServicePort`, `StudyServicePort`, `AgentServicePort`, `ProposalServicePort`, `ProposalLifecyclePort`, `BridgeServicePort`, `BridgeLifecyclePort`, `LifecycleServicePort`), que la clase implementa. Cada consumidor recibe solo la interfaz con lo que usa. Los consumidores, `MainCradle` incluido, dependen solo de esas interfaces, y los módulos se importan entre sí solo a través de `ports.ts`: `container.ts` es el único que construye las clases de servicio.
 
 El grafo de dependencias se divide en vistas: composición, entrada por IPC, servicios entre sí y adaptadores con sus efectos externos. En todas, en rojo va lo que depende de Electron; las flechas continuas son dependencias en tiempo de ejecución, rotuladas con el puerto o la interfaz de servicio por la que pasan, y las discontinuas indican que `container.ts` registra el módulo.
 
@@ -86,8 +99,8 @@ Qué crea `app.ts`, qué le pasa al contenedor y qué conecta él mismo. `regist
 flowchart LR
   app["app.ts<br/>raíz de composición"]:::electron
   container["createMainContainer<br/>container.ts (Awilix)"]
-  servicios["Servicios<br/>StateStore, TaskRepository,<br/>StudyRepository, FocusService,<br/>TaskService, DomainService,<br/>StudyService, AgentService,<br/>ProposalService, LifecycleService"]
-  adaptadores["Adaptadores<br/>createSiteBlocker, createNotifier,<br/>createSoundPlayer, systemTimers,<br/>SystemAgentDetector, CliStudyAgentFactory"]
+  servicios["Servicios<br/>StateStore, TaskRepository,<br/>StudyRepository, FocusService,<br/>TaskService, DomainService,<br/>StudyService, AgentService,<br/>ProposalService, BridgeService,<br/>LifecycleService"]
+  adaptadores["Adaptadores<br/>createSiteBlocker, createNotifier,<br/>createSoundPlayer, systemTimers,<br/>SystemAgentDetector, CliStudyAgentFactory,<br/>SocketBridgeServer"]
   ipc["registerHandlers<br/>ipc/register.ts"]
   quit["createQuitSignals<br/>lifecycle/quit-signals.ts"]
   ipcMain["ipcMain"]:::electron
@@ -103,7 +116,7 @@ flowchart LR
   classDef electron fill:#fde2e2,stroke:#c0392b,color:#000
 ```
 
-Registros de `createMainContainer()`. En `MainCradle`, los servicios y los repositorios se tipan con su interfaz: `taskRepository` como `TaskRepositoryPort`, `studyRepository` como `StudyRepositoryPort & StudyRouteReaderPort & StudyStagesPort & AgentSettingsRepositoryPort & AgentNoticeRepositoryPort`, `agentDetector` como `AgentDetector`, `agentFactory` como `StudyAgentFactory`, `store` como `StateStorePort & TodayPort & PublicStatePort & StateShutdownPort`, `focus` como `FocusServicePort & FocusLifecyclePort`, `tasks` como `TaskServicePort & StudyTasksPort & RouteTasksPort`, `domains` como `DomainServicePort`, `study` como `StudyServicePort`, `agents` como `AgentServicePort`, `proposals` como `ProposalServicePort & ProposalLifecyclePort` y `lifecycle` como `LifecycleServicePort`.
+Registros de `createMainContainer()`. En `MainCradle`, los servicios y los repositorios se tipan con su interfaz: `taskRepository` como `TaskRepositoryPort`, `studyRepository` como `StudyRepositoryPort & StudyRouteReaderPort & StudyStagesPort & AgentSettingsRepositoryPort & AgentNoticeRepositoryPort`, `agentDetector` como `AgentDetector`, `agentFactory` como `StudyAgentFactory`, `bridgeServer` como `BridgeServer`, `store` como `StateStorePort & TodayPort & PublicStatePort & StateShutdownPort`, `focus` como `FocusServicePort & FocusLifecyclePort`, `tasks` como `TaskServicePort & StudyTasksPort & RouteTasksPort`, `domains` como `DomainServicePort`, `study` como `StudyServicePort`, `agents` como `AgentServicePort`, `proposals` como `ProposalServicePort & ProposalLifecyclePort`, `bridge` como `BridgeServicePort & BridgeLifecyclePort` y `lifecycle` como `LifecycleServicePort`.
 
 | Registro | Fábrica | Puertos sin inyectar |
 | --- | --- | --- |
@@ -118,6 +131,7 @@ Registros de `createMainContainer()`. En `MainCradle`, los servicios y los repos
 | `studyRepository` | `new StudyRepository(<userData>/ritmo.db, { now })`, con su propia conexión al mismo archivo; lo cierran el cierre ordenado y `container.dispose()` (`close()` es idempotente). | `IdGenerator` (`crypto.randomUUID`) |
 | `agentDetector` | `new SystemAgentDetector()`, con el entorno, la carpeta personal y la shell del proceso. | — |
 | `agentFactory` | `new CliStudyAgentFactory()`; crea `ClaudeCodeAgent` o `CodexAgent` en cada petición. | — |
+| `bridgeServer` | `new SocketBridgeServer()`: socket Unix con permisos 0600, peticiones de hasta 256 KB, 5 s sin actividad y 4 conexiones a la vez como máximo; registra con `console.error` los errores inesperados. | — |
 | `store` | `new StateStore(<userData>/state.json, { tasks: taskRepository, publish, now })` | — |
 | `focus` | `new FocusService(store, { blocker, notifier, sound })` | — |
 | `tasks` | `new TaskService(store, taskRepository, studyRepository)` | — |
@@ -125,9 +139,10 @@ Registros de `createMainContainer()`. En `MainCradle`, los servicios y los repos
 | `study` | `new StudyService(studyRepository, tasks)` | — |
 | `agents` | `new AgentService(studyRepository, agentDetector)` | — |
 | `proposals` | `new ProposalService({ routes: studyRepository, tasks, settings: studyRepository, notices: studyRepository, locator: agentDetector, agents: agentFactory, day: store })` | — |
-| `lifecycle` | `new LifecycleService({ store, focus, proposals, notifier, databases: [taskRepository, studyRepository], timers, shutdownTimeoutMs })` | — |
+| `bridge` | `new BridgeService({ server: bridgeServer, socketPath: <userData>/ritmo.sock, routes: studyRepository, tasks, day: store })` | — |
+| `lifecycle` | `new LifecycleService({ store, focus, proposals, bridge, notifier, databases: [taskRepository, studyRepository], timers, shutdownTimeoutMs })` | — |
 
-Orden de arranque en `app.ts`: se crea el contenedor y se resuelve `lifecycle` (con él, `store`, `focus`, los repositorios y los adaptadores). `lifecycle.listen()` conecta `createQuitSignals({ app, powerMonitor, process })` con el cierre ordenado; después vienen `registerHandlers(ipcMain, container.cradle)` y la ventana. Por último, `lifecycle.start()` llama a `focus.recover()` y `store.rollDay()`, hace un primer `focus.tick()`, que cierra de inmediato una sesión que venció con la app cerrada, y programa el tic cada segundo con `Timers`.
+Orden de arranque en `app.ts`: se crea el contenedor y se resuelve `lifecycle` (con él, `store`, `focus`, los repositorios y los adaptadores). `lifecycle.listen()` conecta `createQuitSignals({ app, powerMonitor, process })` con el cierre ordenado; después vienen `registerHandlers(ipcMain, container.cradle)` y la ventana. Por último, `lifecycle.start()` abre el puente para agentes de terminal (`bridge.start()`; si falla, lo informa con `console.error` y la app sigue sin él), llama a `focus.recover()` y `store.rollDay()`, hace un primer `focus.tick()`, que cierra de inmediato una sesión que venció con la app cerrada, y programa el tic cada segundo con `Timers`.
 
 ### 2.2 De IPC a los servicios
 
@@ -172,7 +187,9 @@ flowchart LR
 
 ### 2.3 Entre servicios
 
-Los servicios guardan a través de `StateStore`, salvo `StudyService`, que usa su repositorio y pide a `TaskService` (`StudyTasksPort`) el avance de las etapas y que desvincule las tareas de las etapas que se quitan, para que las tareas de hoy queden al día. `TaskService` comprueba con `StudyStagesPort`, que implementa `StudyRepository`, que la etapa de un vínculo existe. `LifecycleService` depende de `FocusService`, cancela con `ProposalLifecyclePort` la petición al agente en curso y cierra las dos conexiones SQLite como `Database`.
+Los servicios guardan a través de `StateStore`, salvo `StudyService`, que usa su repositorio y pide a `TaskService` (`StudyTasksPort`) el avance de las etapas y que desvincule las tareas de las etapas que se quitan, para que las tareas de hoy queden al día. `TaskService` comprueba con `StudyStagesPort`, que implementa `StudyRepository`, que la etapa de un vínculo existe. `LifecycleService` depende de `FocusService`, cancela con `ProposalLifecyclePort` la petición al agente en curso, abre y cierra el puente con `BridgeLifecyclePort` y cierra las dos conexiones SQLite como `Database`.
+
+`BridgeService` (`bridge/bridge-service.ts`) atiende el puente para agentes de terminal: lista las rutas (`StudyRouteListPort`) o lee una (`StudyRouteReaderPort`), calcula el avance de sus etapas con las tareas de la ruta (`RouteTasksPort`) y crea tareas vinculadas con `TaskService` (`TaskCreatorPort`), que comprueba la etapa y actualiza las de hoy; usa el día de `StateStore` (`TodayPort`) si no llega otro. Escucha con `BridgeServer`, cuyo adaptador es `SocketBridgeServer`; en las pruebas lo sustituye `FakeBridgeServer`.
 
 `study/ports.ts` declara también `StudyAgent`, el puerto del CLI que propondrá tareas (Claude Code o Codex). `study/agent-prompt.ts` tiene lo que comparten sus adaptadores: `buildAgentRequest()` arma el prompt y el esquema JSON de la respuesta a partir de `StudyAgentContext` (la ruta, sus tareas vinculadas y el día), y `readAgentProposals()` valida la salida con `safeTaskProposals()`. El adaptador de Claude Code, `ClaudeCodeAgent` (`study/claude-code-agent.ts`), lanza `claude -p` sin herramientas y con salida JSON según ese esquema mediante `runAgentCli()` (`study/agent-cli.ts`), que ejecuta el CLI sin shell en un directorio temporal, con tiempo máximo, límite de salida y cancelación por `AbortSignal`, y termina todo su grupo de procesos al acabar. `runAgentCli()` quita del entorno del CLI las claves de API (`agentEnv()`), para que use la sesión del usuario con su suscripción y no facture por API, y cada adaptador comprueba antes esa sesión (`claude auth status`, `codex login status`): sin ella, rechaza con «Inicia sesión en Claude Code/Codex…» sin enviar la petición. El de Codex, `CodexAgent` (`study/codex-agent.ts`), lanza `codex exec` con el mismo lanzador en un sandbox de solo lectura, sin guardar la sesión ni leer la configuración del usuario; como `codex` toma el esquema de un archivo y escribe la respuesta en otro, `runAgentCli()` escribe los archivos de la petición en el directorio temporal y lee el de la respuesta antes de borrarlo. Los usa `ProposalService`; las pruebas usan `FakeStudyAgent` y prueban los adaptadores con un ejecutable falso.
 
@@ -195,6 +212,8 @@ flowchart LR
   proposalService["ProposalService"]
   factory["CliStudyAgentFactory"]
   agents["ClaudeCodeAgent,<br/>CodexAgent"]
+  bridgeService["BridgeService"]
+  bridgeServer["SocketBridgeServer"]
 
   focus -- "StateStorePort" --> store
   taskService -- "StateStorePort" --> store
@@ -218,6 +237,12 @@ flowchart LR
   proposalService -- "StudyAgentFactory" --> factory
   factory -. "crea" .-> agents
   proposalService -- "StudyAgent" --> agents
+  lifecycle -- "BridgeLifecyclePort" --> bridgeService
+  bridgeService -- "BridgeServer" --> bridgeServer
+  bridgeServer -- "BridgeHandler" --> bridgeService
+  bridgeService -- "StudyRouteListPort,<br/>StudyRouteReaderPort" --> studyRepo
+  bridgeService -- "TaskCreatorPort,<br/>RouteTasksPort" --> taskService
+  bridgeService -- "TodayPort" --> store
 ```
 
 ### 2.4 Foco y bloqueo: adaptadores y efectos externos
@@ -263,6 +288,9 @@ flowchart LR
   signals["SIGINT, SIGTERM"]
   json[("state.json")]
   db[("ritmo.db<br/>SQLite")]
+  bridgeServer["SocketBridgeServer<br/>bridge/socket-server.ts"]
+  sock[("ritmo.sock<br/>socket Unix 0600")]
+  mcp["Servidor MCP<br/>src/mcp/ (otro proceso)"]
 
   lifecycle -- "Notifier" --> notifier
   lifecycle -- "Timers" --> timers
@@ -274,6 +302,8 @@ flowchart LR
   notifier --> notification
   quit --> salida
   quit --> signals
+  bridgeServer -- "listen, close" --> sock
+  mcp -- "callBridge()" --> sock
 
   classDef electron fill:#fde2e2,stroke:#c0392b,color:#000
 ```
@@ -291,6 +321,7 @@ sequenceDiagram
   participant S as StateStore
   participant F as FocusService
   participant P as ProposalService
+  participant B as BridgeService
   participant N as Notifier
   participant R as TaskRepository y StudyRepository
   participant A as app.ts
@@ -298,6 +329,7 @@ sequenceDiagram
   Q->>L: before-quit, SIGINT, SIGTERM o shutdown
   Note over L: Los avisos repetidos reutilizan el mismo cierre
   L->>L: clearInterval(tic)
+  L->>B: stop(): deja de escuchar, corta las conexiones y borra el socket
   L->>P: stop(): cancela la petición al agente y rechaza las siguientes
   Note over P: el CLI recibe SIGTERM (y SIGKILL a los 2 s) mientras sigue el cierre
   L->>S: drain(), con su propio tiempo máximo
@@ -313,7 +345,7 @@ sequenceDiagram
   end
   S->>S: busy = false, save()
   L->>S: seal(): último save(). Los posteriores no escriben
-  L->>P: espera a que termine la petición, con su propio tiempo máximo
+  L->>P: espera a que termine la petición y a que se cierre el puente, con su propio tiempo máximo
   L->>R: close() de cada Database, aunque falle alguna
   L->>A: exit(error?)
   A->>A: app.exit(0 o 1)

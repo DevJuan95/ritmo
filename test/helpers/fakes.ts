@@ -1,3 +1,4 @@
+import type { BridgeHandler, BridgeServer } from '../../src/main/bridge/ports';
 import type { BlockAction, ChangeBlockOptions, SiteBlocker } from '../../src/main/blocking/ports';
 import type { Notifier, TimerHandle, Timers } from '../../src/main/common/ports';
 import type { SoundPlayer } from '../../src/main/focus/ports';
@@ -210,6 +211,29 @@ export class FakeIpc implements IpcRegistrar {
     if (!handler) throw new Error(`No hay manejador para ${channel}.`);
     return handler({}, ...args);
   }
+}
+
+/** Servidor del puente en memoria: guarda el manejador para invocarlo sin socket y puede fallar a demanda. */
+export class FakeBridgeServer implements BridgeServer {
+  socketPath?: string;
+  handler?: BridgeHandler;
+  closes = 0;
+  failListen?: Error;
+  failClose?: Error;
+
+  async listen(socketPath: string, handler: BridgeHandler): Promise<void> {
+    if (this.failListen) throw this.failListen;
+    this.socketPath = socketPath;
+    this.handler = handler;
+  }
+
+  async close(): Promise<void> {
+    this.closes++;
+    this.handler = undefined;
+    if (this.failClose) throw this.failClose;
+  }
+
+  get listening(): boolean { return this.handler !== undefined; }
 }
 
 export function sequentialIds(prefix = 'task'): () => string {

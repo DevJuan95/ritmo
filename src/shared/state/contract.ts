@@ -11,6 +11,11 @@ export interface AppState extends FocusState, TasksState, BlockingState {
 export interface PublicState extends AppState {
   busy: boolean;
   now: number;
+  /**
+   * Sube con cada alta, cambio o borrado de tareas, de cualquier día. No se guarda: solo sirve para que
+   * el renderer sepa cuándo volver a pedir las tareas de otros días, que no van en `tasks`.
+   */
+  tasksVersion: number;
 }
 
 export function todayKey(date = new Date()): string {

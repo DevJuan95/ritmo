@@ -16,6 +16,20 @@ test('una tarea planeada para otro día no aparece en la lista de hoy', t => {
   assert.equal(repository.listByDay('2026-10-05').length, 1);
 });
 
+test('cada alta, cambio o borrado de tareas de cualquier día sube la versión publicada', t => {
+  const { tasks, store, published, repository } = createHarness(t);
+  const version = () => published.at(-1)?.tasksVersion ?? store.publicState().tasksVersion;
+  const start = version();
+  tasks.add('Más tarde', '2026-10-05');
+  assert.equal(version(), start + 1);
+  const [later] = repository.listByDay('2026-10-05');
+  tasks.update(later.id, { title: 'Aún más tarde' });
+  assert.equal(version(), start + 2);
+  tasks.remove(later.id);
+  assert.equal(version(), start + 3);
+  assert.equal(store.publicState().tasksVersion, start + 3);
+});
+
 test('rechaza títulos y fechas inválidos sin crear nada', t => {
   const { tasks, repository } = createHarness(t);
   assert.throws(() => tasks.add('   ', undefined));

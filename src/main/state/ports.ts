@@ -16,6 +16,8 @@ export interface StateStorePort extends TodayPort {
   readonly busy: boolean;
   readonly now: Clock;
   save(): void;
+  /** Avisa de que cambiaron tareas de cualquier día; sube `tasksVersion` del estado público. */
+  tasksChanged(): void;
   rollDay(): void;
   guarded<T>(work: () => Promise<T>): Promise<T>;
 }

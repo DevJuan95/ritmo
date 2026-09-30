@@ -344,7 +344,7 @@ test('al agotarse el tiempo sin nada que desbloquear no inventa un bloqueo pendi
 test('usa un tiempo máximo por defecto', async t => {
   const harness = createHarness(t);
   const lifecycle = new LifecycleService({
-    store: harness.store, focus: harness.focus, proposals: harness.proposals, notifier: harness.notifier,
+    store: harness.store, focus: harness.focus, proposals: harness.proposals, bridge: harness.bridge, notifier: harness.notifier,
     databases: [harness.repository], timers: harness.clock
   });
   harness.store.guarded(() => new Promise<void>(() => {})).catch(() => {});
@@ -387,7 +387,7 @@ test('espera al agente como máximo el tiempo máximo y cierra SQLite después',
   let finish!: () => void;
   const stop = t.mock.fn(() => new Promise<void>(resolve => { finish = resolve; }));
   const lifecycle = new LifecycleService({
-    store: harness.store, focus: harness.focus, proposals: { stop }, notifier: harness.notifier,
+    store: harness.store, focus: harness.focus, proposals: { stop }, bridge: harness.bridge, notifier: harness.notifier,
     databases: [harness.repository], timers: harness.clock, shutdownTimeoutMs: 5000
   });
   harness.store.state.focusCount = 3;
@@ -412,7 +412,7 @@ test('cierra SQLite en cuanto el agente termina, sin agotar el tiempo máximo', 
   let finish!: () => void;
   const lifecycle = new LifecycleService({
     store: harness.store, focus: harness.focus, proposals: { stop: () => new Promise<void>(resolve => { finish = resolve; }) },
-    notifier: harness.notifier, databases: [harness.repository], timers: harness.clock, shutdownTimeoutMs: 5000
+    bridge: harness.bridge, notifier: harness.notifier, databases: [harness.repository], timers: harness.clock, shutdownTimeoutMs: 5000
   });
   const closing = lifecycle.shutdown();
   await settle();
@@ -421,4 +421,35 @@ test('cierra SQLite en cuanto el agente termina, sin agotar el tiempo máximo', 
   await closing;
   assert.equal(repositoryClosed(harness), true);
   assert.equal(harness.clock.pendingTimers, 0);
+});
+
+test('start abre el puente para agentes de terminal y, si falla, lo informa y sigue', async t => {
+  const harness = createHarness(t);
+  const errors: unknown[] = [];
+  harness.lifecycle.start(error => errors.push(error));
+  await settle();
+  assert.equal(harness.bridgeServer.listening, true);
+  assert.deepEqual(errors, []);
+
+  const other = createHarness(t);
+  const failure = new Error('ruta del socket demasiado larga');
+  other.bridgeServer.failListen = failure;
+  const reported: unknown[] = [];
+  other.lifecycle.start(error => reported.push(error));
+  await settle();
+  assert.deepEqual(reported, [failure]);
+  other.clock.advance(1000);
+  assert.equal(other.clock.pendingTimers, 1, 'el tic sigue');
+});
+
+test('el cierre cierra el puente al empezar, antes de cerrar SQLite, aunque falle', async t => {
+  const harness = createHarness(t);
+  harness.lifecycle.start(() => {});
+  await settle();
+  let bridgeOpenAtClose: boolean | undefined;
+  t.mock.method(harness.repository, 'close', () => { bridgeOpenAtClose = harness.bridgeServer.listening; });
+  harness.bridgeServer.failClose = new Error('no se pudo borrar el socket');
+  await harness.lifecycle.shutdown();
+  assert.equal(harness.bridgeServer.closes, 1);
+  assert.equal(bridgeOpenAtClose, false);
 });

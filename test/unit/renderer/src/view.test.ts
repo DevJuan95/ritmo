@@ -24,7 +24,7 @@ test('el banner solo acepta errores públicos de la API', () => {
 });
 
 function publicState(overrides: Partial<AppState> = {}, busy = false): PublicState {
-  return { ...buildState(overrides), busy, now };
+  return { ...buildState(overrides), busy, now, tasksVersion: 0 };
 }
 
 function task(id: string, done: boolean): Task {
@@ -47,11 +47,12 @@ test('escribe la fecha del encabezado a partir de la clave del día', () => {
   assert.equal(dateLabel('2026-10-01'), 'jueves, 1 de octubre');
 });
 
-test('la revisión de tareas solo cambia con el día o sus tareas', () => {
+test('la revisión de tareas solo cambia con el día o las tareas de cualquier día', () => {
   const base = publicState({ tasks: [task('a', false)] });
   assert.equal(tasksRevision({ ...base, busy: true, now: now + 1000, focusCount: 3 }), tasksRevision(base));
   assert.notEqual(tasksRevision({ ...base, tasks: [task('a', true)] }), tasksRevision(base));
   assert.notEqual(tasksRevision({ ...base, day: '2026-09-30' }), tasksRevision(base));
+  assert.notEqual(tasksRevision({ ...base, tasksVersion: 1 }), tasksRevision(base));
 });
 
 test('solo mueve una tarea a un día completo, en rango y distinto', () => {

@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { DEFAULT_DOMAINS } from '../../src/shared/blocking/contract';
 import { todayKey, type AppState, type PublicState } from '../../src/shared/state/contract';
+import { BridgeService } from '../../src/main/bridge/bridge-service';
 import { DomainService } from '../../src/main/blocking/domain-service';
 import { FocusService } from '../../src/main/focus/focus-service';
 import { LifecycleService } from '../../src/main/lifecycle/lifecycle-service';
@@ -13,7 +14,7 @@ import { ProposalService } from '../../src/main/study/proposal-service';
 import { StudyService } from '../../src/main/study/study-service';
 import { TaskService } from '../../src/main/tasks/task-service';
 import { TaskRepository } from '../../src/main/tasks/task-repository';
-import { FakeAgentDetector, FakeBlocker, FakeStudyAgent, FakeStudyAgentFactory, FakeClock, FakeNotifier, FakeSoundPlayer, sequentialIds } from './fakes';
+import { FakeAgentDetector, FakeBlocker, FakeBridgeServer, FakeStudyAgent, FakeStudyAgentFactory, FakeClock, FakeNotifier, FakeSoundPlayer, sequentialIds } from './fakes';
 import { tempDir } from './temp';
 
 export function buildState(overrides: Partial<AppState> = {}, clock = new FakeClock()): AppState {
@@ -56,6 +57,9 @@ export interface Harness {
   /** El agente que crea `agentFactory` para cualquier proveedor. */
   agent: FakeStudyAgent;
   agentFactory: FakeStudyAgentFactory;
+  /** Puente para agentes de terminal sobre `bridgeServer`, sin socket; lo abre `lifecycle.start()`. */
+  bridge: BridgeService;
+  bridgeServer: FakeBridgeServer;
   /** Usa `clock` como temporizadores. */
   lifecycle: LifecycleService;
   /** Vuelve a abrir el estado desde disco con las mismas dependencias. */
@@ -90,10 +94,15 @@ export function createHarness(t: TestContext, options: HarnessOptions = {}): Har
     routes: studyRepository, tasks, settings: studyRepository, notices: studyRepository, locator: detector, agents: agentFactory, day: store
   });
 
+  const bridgeServer = new FakeBridgeServer();
+  const bridge = new BridgeService({
+    server: bridgeServer, socketPath: path.join(directory, 'ritmo.sock'), routes: studyRepository, tasks, day: store
+  });
+
   return {
     directory, statePath, dbPath, clock, blocker, notifier, sound, published, repository, studyRepository, store, focus,
     lifecycle: new LifecycleService({
-      store, focus, proposals, notifier, databases: [repository, studyRepository], timers: clock, shutdownTimeoutMs: options.shutdownTimeoutMs
+      store, focus, proposals, bridge, notifier, databases: [repository, studyRepository], timers: clock, shutdownTimeoutMs: options.shutdownTimeoutMs
     }),
     tasks,
     domains: new DomainService(store),
@@ -103,6 +112,8 @@ export function createHarness(t: TestContext, options: HarnessOptions = {}): Har
     proposals,
     agent: agentFactory.agent,
     agentFactory,
+    bridge,
+    bridgeServer,
     reopen: open,
     readSaved: () => JSON.parse(fs.readFileSync(statePath, 'utf8'))
   };

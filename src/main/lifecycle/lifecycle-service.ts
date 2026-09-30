@@ -1,3 +1,4 @@
+import type { BridgeLifecyclePort } from '../bridge/ports';
 import type { Notifier, TimerHandle, Timers } from '../common/ports';
 import type { FocusLifecyclePort } from '../focus/ports';
 import type { StateShutdownPort, StateStorePort } from '../state/ports';
@@ -20,6 +21,8 @@ export interface LifecycleDeps {
   focus: FocusLifecyclePort;
   /** Petición al agente de estudio, que se cancela al empezar el cierre. */
   proposals: ProposalLifecyclePort;
+  /** Puente para agentes de terminal: se abre al arrancar y se cierra al empezar el cierre. */
+  bridge: BridgeLifecyclePort;
   notifier: Notifier;
   /** Conexiones SQLite que se cierran al final, en orden. */
   databases: readonly Database[];
@@ -32,6 +35,7 @@ export class LifecycleService implements LifecycleServicePort {
   private readonly store: StateStorePort & StateShutdownPort;
   private readonly focus: FocusLifecyclePort;
   private readonly proposals: ProposalLifecyclePort;
+  private readonly bridge: BridgeLifecyclePort;
   private readonly notifier: Notifier;
   private readonly databases: readonly Database[];
   private readonly timers: Timers;
@@ -45,6 +49,7 @@ export class LifecycleService implements LifecycleServicePort {
     this.store = deps.store;
     this.focus = deps.focus;
     this.proposals = deps.proposals;
+    this.bridge = deps.bridge;
     this.notifier = deps.notifier;
     this.databases = deps.databases;
     this.timers = deps.timers;
@@ -53,9 +58,11 @@ export class LifecycleService implements LifecycleServicePort {
 
   /**
    * Reconcilia el bloqueo con `/etc/hosts`, hace el reinicio diario, cierra de inmediato una sesión
-   * vencida con la app cerrada y empieza el tic de cada segundo.
+   * vencida con la app cerrada, empieza el tic de cada segundo y abre el puente para agentes de terminal.
+   * Si el puente no se puede abrir, lo informa por `onError` y la app sigue sin él.
    */
   start(onError: (error: unknown) => void): void {
+    this.bridge.start().catch(onError);
     this.focus.recover();
     this.store.rollDay();
     const tick = () => { this.focus.tick().catch(onError); };
@@ -75,9 +82,10 @@ export class LifecycleService implements LifecycleServicePort {
   }
 
   /**
-   * Cierre ordenado e idempotente: detiene el tic, cancela la petición al agente en curso, deja de
+   * Cierre ordenado e idempotente: detiene el tic, cierra el puente para agentes de terminal (ninguna
+   * petición suya llega ya a los servicios), cancela la petición al agente en curso, deja de
    * aceptar operaciones protegidas, espera la que esté en curso, quita el bloqueo si hace falta, guarda
-   * el estado, espera a que termine el CLI del agente y cierra SQLite.
+   * el estado, espera a que termine el CLI del agente y a que se cierre el puente, y cierra SQLite.
    * La espera y el desbloqueo tienen cada uno el tiempo máximo completo; si se agota en cualquiera,
    * cancela el cambio de bloqueo en curso y guarda `blockError` para que `recover()` lo resuelva al arrancar.
    * El CLI del agente se cancela en paralelo y se espera, al final, también con el tiempo máximo completo.
@@ -89,6 +97,8 @@ export class LifecycleService implements LifecycleServicePort {
 
   private async stop(): Promise<void> {
     if (this.ticker !== undefined) this.timers.clearInterval(this.ticker);
+    // Un fallo al borrar el socket no debe impedir cerrar SQLite.
+    const bridgeClosed = this.bridge.stop().catch(() => {});
     const agentStopped = this.proposals.stop();
     try {
       if (await this.within(this.store.drain())) await this.within(this.store.closeWith(() => this.release()));
@@ -99,7 +109,7 @@ export class LifecycleService implements LifecycleServicePort {
       try { this.store.seal(); }
       finally {
         // Sin esperarlo, el CLI podría seguir vivo o dejar su directorio temporal al salir la app.
-        await this.deadline(agentStopped);
+        await this.deadline(Promise.all([agentStopped, bridgeClosed]));
         this.closeDatabases();
       }
     }

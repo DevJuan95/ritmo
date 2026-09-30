@@ -12,10 +12,14 @@ export interface StudyRouteReaderPort {
   get(id: string): StudyRoute;
 }
 
-/** Rutas de estudio y sus etapas en SQLite. Recibe entradas ya validadas con `safeStudyRoute()`. */
-export interface StudyRepositoryPort {
+/** Lo que el puente para agentes de terminal necesita de las rutas, además de leer una: la lista. */
+export interface StudyRouteListPort {
   /** Todas las rutas, de la más antigua a la más reciente, con sus etapas en orden. */
   list(): StudyRoute[];
+}
+
+/** Rutas de estudio y sus etapas en SQLite. Recibe entradas ya validadas con `safeStudyRoute()`. */
+export interface StudyRepositoryPort extends StudyRouteListPort {
   create(route: StudyRouteInput): StudyRoute;
   /**
    * Reemplaza los datos y las etapas de la ruta. Conserva el `id` de las etapas que lo traen, crea las

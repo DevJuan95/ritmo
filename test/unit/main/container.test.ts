@@ -12,6 +12,7 @@ import type { NotificationApi } from '../../../src/main/common/notifier';
 import { FakeBlocker, FakeClock, FakeSoundPlayer } from '../../helpers/fakes';
 import { systemTimers } from '../../../src/main/common/timers';
 import { StateStore } from '../../../src/main/state/state-store';
+import { SocketBridgeServer } from '../../../src/main/bridge/socket-server';
 import { tempDir } from '../../helpers/temp';
 
 const resourcesPath = '/app/resources';
@@ -125,4 +126,22 @@ test('registra el ciclo de vida con los temporizadores y el tiempo máximo del c
   await closing;
   assert.equal((taskRepository as unknown as { closed: boolean }).closed, true);
   assert.equal((studyRepository as unknown as { closed: boolean }).closed, true);
+});
+
+test('el puente usa el socket de los datos de la app, que se abre al arrancar y se cierra al salir', async t => {
+  const directory = tempDir(t);
+  const container = createMainContainer({ userDataPath: directory, resourcesPath, publish: () => {}, notificationApi: fakeNotificationApi([]), timers: new FakeClock() });
+  container.register({ blocker: asValue(new FakeBlocker()) });
+  t.after(() => container.dispose());
+  const { bridge, bridgeServer, lifecycle, study } = container.cradle;
+  assert.ok(bridgeServer instanceof SocketBridgeServer);
+  const route = study.create({ topic: 'Rust', goal: '', level: 'beginner', dailyPomodoros: 2, stages: [{ title: 'Ownership', topics: [] }], instructions: '' });
+  bridge.handle({ op: 'add-task', routeId: route.id, stageId: route.stages[0].id, title: 'Leer' });
+  assert.deepEqual(container.cradle.store.state.tasks.map(task => task.title), ['Leer']);
+  lifecycle.start(error => assert.fail(String(error)));
+  const socketPath = path.join(directory, 'ritmo.sock');
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.ok(fs.statSync(socketPath).isSocket());
+  await lifecycle.shutdown();
+  assert.equal(fs.existsSync(socketPath), false);
 });

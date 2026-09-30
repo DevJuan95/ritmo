@@ -32,11 +32,12 @@ export function dateLabel(day: string): string {
 }
 
 /**
- * Cambia cuando cambian el día o sus tareas, no con cada estado publicado.
- * El Planner vuelve a pedir la lista del día elegido solo cuando cambia.
+ * Cambia cuando cambian el día o las tareas de cualquier día, no con cada estado publicado.
+ * El Planner vuelve a pedir la lista del día elegido solo cuando cambia. `tasksVersion` cubre las
+ * tareas de otros días, que puede añadir un agente por el puente sin que cambien las de hoy.
  */
 export function tasksRevision(state: PublicState): string {
-  return JSON.stringify([state.day, state.tasks]);
+  return JSON.stringify([state.day, state.tasks, state.tasksVersion]);
 }
 
 /** Si el valor del campo de fecha es un día que se puede planificar. Vacío o a medio escribir, no. */

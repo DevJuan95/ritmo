@@ -18,8 +18,13 @@ export interface TaskRepositoryPort {
   close(): void;
 }
 
-export interface TaskServicePort {
+/** Alta de tareas sin validar: la del renderer y la del puente para agentes de terminal. */
+export interface TaskCreatorPort {
+  /** Crea la tarea en `date` (hoy si es `undefined`), vinculada a la etapa de `link` si llega. */
   add(title: unknown, date: unknown, link?: unknown): void;
+}
+
+export interface TaskServicePort extends TaskCreatorPort {
   toggle(id: unknown): void;
   remove(id: unknown): void;
   listByDay(date: unknown): Task[];
