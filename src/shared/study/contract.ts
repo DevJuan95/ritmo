@@ -80,8 +80,17 @@ export type StudyProgress = Record<string, StageProgress>;
 
 export const STUDY_PROVIDERS: readonly StudyProvider[] = ['claude', 'codex'];
 export const STUDY_LEVELS: readonly StudyLevel[] = ['beginner', 'intermediate', 'advanced'];
+/** Largo máximo del tema y del objetivo de una ruta. */
+export const MAX_ROUTE_TOPIC = 80;
+export const MAX_ROUTE_GOAL = 500;
 export const MAX_STAGES = 30;
+/** Largo máximo del título de una etapa. */
+export const MAX_STAGE_TITLE = 120;
 export const MAX_TOPICS_PER_STAGE = 20;
+/** Largo máximo de cada tema que dominar, de cada tema que no priorizar y de cada recurso de una etapa. */
+export const MAX_TOPIC_TEXT = 80;
+export const MAX_DEPRIORITIZED_TEXT = 120;
+export const MAX_RESOURCE_TEXT = 200;
 /** Máximo de temas que no priorizar y de recursos por etapa. */
 export const MAX_DEPRIORITIZED_PER_STAGE = 20;
 export const MAX_RESOURCES_PER_STAGE = 20;
@@ -91,6 +100,8 @@ export const MAX_STAGE_TEXT = 1000;
 export const MAX_ROADMAP_TEXT = 2000;
 /** Largo máximo del brief de un roadmap. */
 export const MAX_ROADMAP_BRIEF = 4000;
+/** Largo máximo de las instrucciones que se dan al agente al pedirle tareas. */
+export const MAX_AGENT_INSTRUCTIONS = 2000;
 export const MAX_DAILY_POMODOROS = 16;
 export const MAX_PROPOSALS = 10;
 export const MAX_PROPOSAL_POMODOROS = 8;
@@ -148,17 +159,17 @@ function lines(value: unknown, optional: boolean, max: number, itemMax: number, 
 
 export function safeStudyStage(value: unknown): StudyStageInput {
   const stage = record(value, 'La etapa no es válida.');
-  const title = line(stage.title, 1, 120, 'Cada etapa debe tener un título de 1 a 120 caracteres.');
-  const topics = lines(stage.topics, false, MAX_TOPICS_PER_STAGE, 80,
-    `Cada etapa admite hasta ${MAX_TOPICS_PER_STAGE} temas.`, 'Cada tema debe tener de 1 a 80 caracteres.');
+  const title = line(stage.title, 1, MAX_STAGE_TITLE, `Cada etapa debe tener un título de 1 a ${MAX_STAGE_TITLE} caracteres.`);
+  const topics = lines(stage.topics, false, MAX_TOPICS_PER_STAGE, MAX_TOPIC_TEXT,
+    `Cada etapa admite hasta ${MAX_TOPICS_PER_STAGE} temas.`, `Cada tema debe tener de 1 a ${MAX_TOPIC_TEXT} caracteres.`);
   const roadmap = {
     summary: paragraph(stage.summary, MAX_STAGE_TEXT, `El resumen de cada etapa admite hasta ${MAX_STAGE_TEXT} caracteres.`),
     topics,
-    deprioritized: lines(stage.deprioritized, true, MAX_DEPRIORITIZED_PER_STAGE, 120,
-      `Cada etapa admite hasta ${MAX_DEPRIORITIZED_PER_STAGE} temas que no priorizar.`, 'Cada tema que no priorizar debe tener de 1 a 120 caracteres.'),
+    deprioritized: lines(stage.deprioritized, true, MAX_DEPRIORITIZED_PER_STAGE, MAX_DEPRIORITIZED_TEXT,
+      `Cada etapa admite hasta ${MAX_DEPRIORITIZED_PER_STAGE} temas que no priorizar.`, `Cada tema que no priorizar debe tener de 1 a ${MAX_DEPRIORITIZED_TEXT} caracteres.`),
     project: paragraph(stage.project, MAX_STAGE_TEXT, `El proyecto de cada etapa admite hasta ${MAX_STAGE_TEXT} caracteres.`),
-    resources: lines(stage.resources, true, MAX_RESOURCES_PER_STAGE, 200,
-      `Cada etapa admite hasta ${MAX_RESOURCES_PER_STAGE} recursos.`, 'Cada recurso debe tener de 1 a 200 caracteres.'),
+    resources: lines(stage.resources, true, MAX_RESOURCES_PER_STAGE, MAX_RESOURCE_TEXT,
+      `Cada etapa admite hasta ${MAX_RESOURCES_PER_STAGE} recursos.`, `Cada recurso debe tener de 1 a ${MAX_RESOURCE_TEXT} caracteres.`),
   };
   if (stage.id === undefined) return { title, ...roadmap };
   return { id: line(stage.id, 1, 64, 'La etapa no es válida.'), title, ...roadmap };
@@ -173,15 +184,15 @@ export function safeStudyRoute(value: unknown): StudyRouteInput {
   const ids = stages.flatMap((stage) => (stage.id ? [stage.id] : []));
   if (new Set(ids).size !== ids.length) throw new PublicError('La ruta tiene etapas repetidas.');
   return {
-    topic: line(route.topic, 1, 80, 'El tema debe tener de 1 a 80 caracteres.'),
-    goal: paragraph(route.goal, 500, 'El objetivo admite hasta 500 caracteres.'),
+    topic: line(route.topic, 1, MAX_ROUTE_TOPIC, `El tema debe tener de 1 a ${MAX_ROUTE_TOPIC} caracteres.`),
+    goal: paragraph(route.goal, MAX_ROUTE_GOAL, `El objetivo admite hasta ${MAX_ROUTE_GOAL} caracteres.`),
     level: safeStudyLevel(route.level),
     dailyPomodoros: integer(route.dailyPomodoros, 1, MAX_DAILY_POMODOROS, `Elige de 1 a ${MAX_DAILY_POMODOROS} pomodoros por día.`),
     approach: paragraph(route.approach, MAX_ROADMAP_TEXT, `El enfoque admite hasta ${MAX_ROADMAP_TEXT} caracteres.`),
     stages,
     finalProject: paragraph(route.finalProject, MAX_ROADMAP_TEXT, `El proyecto final admite hasta ${MAX_ROADMAP_TEXT} caracteres.`),
     studyRules: paragraph(route.studyRules, MAX_ROADMAP_TEXT, `Las reglas de estudio admiten hasta ${MAX_ROADMAP_TEXT} caracteres.`),
-    instructions: paragraph(route.instructions, 2000, 'Las instrucciones admiten hasta 2000 caracteres.'),
+    instructions: paragraph(route.instructions, MAX_AGENT_INSTRUCTIONS, `Las instrucciones admiten hasta ${MAX_AGENT_INSTRUCTIONS} caracteres.`),
   };
 }
 
