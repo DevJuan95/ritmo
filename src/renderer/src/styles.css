@@ -335,6 +335,7 @@ h2 { font-family:var(--serif); font-size:var(--fs-heading); font-weight:var(--we
 
 .study-back { display:inline-block; margin-bottom:12px; color:var(--ink-light); font-size:var(--fs-sm); font-weight:var(--weight-medium); text-decoration:none; }
 .study-back:hover { color:var(--ink); text-decoration:underline; text-underline-offset:3px; }
+.route-hero-title { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; }
 .route-hero h2 { font-size:var(--fs-heading-lg); overflow-wrap:anywhere; }
 .route-hero-progress { display:grid; gap:6px; max-width:var(--measure-detail); margin-top:14px; }
 /* Pestañas de la ruta: la activa va subrayada en tinta. */

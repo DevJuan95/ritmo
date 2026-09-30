@@ -356,6 +356,20 @@ export function routeSummary(route: StudyRoute): string {
   return `${stages} ${stages === 1 ? 'etapa' : 'etapas'}, ${pomodoros} ${pomodoros === 1 ? 'pomodoro' : 'pomodoros'} al día, ${LEVEL_LABELS[route.level].toLowerCase()}`;
 }
 
+/**
+ * Texto del diálogo que confirma el borrado de una ruta: qué se borra, con las tareas vinculadas de
+ * todos los días según el avance de sus etapas.
+ */
+export function routeDeletionText(route: StudyRoute, progress: Readonly<StudyProgress>): string {
+  const stages = route.stages.length;
+  const tasks = route.stages.reduce((total, stage) => total + (progress[stage.id]?.total ?? 0), 0);
+  const parts = `Se borrará la ruta «${route.topic}» con ${stages === 1 ? 'su etapa' : `sus ${stages} etapas`}`;
+  const linked = tasks === 0
+    ? `${parts}; no tiene tareas vinculadas.`
+    : `${parts} y ${tasks === 1 ? 'la tarea vinculada' : `las ${tasks} tareas vinculadas`}, de todos los días.`;
+  return `${linked} No se puede deshacer.`;
+}
+
 export interface StageProgressView {
   text: string;
   /** Ancho de la barra de avance, p. ej. «40%». */

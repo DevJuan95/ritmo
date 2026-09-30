@@ -24,11 +24,11 @@ export class StudyService implements StudyServicePort {
     return saved;
   }
 
-  /** Borra la ruta y sus etapas; sus tareas quedan en el Planner, sin vincular. */
+  /** Borra la ruta, sus etapas y sus tareas vinculadas, de todos los días. */
   remove(id: unknown): void {
     const routeId = safeStudyRouteId(id);
     this.repository.delete(routeId);
-    this.tasks.unlinkStages(routeId, []);
+    this.tasks.deleteRouteTasks(routeId);
   }
 
   progress(): StudyProgress {

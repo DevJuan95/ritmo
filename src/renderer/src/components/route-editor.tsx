@@ -24,17 +24,15 @@ interface RouteEditorProps {
   newStageKey: () => string;
   run: RunAction;
   onSaved: (route: StudyRoute) => Promise<void>;
-  onDeleted: () => Promise<void>;
 }
 
 /**
  * Formulario de una ruta, nueva o guardada, por secciones: datos básicos, etapas (con sus detalles
  * plegados), plan general e instrucciones para el agente. En una ruta guardada es su página de opciones.
  */
-export function RouteEditor({ route, progress: stages, saved, agentDraft, onDraftChange, newStageKey, run, onSaved, onDeleted }: RouteEditorProps) {
+export function RouteEditor({ route, progress: stages, saved, agentDraft, onDraftChange, newStageKey, run, onSaved }: RouteEditorProps) {
   const [initial] = useState<RouteDraft>(() => route ? routeToDraft(route) : emptyRouteDraft(newStageKey()));
   const [draft, setDraftState] = useState(() => saved ?? initial);
-  const [confirmDelete, setConfirmDelete] = useState(false);
   const [busy, setBusy] = useState(false);
   // Un solo guardián por editor: bloquea al instante, sin esperar al siguiente render.
   const [exclusive] = useState(() => oneAtATime(setBusy));
@@ -61,13 +59,6 @@ export function RouteEditor({ route, progress: stages, saved, agentDraft, onDraf
       let saved: StudyRoute | undefined;
       const ok = await run(async () => { saved = route ? await window.ritmo.updateStudyRoute(route.id, input) : await window.ritmo.createStudyRoute(input); });
       if (ok && saved) await onSaved(saved);
-    });
-  }
-
-  async function remove() {
-    if (!route) return;
-    await exclusive(async () => {
-      if (await run(() => window.ritmo.deleteStudyRoute(route.id))) await onDeleted();
     });
   }
 
@@ -129,9 +120,6 @@ export function RouteEditor({ route, progress: stages, saved, agentDraft, onDraf
     <div className="study-footer">
       <p className="study-hint" aria-live="polite">{changed ? problem ?? 'Cambios sin guardar.' : ''}</p>
       <div className="study-footer-actions">
-        {route && (confirmDelete
-          ? <><Button type="button" variant="ghost" className="row-action" disabled={busy} onClick={() => setConfirmDelete(false)}>Conservar</Button><Button type="button" variant="destructive" disabled={busy} onClick={() => void remove()}>Eliminar ruta y etapas</Button></>
-          : <Button type="button" variant="ghost" className="row-action row-action-danger" disabled={busy} onClick={() => setConfirmDelete(true)}>Eliminar</Button>)}
         {changed && <Button type="button" variant="ghost" className="row-action" disabled={busy} onClick={() => setDraft(initial)}>{route ? 'Descartar cambios' : 'Descartar borrador'}</Button>}
         <Button type="submit" disabled={!canSaveDraft(changed, problem, busy)}>{route ? 'Guardar cambios' : 'Crear ruta'}</Button>
       </div>

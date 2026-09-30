@@ -341,6 +341,7 @@ export interface StudyAPI {
   listStudyRoutes(): Promise<StudyRoute[]>;
   createStudyRoute(route: StudyRouteInput): Promise<StudyRoute>;
   updateStudyRoute(id: string, route: StudyRouteInput): Promise<StudyRoute>;
+  /** Borra la ruta, sus etapas y las tareas vinculadas a ella, de todos los días. */
   deleteStudyRoute(id: string): Promise<void>;
   getStudyProgress(): Promise<StudyProgress>;
   getAgentSettings(): Promise<AgentSettings>;

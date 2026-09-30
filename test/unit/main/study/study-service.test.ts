@@ -50,7 +50,7 @@ test('el avance viene de las tareas vinculadas a cada etapa', t => {
   assert.deepEqual(study.progress(), { [consensus.id]: { total: 2, done: 1 }, [replication.id]: { total: 1, done: 0 } });
 });
 
-test('quitar una etapa o borrar la ruta deja sus tareas en el Planner, sin vincular', t => {
+test('quitar una etapa deja sus tareas en el Planner, sin vincular, y borrar la ruta borra sus tareas', t => {
   const { study, tasks, store, repository } = createHarness(t);
   const route = study.create({ ...input, stages: [stage({ title: 'Consenso', topics: [] }), stage({ title: 'Replicación', topics: [] })] });
   const other = study.create({ ...input, topic: 'Go' });
@@ -58,13 +58,16 @@ test('quitar una etapa o borrar la ruta deja sus tareas en el Planner, sin vincu
   tasks.add('Raft', undefined, { routeId: route.id, stageId: consensus.id });
   tasks.add('Quórums', undefined, { routeId: route.id, stageId: replication.id });
   tasks.add('Goroutines', undefined, { routeId: other.id, stageId: other.stages[0].id });
+  tasks.add('Logs', '2026-10-02', { routeId: route.id, stageId: consensus.id });
+  tasks.add('Suelta', undefined);
 
   study.update(route.id, { ...input, stages: [consensus] });
   const links = () => store.state.tasks.map(task => [task.title, task.stageId]);
-  assert.deepEqual(links(), [['Raft', consensus.id], ['Quórums', null], ['Goroutines', other.stages[0].id]]);
+  assert.deepEqual(links(), [['Raft', consensus.id], ['Quórums', null], ['Goroutines', other.stages[0].id], ['Suelta', null]]);
 
+  // La tarea que ya no está vinculada (Quórums) no es de la ruta: se conserva.
   study.remove(route.id);
-  assert.deepEqual(links(), [['Raft', null], ['Quórums', null], ['Goroutines', other.stages[0].id]]);
-  assert.equal(repository.listByDay(store.today()).length, 3);
+  assert.deepEqual(links(), [['Quórums', null], ['Goroutines', other.stages[0].id], ['Suelta', null]]);
+  assert.deepEqual(repository.listByDay('2026-10-02'), []);
   assert.deepEqual(study.progress(), { [other.stages[0].id]: { total: 1, done: 0 } });
 });

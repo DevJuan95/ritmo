@@ -118,6 +118,10 @@ export class TaskRepository implements TaskRepositoryPort {
     return (this.db.prepare('SELECT * FROM tasks WHERE route_id = ? ORDER BY planned_date, created_at, id').all(routeId) as unknown as TaskRow[]).map(taskFromRow);
   }
 
+  deleteByRoute(routeId: string): void {
+    this.db.prepare('DELETE FROM tasks WHERE route_id = ?').run(routeId);
+  }
+
   delete(id: string): void {
     if (typeof id !== 'string' || !id) throw new PublicError('Identificador de tarea inválido.');
     this.db.prepare('DELETE FROM tasks WHERE id = ?').run(id);

@@ -14,7 +14,7 @@ import {
   scheduleProposals, withoutProposals, withProposal, withRouteProposals, type ProposalDraft,
   ROADMAP_CANCELLED, agentBusyText, briefProblem, roadmapFailureText, roadmapNoticeText, roadmapToDraft, roadmapView,
   STAGE_STATE_LABELS, pendingProposalCount, routeDraftKey, stageHasDetails,
-  linkFromStage, routeProgressView, routeSummary, routeToDraft, stageLimits, stageOptions, stageProgressView, taskStageLabel, taskStageValue, tasksRevision, timerActions, timerView, withDraft
+  linkFromStage, routeDeletionText, routeProgressView, routeSummary, routeToDraft, stageLimits, stageOptions, stageProgressView, taskStageLabel, taskStageValue, tasksRevision, timerActions, timerView, withDraft
 } from '../../../../src/renderer/src/view';
 import { buildState } from '../../../helpers/harness';
 import { emptyRouteRoadmap, sampleRoadmap, stage } from '../../../helpers/study';
@@ -291,6 +291,15 @@ test('el avance de una etapa cuenta sus tareas completadas', () => {
   assert.deepEqual(stageProgressView({ done: 2, total: 5 }), { text: '2 de 5 tareas', percent: '40%', complete: false });
   assert.deepEqual(stageProgressView({ done: 1, total: 1 }), { text: '1 de 1 tarea', percent: '100%', complete: true });
   assert.deepEqual(stageProgressView({ done: 4, total: 3 }), { text: '3 de 3 tareas', percent: '100%', complete: true });
+});
+
+test('el diálogo de borrar una ruta cuenta sus etapas y sus tareas vinculadas', () => {
+  const route = studyRoute();
+  assert.equal(routeDeletionText(route, {}), 'Se borrará la ruta «Rust» con sus 2 etapas; no tiene tareas vinculadas. No se puede deshacer.');
+  assert.equal(routeDeletionText(route, { s1: { done: 1, total: 1 }, otra: { done: 0, total: 9 } }),
+    'Se borrará la ruta «Rust» con sus 2 etapas y la tarea vinculada, de todos los días. No se puede deshacer.');
+  assert.equal(routeDeletionText({ ...route, stages: [route.stages[0]] }, { s1: { done: 1, total: 3 } }),
+    'Se borrará la ruta «Rust» con su etapa y las 3 tareas vinculadas, de todos los días. No se puede deshacer.');
 });
 
 test('el avance de una ruta señala la primera etapa sin completar', () => {
