@@ -1,11 +1,16 @@
 import { PublicError } from '../../shared/ipc';
 import { INVALID_AGENT_RESPONSE, type TaskProposal } from '../../shared/study/contract';
-import { AGENT_MODEL_PATTERN, AGENT_TIMEOUT_MS, runAgentCli } from './agent-cli';
+import { AGENT_LOGIN_TIMEOUT_MS, AGENT_MODEL_PATTERN, AGENT_TIMEOUT_MS, runAgentCli } from './agent-cli';
 import { buildAgentRequest, readAgentProposals } from './agent-prompt';
 import type { StudyAgent, StudyAgentContext, StudyAgentOptions } from './ports';
 
 export const CODEX_NAME = 'Codex';
 export const CODEX_FAILED = 'Codex no pudo completar la petición. Inténtalo de nuevo.';
+export const CODEX_LOGIN = 'Inicia sesión en Codex con tu cuenta de ChatGPT: ejecuta `codex login` en la terminal.';
+export const CODEX_API_KEY = 'Codex está configurado con una clave de API. Inicia sesión con tu cuenta de ChatGPT (`codex login`) para usar tu suscripción.';
+
+/** Argumentos que muestran la sesión de Codex, por ejemplo «Logged in using ChatGPT». */
+export const CODEX_STATUS_ARGS = ['login', 'status'];
 
 /** Archivos que `codex exec` usa en su directorio temporal: el esquema de entrada y la respuesta. */
 export const CODEX_SCHEMA_FILE = 'esquema.json';
@@ -54,8 +59,20 @@ export function readCodexOutput(output: string | undefined, exitCode: number): s
 }
 
 /**
+ * Comprueba la salida de `codex login status`, que Codex escribe en la salida de error. Sale con 1 e
+ * imprime «Not logged in» si no hay sesión, y dice «Logged in using an API key» si la sesión es una
+ * clave de API guardada. En esos casos rechaza con un mensaje que dice cómo iniciar sesión con la
+ * suscripción. Otra salida con código 0 no bloquea la petición: si falta la sesión, fallará igual.
+ */
+export function checkCodexLogin(stdout: string, exitCode: number): void {
+  if (exitCode !== 0 || /not logged in/i.test(stdout)) throw new PublicError(CODEX_LOGIN);
+  if (/api key/i.test(stdout)) throw new PublicError(CODEX_API_KEY);
+}
+
+/**
  * Adaptador de `StudyAgent` que lanza `codex exec` en un sandbox de solo lectura, en un directorio
- * temporal, con tiempo máximo y cancelable. Solo devuelve propuestas validadas.
+ * temporal, con tiempo máximo y cancelable. Antes comprueba que hay sesión con la cuenta de ChatGPT,
+ * para no enviar nada si no la hay. Solo devuelve propuestas validadas.
  */
 export class CodexAgent implements StudyAgent {
   private readonly command: string;
@@ -69,6 +86,14 @@ export class CodexAgent implements StudyAgent {
   async propose(context: StudyAgentContext, { signal }: StudyAgentOptions = {}): Promise<TaskProposal[]> {
     const { prompt, schema } = buildAgentRequest(context);
     const args = codexArgs(prompt, this.options.model);
+    const status = await runAgentCli(this.command, CODEX_STATUS_ARGS, {
+      name: CODEX_NAME,
+      timeoutMs: Math.min(this.timeoutMs, AGENT_LOGIN_TIMEOUT_MS),
+      killGraceMs: this.options.killGraceMs,
+      signal,
+      mergeStderr: true,
+    });
+    checkCodexLogin(status.stdout, status.exitCode);
     const { output, exitCode } = await runAgentCli(this.command, args, {
       name: CODEX_NAME,
       timeoutMs: this.timeoutMs,

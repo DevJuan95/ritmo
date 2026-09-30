@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { CODEX_FAILED, CODEX_OUTPUT_FILE, CODEX_SCHEMA_FILE, codexArgs, readCodexOutput } from '../../../../src/main/study/codex-agent';
+import { CODEX_API_KEY, CODEX_FAILED, CODEX_LOGIN, CODEX_OUTPUT_FILE, CODEX_SCHEMA_FILE, checkCodexLogin, codexArgs, readCodexOutput } from '../../../../src/main/study/codex-agent';
 import { PublicError } from '../../../../src/shared/ipc';
 import { INVALID_AGENT_RESPONSE } from '../../../../src/shared/study/contract';
 
@@ -44,4 +44,21 @@ test('readCodexOutput da un error sin detalles con un código distinto de 0', ()
   for (const output of ['{"proposals":[]}', undefined, 'Error: algo interno']) {
     assert.throws(() => readCodexOutput(output, 1), publicError(CODEX_FAILED));
   }
+});
+
+test('checkCodexLogin acepta la sesión de ChatGPT o un estado que no reconoce con código 0', () => {
+  for (const stdout of ['Logged in using ChatGPT\n', 'WARNING: algo\nLogged in using ChatGPT\n', '']) {
+    assert.doesNotThrow(() => checkCodexLogin(stdout, 0));
+  }
+});
+
+test('checkCodexLogin pide iniciar sesión sin sesión o con un código distinto de 0', () => {
+  const cases: Array<[string, number]> = [['Not logged in\n', 1], ['Not logged in\n', 0], ['Error: algo interno', 2], ['', 1]];
+  for (const [stdout, exitCode] of cases) {
+    assert.throws(() => checkCodexLogin(stdout, exitCode), publicError(CODEX_LOGIN));
+  }
+});
+
+test('checkCodexLogin rechaza una sesión con clave de API', () => {
+  assert.throws(() => checkCodexLogin('Logged in using an API key - sk-proj-***ABCDE\n', 0), publicError(CODEX_API_KEY));
 });
