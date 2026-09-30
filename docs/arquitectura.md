@@ -40,7 +40,7 @@ Canales: `get-state` (`state`), `start-focus`, `finish-focus`, `start-break` y `
 
 ### 1.1 Contratos compartidos
 
-Lo que cruza procesos está en `src/shared/`, con un contrato por módulo en `src/shared/<módulo>/contract.ts` (`focus`, `tasks`, `blocking` y `state`). Cada uno declara sus tipos, su parte de `AppState`, la API que ofrece al renderer, sus canales IPC y la validación de su entrada, que usan los servicios del proceso principal y la vista. `src/shared/ipc.ts` guarda lo común a todos los canales: `PublicError`, `IpcResult`, `ApiError` y los tipos auxiliares `ChannelMap` y `UnvalidatedArgs`. `src/shared/api.ts` solo compone: `RitmoAPI`, `RitmoChannels`, `RitmoEvents` y el tipo de `window.ritmo`.
+Lo que cruza procesos está en `src/shared/`, con un contrato por módulo en `src/shared/<módulo>/contract.ts` (`focus`, `tasks`, `blocking`, `state` y `study`). Cada uno declara sus tipos, su parte de `AppState`, la API que ofrece al renderer, sus canales IPC y la validación de su entrada, que usan los servicios del proceso principal y la vista. `study/contract.ts` es la primera pieza de las rutas de estudio (#36): por ahora solo declara sus tipos y su validación, sin API, canales ni servicio, así que `api.ts` todavía no lo compone. `src/shared/ipc.ts` guarda lo común a todos los canales: `PublicError`, `IpcResult`, `ApiError` y los tipos auxiliares `ChannelMap` y `UnvalidatedArgs`. `src/shared/api.ts` solo compone: `RitmoAPI`, `RitmoChannels`, `RitmoEvents` y el tipo de `window.ritmo`.
 
 Los canales son solo tipos: el preload se ejecuta con sandbox y no puede cargar módulos locales, así que importa los contratos con `import type` y repite `GENERIC_ERROR_MESSAGE`. `ChannelMap` asigna a cada método de la API de un módulo su canal y toma de él la firma. Con `RitmoChannels`, el preload solo compila si invoca un canal existente con los argumentos de su método, y `registerHandlers()` solo si registra canales existentes con la misma aridad; allí los argumentos llegan como `unknown` y los valida el servicio.
 
@@ -51,6 +51,7 @@ flowchart LR
   focus["focus/contract.ts<br/>Session, MINUTES"]
   tasks["tasks/contract.ts<br/>Task, safeTaskTitle, safePlannedDate"]
   blocking["blocking/contract.ts<br/>normalizeDomains, DEFAULT_DOMAINS"]
+  study["study/contract.ts<br/>StudyRoute, safeStudyRoute, safeTaskProposals"]
   ipc["ipc.ts<br/>PublicError, IpcResult, ChannelMap"]
 
   api --> state
@@ -64,6 +65,8 @@ flowchart LR
   tasks --> ipc
   blocking --> ipc
   state --> ipc
+  study -- "safeTaskTitle" --> tasks
+  study --> ipc
 ```
 
 ## 2. Servicios y dependencias

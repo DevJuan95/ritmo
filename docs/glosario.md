@@ -50,6 +50,19 @@ Si cambias un término, un puerto, una interfaz de servicio o un módulo, actual
 | Cierre ordenado | Secuencia única de salida para `before-quit` (Cmd+Q), `SIGINT` (Ctrl+C), `SIGTERM` y el apagado de macOS: detiene el tic, deja de aceptar operaciones protegidas, espera la que esté en curso, libera el bloqueo, guarda `state.json` por última vez con `seal()` (una operación cancelada que termine después ya no lo reescribe) y cierra SQLite. Se ejecuta una sola vez aunque lleguen varios avisos, y después la app sale con `app.exit()`. | `LifecycleService.shutdown()`, `LifecycleService.listen()`, `StateStore.drain()`, `StateStore.closeWith()`, `StateStore.seal()` | `src/main/lifecycle/lifecycle-service.ts`, `src/main/state/state-store.ts` |
 | Tiempo máximo del cierre | Límite de cada fase del cierre ordenado: la espera de la operación en curso y el desbloqueo tienen cada una 160 s por defecto. La operación en curso puede estar reinstalando el helper: un diálogo de administrador de `osascript` (hasta 120 s) y hasta tres llamadas a `sudo` (hasta 10 s cada una). El desbloqueo al salir no pide autorización (`authorize: false`), así que solo usa `sudo`. Si la espera agota el tiempo, no se intenta desbloquear. Al vencer, `FocusService.abortBlockChange()` cancela el cambio de bloqueo en curso (su `osascript` o su `sudo`), para que no quede un diálogo de administrador abierto tras salir; si era el desbloqueo del tic, el tic no avisa y el aviso lo da solo el cierre. Un foco que se estaba iniciando se descarta sin aviso; si el helper ya escribía `/etc/hosts`, el bloqueo puede quedar aplicado sin constar en el estado, y `recover()` lo deja pendiente al reabrir. Después la app sale aunque macOS no haya respondido; si aún había que desbloquear, conserva el `blockError` que hubiera o guarda «Ritmo se cerró antes de quitar el bloqueo.», descarta el foco y notifica «Bloqueo aún activo». | `DEFAULT_SHUTDOWN_TIMEOUT_MS`, opción `shutdownTimeoutMs` de `createMainContainer()` | `src/main/lifecycle/lifecycle-service.ts`, `src/main/container.ts` |
 
+## Rutas de estudio
+
+Primera parte de las rutas de estudio (#36): por ahora solo existen los tipos y la validación del contrato; todavía no hay servicio, almacenamiento, API ni pantalla.
+
+| Término | Definición | En código | Dónde |
+| --- | --- | --- | --- |
+| Ruta de estudio | Roadmap de un tema: objetivo, nivel, pomodoros por día, etapas ordenadas e instrucciones para el agente. Tema de 1 a 80 caracteres, objetivo hasta 500, de 1 a 30 etapas y de 1 a 16 pomodoros por día. | `StudyRoute`, `StudyRouteInput`, `safeStudyRoute()`, `MAX_STAGES`, `MAX_DAILY_POMODOROS` | `src/shared/study/contract.ts` |
+| Nivel | Punto de partida del usuario en el tema: principiante, intermedio o avanzado. | `StudyLevel`, `STUDY_LEVELS`, `safeStudyLevel()` | `src/shared/study/contract.ts` |
+| Etapa | Hito de una ruta, con un título de 1 a 120 caracteres y hasta 20 temas sin repetir. Una etapa nueva llega sin `id`; se lo asigna el proceso principal. | `StudyStage`, `StudyStageInput`, `safeStudyStage()`, `MAX_TOPICS_PER_STAGE` | `src/shared/study/contract.ts` |
+| Instrucciones del agente | Texto libre, hasta 2000 caracteres, con lo que el usuario pide al agente: tipo de tareas, duración, recursos, idioma. Hay un texto por defecto. | `StudyRoute.instructions`, `DEFAULT_AGENT_INSTRUCTIONS` | `src/shared/study/contract.ts` |
+| Agente (proveedor) | CLI local que propone las tareas con la sesión del usuario: Claude Code o Codex. | `StudyProvider` = `'claude' \| 'codex'`, `STUDY_PROVIDERS`, `safeStudyProvider()` | `src/shared/study/contract.ts` |
+| Propuesta de tarea | Tarea que sugiere el agente para una etapa de la ruta: título con las reglas de una tarea, de 1 a 8 pomodoros, criterio de «hecho» y motivo. Se valida como entrada externa: una respuesta que no cumple el formato o cita una etapa ajena se rechaza entera, con hasta 10 propuestas por respuesta. | `TaskProposal`, `safeTaskProposals()`, `MAX_PROPOSALS`, `MAX_PROPOSAL_POMODOROS` | `src/shared/study/contract.ts` |
+
 ## Estado y comunicación
 
 | Término | Definición | En código | Dónde |
@@ -78,7 +91,7 @@ Si cambias un término, un puerto, una interfaz de servicio o un módulo, actual
 | `lifecycle/` | Arranque y cierre ordenado | `LifecycleServicePort`, `QuitSignals`, `QuitReason` | `LifecycleService` (`lifecycle-service.ts`), `createQuitSignals` (`quit-signals.ts`) |
 | `ipc/` | Entrada desde el renderer | `IpcRegistrar` | `registerHandlers` (`handlers.ts`) |
 
-Lo que cruza procesos vive en `src/shared/`, con un contrato por módulo: sus tipos, la parte de `AppState` que le pertenece, su API para el renderer, sus canales IPC y la validación de su entrada. Los usan el proceso principal, el preload y el renderer. `lifecycle/` y `common/` no tienen contrato porque no exponen nada al renderer. `src/shared/api.ts` solo compone: une las APIs en `RitmoAPI`, los canales en `RitmoChannels` y `RitmoEvents`, y declara `window.ritmo`; no se mide en la cobertura porque solo tiene tipos. Un contrato puede importar tipos de otro para componer (`state/contract.ts` compone `AppState`), y todos importan de `ipc.ts`.
+Lo que cruza procesos vive en `src/shared/`, con un contrato por módulo: sus tipos, la parte de `AppState` que le pertenece, su API para el renderer, sus canales IPC y la validación de su entrada. Los usan el proceso principal, el preload y el renderer. `lifecycle/` y `common/` no tienen contrato porque no exponen nada al renderer; `study` tiene contrato pero aún no módulo en `src/main/`. `src/shared/api.ts` solo compone: une las APIs en `RitmoAPI`, los canales en `RitmoChannels` y `RitmoEvents`, y declara `window.ritmo`; no se mide en la cobertura porque solo tiene tipos. Un contrato puede importar tipos de otro para componer (`state/contract.ts` compone `AppState`), y todos importan de `ipc.ts`.
 
 | Contrato | Tipos | API y canales | Validación y valores |
 | --- | --- | --- | --- |
@@ -87,6 +100,7 @@ Lo que cruza procesos vive en `src/shared/`, con un contrato por módulo: sus ti
 | `shared/tasks/contract.ts` | `Task`, `DaySummary`, `TaskSummary`, `TaskPatch`, `TasksState` | `TasksAPI`, `TasksChannels` | `safeTaskTitle()`, `safePlannedDate()`, `FIRST_PLANNED_DATE`, `LAST_PLANNED_DATE` |
 | `shared/blocking/contract.ts` | `BlockingState` | `BlockingAPI`, `BlockingChannels` | `normalizeDomain()`, `normalizeDomains()`, `DEFAULT_DOMAINS`, `PENDING_BLOCK_MESSAGE` |
 | `shared/state/contract.ts` | `AppState`, `PublicState` | `StateAPI`, `StateChannels`, `StateEvents` | `todayKey()` |
+| `shared/study/contract.ts` | `StudyProvider`, `StudyLevel`, `StudyStage`, `StudyStageInput`, `StudyRoute`, `StudyRouteInput`, `TaskProposal` | — (aún sin API) | `safeStudyRoute()`, `safeStudyStage()`, `safeStudyLevel()`, `safeStudyProvider()`, `safeTaskProposals()`, `DEFAULT_AGENT_INSTRUCTIONS`, límites `MAX_*` |
 | `shared/api.ts` | — | `RitmoAPI`, `RitmoChannels`, `RitmoChannel`, `RitmoEvents` | — |
 
 ## Interfaces de servicio
