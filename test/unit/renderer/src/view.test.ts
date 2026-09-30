@@ -13,6 +13,7 @@ import {
   acceptableProposals, addDays, agentNoticeText, elapsedText, pomodorosText, proposalGate, proposalProblem, proposalsSummary, proposalStageLabel, relativeDayLabel,
   scheduleProposals, withoutProposals, withProposal, withRouteProposals, type ProposalDraft,
   ROADMAP_CANCELLED, agentBusyText, briefProblem, roadmapFailureText, roadmapNoticeText, roadmapToDraft, roadmapView,
+  STAGE_STATE_LABELS, pendingProposalCount, routeDraftKey, stageHasDetails,
   linkFromStage, routeProgressView, routeSummary, routeToDraft, stageLimits, stageOptions, stageProgressView, taskStageValue, tasksRevision, timerActions, timerView, withDraft
 } from '../../../../src/renderer/src/view';
 import { buildState } from '../../../helpers/harness';
@@ -482,7 +483,7 @@ test('proposalGate pide el aviso la primera vez y bloquea con el motivo si el ag
   assert.deepEqual(proposalGate('claude', ready, ['claude'], false), { kind: 'ready' });
   assert.deepEqual(proposalGate('codex', undefined, ['claude'], false), { kind: 'notice' }, 'el aviso es de cada proveedor');
   assert.deepEqual(proposalGate('claude', { ...ready, availability: 'unknown' }, ['claude'], false), { kind: 'ready' });
-  assert.deepEqual(proposalGate('claude', ready, ['claude'], true), { kind: 'blocked', reason: 'Guarda los cambios de la ruta: el agente usa la ruta guardada.' });
+  assert.deepEqual(proposalGate('claude', ready, ['claude'], true), { kind: 'blocked', reason: 'Guarda los cambios de la ruta en Opciones: el agente usa la ruta guardada.' });
   for (const availability of ['missing', 'logged-out', 'api-key'] as const) {
     const status = { ...ready, availability };
     assert.deepEqual(proposalGate('claude', status, ['claude'], false), { kind: 'blocked', reason: agentStatusView('claude', status).detail });
@@ -553,7 +554,6 @@ test('roadmapView muestra el roadmap en el orden recomendado, solo con las secci
   assert.equal(view.approach, roadmap.approach);
   assert.equal(view.finalProject, roadmap.finalProject);
   assert.equal(view.studyRules, roadmap.studyRules);
-  assert.deepEqual(view.order, ['Fundamentos de sistemas distribuidos', 'JVM en producción']);
   assert.deepEqual(view.stages[0], {
     id: 's1', number: 1, title: 'Fundamentos de sistemas distribuidos', summary: 'Entender replicación, particionado y consenso.',
     lists: [
@@ -567,4 +567,30 @@ test('roadmapView muestra el roadmap en el orden recomendado, solo con las secci
   const plain = roadmapView(studyRoute());
   assert.deepEqual(plain.stages[1].lists, [], 'una etapa sin temas no muestra listas vacías');
   assert.equal(plain.approach, '');
+});
+
+test('routeDraftKey cambia al guardar la ruta, para no reabrir un borrador de una versión anterior', () => {
+  const route = studyRoute();
+  assert.equal(routeDraftKey(route), `${route.id}:${route.updatedAt}`);
+  assert.notEqual(routeDraftKey({ ...route, updatedAt: '2026-10-01T10:00:00.000Z' }), routeDraftKey(route));
+});
+
+test('stageHasDetails distingue las etapas que solo tienen título', () => {
+  const empty = newStageDraft('a');
+  assert.equal(stageHasDetails({ ...empty, title: 'Fundamentos' }), false, 'el título no cuenta como detalle');
+  assert.equal(stageHasDetails({ ...empty, summary: '   ' }), false, 'los espacios no cuentan');
+  for (const field of ['summary', 'topics', 'deprioritized', 'project', 'resources'] as const) {
+    assert.equal(stageHasDetails({ ...empty, [field]: 'algo' }), true, field);
+  }
+});
+
+test('pendingProposalCount cuenta las propuestas que faltan por revisar', () => {
+  const proposal = (key: string, acceptedOn: string | null): ProposalDraft => ({ key, title: key, stageId: 's1', pomodoros: 1, doneWhen: '', reason: '', plannedDate: '2026-09-30', acceptedOn });
+  assert.equal(pendingProposalCount(undefined), 0);
+  assert.equal(pendingProposalCount([]), 0);
+  assert.equal(pendingProposalCount([proposal('a', null), proposal('b', '2026-09-30'), proposal('c', null)]), 2);
+});
+
+test('STAGE_STATE_LABELS nombra cada estado de una etapa', () => {
+  assert.deepEqual(STAGE_STATE_LABELS, { done: 'Completada', current: 'En curso', next: 'Pendiente' });
 });

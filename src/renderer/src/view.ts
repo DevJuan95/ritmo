@@ -333,6 +333,22 @@ export function stageLimits(count: number): { canAdd: boolean; canRemove: boolea
   return { canAdd: count < MAX_STAGES, canRemove: count > 1 };
 }
 
+/** Nombre del estado de una etapa en su página, p. ej. «En curso». */
+export const STAGE_STATE_LABELS: Readonly<Record<StageState, string>> = { done: 'Completada', current: 'En curso', next: 'Pendiente' };
+
+/**
+ * Clave del borrador de una ruta guardada en `RouteDrafts`. Cambia al guardar la ruta, así que un
+ * borrador hecho sobre una versión anterior no se vuelve a abrir.
+ */
+export function routeDraftKey(route: Pick<StudyRoute, 'id' | 'updatedAt'>): string {
+  return `${route.id}:${route.updatedAt}`;
+}
+
+/** Si la etapa tiene algo más que el título; el editor abre los detalles de las que no, para completarlos. */
+export function stageHasDetails(stage: StageDraft): boolean {
+  return [stage.summary, stage.topics, stage.deprioritized, stage.project, stage.resources].some(text => text.trim() !== '');
+}
+
 /** Resumen de una ruta en la lista, p. ej. «3 etapas, 4 pomodoros al día, intermedio». */
 export function routeSummary(route: StudyRoute): string {
   const stages = route.stages.length;
@@ -620,6 +636,11 @@ export function proposalsSummary(proposals: readonly ProposalDraft[]): string {
   return parts.join(', ');
 }
 
+/** Propuestas de una ruta que faltan por revisar, para señalarlas en su tarjeta y en su pestaña. */
+export function pendingProposalCount(proposals: readonly ProposalDraft[] | undefined): number {
+  return proposals?.filter(proposal => proposal.acceptedOn === null).length ?? 0;
+}
+
 /** Tiempo de espera de la petición, p. ej. «0:07» o «2:15». */
 export function elapsedText(ms: number): string {
   const seconds = Math.max(0, Math.floor(ms / 1000));
@@ -639,7 +660,7 @@ export function proposalGate(provider: StudyProvider, status: AgentStatus | unde
   if (availability === 'missing' || availability === 'logged-out' || availability === 'api-key') {
     return { kind: 'blocked', reason: agentStatusView(provider, status).detail };
   }
-  if (routeChanged) return { kind: 'blocked', reason: 'Guarda los cambios de la ruta: el agente usa la ruta guardada.' };
+  if (routeChanged) return { kind: 'blocked', reason: 'Guarda los cambios de la ruta en Opciones: el agente usa la ruta guardada.' };
   return notices.includes(provider) ? { kind: 'ready' } : { kind: 'notice' };
 }
 
@@ -708,8 +729,6 @@ export interface RoadmapStageView {
 /** Roadmap de una ruta guardada, listo para leer: solo las secciones con contenido. */
 export interface RoadmapView {
   approach: string;
-  /** Títulos de las etapas en el orden recomendado. */
-  order: string[];
   stages: RoadmapStageView[];
   finalProject: string;
   studyRules: string;
@@ -718,7 +737,6 @@ export interface RoadmapView {
 export function roadmapView(route: StudyRoute): RoadmapView {
   return {
     approach: route.approach,
-    order: route.stages.map(stage => stage.title),
     stages: route.stages.map((stage, index) => ({
       id: stage.id,
       number: index + 1,

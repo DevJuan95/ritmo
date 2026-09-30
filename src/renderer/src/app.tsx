@@ -27,7 +27,7 @@ export function App() {
       <Routes>
         <Route path="/" element={state && <TodayScreen state={state} run={run} />} />
         <Route path="/planner" element={state && <PlannerScreen state={state} run={run} showError={showError} today={today} date={plannerDate ?? today} onDateChange={date => setPlannerDate(date === today ? undefined : date)} title={plannerTitle} onTitleChange={setPlannerTitle} />} />
-        <Route path="/rutas" element={state && <StudyScreen run={run} showError={showError} drafts={studyDrafts} onDraftsChange={setStudyDrafts} proposals={proposals} today={today} tasksVersion={state.tasksVersion} />} />
+        <Route path="/rutas/*" element={state && <StudyScreen run={run} showError={showError} drafts={studyDrafts} onDraftsChange={setStudyDrafts} proposals={proposals} today={today} tasksVersion={state.tasksVersion} />} />
         <Route path="/ajustes" element={state && <SettingsScreen run={run} showError={showError} />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
