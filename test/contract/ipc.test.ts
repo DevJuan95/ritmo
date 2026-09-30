@@ -83,7 +83,11 @@ const sampleCalls: { [K in Exclude<keyof RitmoAPI, 'onState'>]: Parameters<Ritmo
   getStudyProgress: [],
   getAgentSettings: [],
   saveAgentSettings: [DEFAULT_AGENT_SETTINGS],
-  checkStudyAgents: []
+  checkStudyAgents: [],
+  getAgentNotices: [],
+  acceptAgentNotice: ['claude'],
+  proposeStudyTasks: ['study-1'],
+  cancelStudyProposals: []
 };
 
 test('cada método del preload invoca un canal registrado por el proceso principal con sus argumentos', async t => {

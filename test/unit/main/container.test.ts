@@ -6,6 +6,7 @@ import { asValue } from 'awilix';
 import type { PublicState } from '../../../src/shared/state/contract';
 import { DEFAULT_AGENT_SETTINGS } from '../../../src/shared/study/contract';
 import { SystemAgentDetector } from '../../../src/main/study/agent-detector';
+import { CliStudyAgentFactory } from '../../../src/main/study/agent-factory';
 import { createMainContainer } from '../../../src/main/container';
 import type { NotificationApi } from '../../../src/main/common/notifier';
 import { FakeBlocker, FakeClock, FakeSoundPlayer } from '../../helpers/fakes';
@@ -98,6 +99,16 @@ test('arma la configuración del agente sobre ritmo.db con el detector del siste
   assert.ok(agentDetector instanceof SystemAgentDetector);
   const saved = agents.saveSettings({ ...DEFAULT_AGENT_SETTINGS, provider: 'codex' });
   assert.deepEqual(studyRepository.loadAgentSettings(), saved);
+});
+
+test('arma las propuestas con la fábrica de los CLI y los avisos sobre ritmo.db', async t => {
+  const container = createMainContainer({ userDataPath: tempDir(t), resourcesPath, publish: () => {}, notificationApi: fakeNotificationApi([]) });
+  t.after(() => container.dispose());
+  const { proposals, agentFactory, studyRepository } = container.cradle;
+  assert.ok(agentFactory instanceof CliStudyAgentFactory);
+  assert.deepEqual(proposals.acceptNotice('claude'), ['claude']);
+  assert.deepEqual(studyRepository.loadAgentNotices(), ['claude']);
+  await assert.rejects(proposals.propose('no-existe'), /La ruta no existe/);
 });
 
 test('registra el ciclo de vida con los temporizadores y el tiempo máximo del cierre', async t => {

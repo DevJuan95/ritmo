@@ -1,10 +1,10 @@
 import { PublicError } from '../../shared/ipc';
 import { safePlannedDate, safeTaskLink, type DaySummary, type Task, type TaskLink, type TaskPatch, type TaskSummary } from '../../shared/tasks/contract';
 import type { StateStorePort } from '../state/ports';
-import type { StudyStagesPort } from '../study/ports';
-import type { StudyTasksPort, TaskRepositoryPort, TaskServicePort } from './ports';
+import type { StudyStagesPort, StudyTaskRecord } from '../study/ports';
+import type { RouteTasksPort, StudyTasksPort, TaskRepositoryPort, TaskServicePort } from './ports';
 
-export class TaskService implements TaskServicePort, StudyTasksPort {
+export class TaskService implements TaskServicePort, StudyTasksPort, RouteTasksPort {
   constructor(
     private readonly store: StateStorePort,
     private readonly repository: TaskRepositoryPort,
@@ -58,6 +58,11 @@ export class TaskService implements TaskServicePort, StudyTasksPort {
   unlinkStages(routeId: string, keep: readonly string[]): void {
     this.repository.unlinkStages(routeId, keep);
     this.refreshToday();
+  }
+
+  routeTasks(routeId: string): StudyTaskRecord[] {
+    // Un vínculo siempre lleva ruta y etapa: una tarea con `routeId` tiene `stageId`.
+    return this.repository.listByRoute(routeId).map(task => ({ title: task.title, stageId: task.stageId as string, done: task.done, plannedDate: task.plannedDate }));
   }
 
   /** Valida el vínculo que llega por IPC y comprueba que la etapa es de esa ruta. */

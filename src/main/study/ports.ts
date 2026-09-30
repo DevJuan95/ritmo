@@ -6,6 +6,12 @@ export interface StudyStagesPort {
   hasStage(routeId: string, stageId: string): boolean;
 }
 
+/** Lo que la petición al agente necesita de las rutas: la ruta guardada. */
+export interface StudyRouteReaderPort {
+  /** La ruta con sus etapas en orden; falla con un `PublicError` si no existe. */
+  get(id: string): StudyRoute;
+}
+
 /** Rutas de estudio y sus etapas en SQLite. Recibe entradas ya validadas con `safeStudyRoute()`. */
 export interface StudyRepositoryPort {
   /** Todas las rutas, de la más antigua a la más reciente, con sus etapas en orden. */
@@ -60,10 +66,14 @@ export interface StudyAgent {
   propose(context: StudyAgentContext, options?: StudyAgentOptions): Promise<TaskProposal[]>;
 }
 
-/** Configuración del agente guardada en SQLite. */
-export interface AgentSettingsRepositoryPort {
+/** Lectura de la configuración del agente guardada en SQLite. */
+export interface AgentSettingsReaderPort {
   /** La configuración guardada, o la de por defecto si no hay o no es válida. */
   loadAgentSettings(): AgentSettings;
+}
+
+/** Configuración del agente guardada en SQLite. */
+export interface AgentSettingsRepositoryPort extends AgentSettingsReaderPort {
   /** Guarda una configuración ya validada con `safeAgentSettings()`. */
   saveAgentSettings(settings: AgentSettings): void;
 }
@@ -71,17 +81,27 @@ export interface AgentSettingsRepositoryPort {
 /** Estado de la sesión de un CLI que sí se encontró. */
 export type AgentLogin = Exclude<AgentAvailability, 'missing'>;
 
+/** Avisos de privacidad que aceptó el usuario, por proveedor, guardados en SQLite. */
+export interface AgentNoticeRepositoryPort {
+  /** Proveedores con el aviso aceptado; ninguno si no hay o lo guardado no es válido. */
+  loadAgentNotices(): StudyProvider[];
+  saveAgentNotices(providers: readonly StudyProvider[]): void;
+}
+
 /**
- * Localiza el CLI de cada proveedor y comprueba su sesión, sin enviar ningún prompt. Una app abierta
- * desde Finder no hereda el `PATH` de la shell, así que también busca en rutas conocidas y en el
- * `PATH` de la shell de login.
+ * Localiza el CLI de un proveedor. Una app abierta desde Finder no hereda el `PATH` de la shell,
+ * así que también busca en rutas conocidas y en el `PATH` de la shell de login.
  */
-export interface AgentDetector {
+export interface AgentLocator {
   /**
    * Ruta del ejecutable del proveedor, o `null` si no está. Con `configured` (absoluta o con `~/`)
    * solo mira esa ruta; vacía, lo busca.
    */
   locate(provider: StudyProvider, configured: string): Promise<string | null>;
+}
+
+/** Localiza el CLI de cada proveedor y comprueba su sesión, sin enviar ningún prompt. */
+export interface AgentDetector extends AgentLocator {
   /** Estado de la sesión del CLI en `command`; `unknown` si no se pudo comprobar. */
   login(provider: StudyProvider, command: string): Promise<AgentLogin>;
 }
@@ -92,4 +112,31 @@ export interface AgentServicePort {
   saveSettings(settings: unknown): AgentSettings;
   /** Estado del CLI de cada proveedor, en el orden de `STUDY_PROVIDERS`. */
   status(): Promise<AgentStatus[]>;
+}
+
+/** CLI con el que se crea un `StudyAgent`: el ejecutable encontrado y el modelo configurado. */
+export interface StudyAgentCli {
+  command: string;
+  /** Modelo o alias; vacío para usar el que tenga configurado el CLI. */
+  model: string;
+}
+
+/** Crea el adaptador de `StudyAgent` del proveedor elegido. No lanza ningún proceso. */
+export interface StudyAgentFactory {
+  create(provider: StudyProvider, cli: StudyAgentCli): StudyAgent;
+}
+
+/**
+ * Petición de propuestas al agente elegido: el aviso de privacidad de cada proveedor, una petición
+ * a la vez y su cancelación. Las propuestas no se guardan; el usuario acepta las que quiere como
+ * tareas del Planner.
+ */
+export interface ProposalServicePort {
+  /** Proveedores con el aviso de privacidad aceptado. */
+  notices(): StudyProvider[];
+  acceptNotice(provider: unknown): StudyProvider[];
+  /** Envía la ruta guardada al agente; rechaza si el aviso de su proveedor no está aceptado o si ya hay otra petición. */
+  propose(routeId: unknown): Promise<TaskProposal[]>;
+  /** Cancela la petición en curso, si la hay. */
+  cancel(): void;
 }

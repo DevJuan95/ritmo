@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { PublicError } from '../../shared/ipc';
+import { AGENT_CANCELLED } from '../../shared/study/contract';
 
 /** Tiempo máximo por defecto de una petición al agente. */
 export const AGENT_TIMEOUT_MS = 180_000;
@@ -14,7 +15,7 @@ export const AGENT_MAX_OUTPUT_BYTES = 1_000_000;
 /** Tiempo máximo para comprobar la sesión del CLI (`claude auth status`, `codex login status`). */
 export const AGENT_LOGIN_TIMEOUT_MS = 15_000;
 
-export const AGENT_CANCELLED = 'Se canceló la petición al agente.';
+export { AGENT_CANCELLED };
 
 /**
  * Variables del entorno que harían que un CLI de agente usara una clave de API, facturada por uso,

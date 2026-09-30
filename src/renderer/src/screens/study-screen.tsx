@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router';
-import { MAX_DAILY_POMODOROS, STUDY_LEVELS, type AgentSettings, type AgentStatus, type StudyProgress, type StudyRoute } from '../../../shared/study/contract';
+import { MAX_DAILY_POMODOROS, STUDY_LEVELS, type AgentSettings, type AgentStatus, type StudyProgress, type StudyProvider, type StudyRoute } from '../../../shared/study/contract';
+import { ProposalsPanel } from '../components/proposals-panel';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
 import {
   LEVEL_LABELS, agentSummary, canSaveDraft, draftChanged, draftProblem, draftToInput, emptyRouteDraft, moveStage, newStageDraft, oneAtATime, routeProgressView,
-  routeSummary, routeToDraft, stageLimits, stageProgressView, withDraft, type RouteDraft, type RouteDrafts, type StageDraft
+  proposalGate, routeSummary, routeToDraft, stageLimits, stageProgressView, withDraft, type RouteDraft, type RouteDrafts, type StageDraft
 } from '../view';
+import type { ProposalsController } from '../use-proposals';
 import type { RunAction } from '../use-ritmo';
 
 type Selection = { kind: 'new' } | { kind: 'route'; id: string };
@@ -23,12 +25,23 @@ interface StudyScreenProps {
   /** Borradores sin guardar; viven en `App` para no perderse al cambiar de ruta o de sección. */
   drafts: RouteDrafts;
   onDraftsChange: (update: (drafts: RouteDrafts) => RouteDrafts) => void;
+  /** Propuestas del agente y la petición en curso; viven en `App` por la misma razón. */
+  proposals: ProposalsController;
+  today: string;
 }
 
-export function StudyScreen({ run, showError, drafts, onDraftsChange }: StudyScreenProps) {
+/** Agente elegido, su estado y los avisos de privacidad aceptados. */
+interface AgentInfo {
+  settings: AgentSettings;
+  statuses?: AgentStatus[];
+  notices: StudyProvider[];
+}
+
+export function StudyScreen({ run, showError, drafts, onDraftsChange, proposals, today }: StudyScreenProps) {
   const [routes, setRoutes] = useState<StudyRoute[]>();
   const [progress, setProgress] = useState<StudyProgress>({});
   const [selection, setSelection] = useState<Selection>();
+  const [agent, setAgent] = useState<AgentInfo>();
 
   // El avance se pide junto con las rutas: al quitar etapas, sus tareas dejan de contar.
   const fetchAll = useCallback(() => Promise.all([window.ritmo.listStudyRoutes(), window.ritmo.getStudyProgress()]), []);
@@ -51,11 +64,32 @@ export function StudyScreen({ run, showError, drafts, onDraftsChange }: StudyScr
     return () => { active = false; };
   }, [fetchAll, showError]);
 
+  useEffect(() => {
+    let active = true;
+    Promise.all([window.ritmo.getAgentSettings(), window.ritmo.getAgentNotices()]).then(([settings, notices]) => {
+      if (!active) return;
+      setAgent({ settings, notices });
+      return window.ritmo.checkStudyAgents().then(statuses => { if (active) setAgent({ settings, notices, statuses }); });
+    }).catch(error => { if (active) showError(error); });
+    return () => { active = false; };
+  }, [showError]);
+
   const selected = selection?.kind === 'route' ? routes?.find(route => route.id === selection.id) : undefined;
   const editorKey = selected ? `${selected.id}:${selected.updatedAt}` : 'nueva';
   const setDraft = (key: string, draft: RouteDraft | undefined) => onDraftsChange(current => withDraft(current, key, draft));
 
-  async function afterDelete() {
+  async function acceptNotice(provider: StudyProvider): Promise<boolean> {
+    let notices: StudyProvider[] | undefined;
+    const ok = await run(async () => { notices = await window.ritmo.acceptAgentNotice(provider); });
+    if (ok && notices) {
+      const accepted = notices;
+      setAgent(current => current && { ...current, notices: accepted });
+    }
+    return ok;
+  }
+
+  async function afterDelete(routeId: string) {
+    proposals.update(routeId, () => []);
     const items = await load();
     setSelection(items[0] ? { kind: 'route', id: items[0].id } : { kind: 'new' });
   }
@@ -65,7 +99,7 @@ export function StudyScreen({ run, showError, drafts, onDraftsChange }: StudyScr
       <div className="sheet-head"><h2 id="study-heading">Rutas de estudio</h2><p className="section-subtitle">Traza el camino de un tema en etapas y avanza una tarea a la vez.</p></div>
       <Button variant="outline" className="planner-today" onClick={() => setSelection({ kind: 'new' })}>Nueva ruta</Button>
     </div>
-    <AgentLine showError={showError} />
+    {agent && <AgentLine settings={agent.settings} statuses={agent.statuses} />}
     <div className="study-layout">
       <nav className="study-index" aria-label="Tus rutas">
         {routes && routes.length === 0 && <p className="empty-state">Todavía no tienes rutas. Empieza por el tema que quieres dominar.</p>}
@@ -73,7 +107,19 @@ export function StudyScreen({ run, showError, drafts, onDraftsChange }: StudyScr
           {routes?.map(route => <RouteItem key={route.id} route={route} progress={progress} active={route.id === selected?.id} onSelect={() => setSelection({ kind: 'route', id: route.id })} />)}
         </ul>
       </nav>
-      {selection && (selection.kind === 'new' || selected) && <RouteEditor
+      {selection && (selection.kind === 'new' || selected) && <div className="study-main">
+      {selected && agent && <ProposalsPanel
+        route={selected}
+        provider={agent.settings.provider}
+        gate={proposalGate(agent.settings.provider, agent.statuses?.find(status => status.provider === agent.settings.provider), agent.notices, drafts[editorKey] !== undefined)}
+        today={today}
+        controller={proposals}
+        run={run}
+        busyWith={proposals.request && proposals.request.routeId !== selected.id ? routes?.find(route => route.id === proposals.request?.routeId)?.topic ?? 'otra ruta' : undefined}
+        onAcceptNotice={() => acceptNotice(agent.settings.provider)}
+        onTasksAdded={() => { void load().catch(showError); }}
+      />}
+      <RouteEditor
         key={editorKey}
         route={selected}
         progress={progress}
@@ -82,28 +128,16 @@ export function StudyScreen({ run, showError, drafts, onDraftsChange }: StudyScr
         newStageKey={stageKey}
         run={run}
         onSaved={async route => { setDraft(editorKey, undefined); await load(); setSelection({ kind: 'route', id: route.id }); }}
-        onDeleted={async () => { setDraft(editorKey, undefined); await afterDelete(); }}
-      />}
+        onDeleted={async () => { setDraft(editorKey, undefined); if (selected) await afterDelete(selected.id); }}
+      />
+      </div>}
     </div>
   </section>;
 }
 
 /** Qué agente propondrá las tareas y si está listo, con un enlace a su configuración. */
-function AgentLine({ showError }: { showError: (error: unknown) => void }) {
-  const [agent, setAgent] = useState<{ settings: AgentSettings; statuses?: AgentStatus[] }>();
-
-  useEffect(() => {
-    let active = true;
-    window.ritmo.getAgentSettings().then(settings => {
-      if (!active) return;
-      setAgent({ settings });
-      return window.ritmo.checkStudyAgents().then(statuses => { if (active) setAgent({ settings, statuses }); });
-    }).catch(error => { if (active) showError(error); });
-    return () => { active = false; };
-  }, [showError]);
-
-  if (!agent) return null;
-  const summary = agentSummary(agent.settings, agent.statuses);
+function AgentLine({ settings, statuses }: { settings: AgentSettings; statuses: AgentStatus[] | undefined }) {
+  const summary = agentSummary(settings, statuses);
   return <p className="study-agent" data-tone={summary.tone} aria-live="polite">
     <span>{summary.text}</span>
     <Link to="/ajustes" className="study-agent-link">{summary.tone === 'ready' ? 'Cambiar agente' : 'Configurar agente'}</Link>

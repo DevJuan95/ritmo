@@ -3,12 +3,14 @@ import assert from 'node:assert/strict';
 import type { RitmoAPI } from '../../../../src/shared/api';
 import { GENERIC_ERROR_MESSAGE } from '../../../../src/shared/ipc';
 import type { AppState, PublicState } from '../../../../src/shared/state/contract';
-import { DEFAULT_AGENT_INSTRUCTIONS, DEFAULT_AGENT_SETTINGS, MAX_STAGES, type AgentStatus, type StudyRoute } from '../../../../src/shared/study/contract';
+import { DEFAULT_AGENT_INSTRUCTIONS, DEFAULT_AGENT_SETTINGS, MAX_STAGES, type AgentStatus, type StudyRoute, type TaskProposal } from '../../../../src/shared/study/contract';
 import type { Task } from '../../../../src/shared/tasks/contract';
 import {
   LEVEL_LABELS, agentModelHint, agentPathPlaceholder, agentSettingsChanged, agentSettingsProblem, agentStatusView, agentSummary, uncheckedAgents, withProviderSettings,
   calendarRange, canSaveDraft, completionText, dateLabel, dayButtonLabel, dayIndicator, dayToDate, domainsLocked, draftChanged, draftProblem,
   draftToInput, emptyRouteDraft, errorMessage, focusCountText, isPlannableDate, monthOf, moveStage, newStageDraft, oneAtATime, parseTopics, plannedDateToSave,
+  acceptableProposals, addDays, agentNoticeText, elapsedText, pomodorosText, proposalGate, proposalProblem, proposalsSummary, proposalStageLabel, relativeDayLabel,
+  scheduleProposals, withoutProposals, withProposal, withRouteProposals, type ProposalDraft,
   linkFromStage, routeProgressView, routeSummary, routeToDraft, stageLimits, stageOptions, stageProgressView, taskStageValue, tasksRevision, timerActions, timerView, withDraft
 } from '../../../../src/renderer/src/view';
 import { buildState } from '../../../helpers/harness';
@@ -369,4 +371,96 @@ test('agentSummary resume el agente elegido para la pantalla de rutas', () => {
   assert.deepEqual(agentSummary(codex, [agentStatus(), agentStatus({ provider: 'codex', availability: 'logged-out' })]), { tone: 'warning', text: 'Codex no está listo: sin sesión.' });
   assert.deepEqual(agentSummary(codex, [agentStatus({ provider: 'codex', availability: 'missing', path: null })]), { tone: 'missing', text: 'Codex no está listo: no encontrado.' });
   assert.deepEqual(agentSummary(codex, uncheckedAgents()), { tone: 'warning', text: 'No se pudo confirmar la sesión de Codex.' });
+});
+
+function proposal(overrides: Partial<TaskProposal> = {}): TaskProposal {
+  return { title: 'Leer el capítulo 4', stageId: 's1', pomodoros: 1, doneWhen: 'Resumen escrito', reason: 'Empieza la etapa', ...overrides };
+}
+
+function draft(overrides: Partial<ProposalDraft> = {}): ProposalDraft {
+  return { ...proposal(), key: 'p1', plannedDate: '2026-09-29', acceptedOn: null, ...overrides };
+}
+
+test('addDays cuenta días de calendario, también al cambiar de mes y de año', () => {
+  assert.equal(addDays('2026-09-29', 0), '2026-09-29');
+  assert.equal(addDays('2026-09-30', 1), '2026-10-01');
+  assert.equal(addDays('2026-12-31', 2), '2027-01-02');
+});
+
+test('scheduleProposals reparte las propuestas desde hoy según los pomodoros al día', () => {
+  const items = [proposal({ pomodoros: 2 }), proposal({ pomodoros: 1 }), proposal({ pomodoros: 2 }), proposal({ pomodoros: 5 }), proposal({ pomodoros: 1 })];
+  const drafts = scheduleProposals(items, '2026-09-29', 3, index => `k${index}`);
+  assert.deepEqual(drafts.map(item => [item.key, item.plannedDate]), [
+    ['k0', '2026-09-29'], ['k1', '2026-09-29'], ['k2', '2026-09-30'], ['k3', '2026-10-01'], ['k4', '2026-10-02']
+  ]);
+  assert.deepEqual(drafts[0], { ...items[0], key: 'k0', plannedDate: '2026-09-29', acceptedOn: null });
+  assert.deepEqual(scheduleProposals([proposal({ pomodoros: 2 }), proposal()], '2026-09-29', 0, String).map(item => item.plannedDate), ['2026-09-29', '2026-09-30']);
+});
+
+test('las propuestas se editan, se descartan y se guardan por ruta sin mutar las anteriores', () => {
+  const list = [draft({ key: 'a' }), draft({ key: 'b' })];
+  const edited = withProposal(list, 'b', { title: 'Otro', plannedDate: '2026-10-01' });
+  assert.deepEqual(edited.map(item => [item.key, item.title, item.plannedDate]), [['a', 'Leer el capítulo 4', '2026-09-29'], ['b', 'Otro', '2026-10-01']]);
+  assert.equal(list[1].title, 'Leer el capítulo 4');
+  assert.deepEqual(withoutProposals(list, ['a']).map(item => item.key), ['b']);
+
+  const all = withRouteProposals({}, 'r1', list);
+  assert.deepEqual(Object.keys(withRouteProposals(all, 'r2', edited)), ['r1', 'r2']);
+  assert.deepEqual(withRouteProposals(all, 'r1', []), {});
+});
+
+test('proposalProblem aplica las reglas del proceso principal a título, etapa y día', () => {
+  const route = studyRoute();
+  assert.equal(proposalProblem(draft(), route), null);
+  assert.match(proposalProblem(draft({ title: '  ' }), route) ?? '', /entre 1 y 160 caracteres/);
+  assert.equal(proposalProblem(draft({ stageId: 'borrada' }), route), 'La etapa ya no existe. Elige otra.');
+  assert.equal(proposalProblem(draft({ plannedDate: '0202-01-01' }), route), 'Elige un día entre 2000 y 2100.');
+  assert.equal(proposalProblem(draft({ plannedDate: '' }), route), 'Elige un día entre 2000 y 2100.');
+});
+
+test('acceptableProposals deja fuera las añadidas y las que tienen un problema', () => {
+  const list = [draft({ key: 'ok' }), draft({ key: 'hecha', acceptedOn: '2026-09-29' }), draft({ key: 'mala', title: '' })];
+  assert.deepEqual(acceptableProposals(list, studyRoute()).map(item => item.key), ['ok']);
+});
+
+test('textos de una propuesta: etapa, pomodoros, día relativo y espera', () => {
+  const route = studyRoute();
+  assert.equal(proposalStageLabel(route, 's2'), 'Etapa 2: Traits');
+  assert.equal(proposalStageLabel(route, 'borrada'), null);
+  assert.equal(pomodorosText(1), '1 pomodoro');
+  assert.equal(pomodorosText(3), '3 pomodoros');
+  assert.equal(relativeDayLabel('2026-09-29', '2026-09-29'), 'hoy');
+  assert.equal(relativeDayLabel('2026-09-30', '2026-09-29'), 'mañana');
+  assert.equal(relativeDayLabel('2026-10-01', '2026-09-29'), dateLabel('2026-10-01'));
+  assert.equal(elapsedText(7_900), '0:07');
+  assert.equal(elapsedText(135_000), '2:15');
+  assert.equal(elapsedText(-5), '0:00');
+});
+
+test('proposalsSummary cuenta las propuestas por revisar y las añadidas', () => {
+  const accepted = draft({ acceptedOn: '2026-09-29' });
+  assert.equal(proposalsSummary([draft(), draft()]), '2 por revisar');
+  assert.equal(proposalsSummary([draft(), accepted]), '1 por revisar, 1 añadida al Planner');
+  assert.equal(proposalsSummary([draft(), accepted, accepted]), '1 por revisar, 2 añadidas al Planner');
+  assert.equal(proposalsSummary([accepted]), 'La propuesta ya está en el Planner.');
+  assert.equal(proposalsSummary([accepted, accepted]), 'Las 2 propuestas ya están en el Planner.');
+});
+
+test('el aviso de privacidad dice a quién y qué se envía', () => {
+  assert.match(agentNoticeText('claude'), /envía a Claude Code \(Anthropic\) el tema, el objetivo/);
+  assert.match(agentNoticeText('codex'), /envía a Codex \(OpenAI\)/);
+  assert.match(agentNoticeText('codex'), /solo cuando pulsas el botón/);
+});
+
+test('proposalGate pide el aviso la primera vez y bloquea con el motivo si el agente no está listo', () => {
+  const ready: AgentStatus = { provider: 'claude', availability: 'ready', path: '/bin/claude', configured: false };
+  assert.deepEqual(proposalGate('claude', ready, [], false), { kind: 'notice' });
+  assert.deepEqual(proposalGate('claude', ready, ['claude'], false), { kind: 'ready' });
+  assert.deepEqual(proposalGate('codex', undefined, ['claude'], false), { kind: 'notice' }, 'el aviso es de cada proveedor');
+  assert.deepEqual(proposalGate('claude', { ...ready, availability: 'unknown' }, ['claude'], false), { kind: 'ready' });
+  assert.deepEqual(proposalGate('claude', ready, ['claude'], true), { kind: 'blocked', reason: 'Guarda los cambios de la ruta: el agente usa la ruta guardada.' });
+  for (const availability of ['missing', 'logged-out', 'api-key'] as const) {
+    const status = { ...ready, availability };
+    assert.deepEqual(proposalGate('claude', status, ['claude'], false), { kind: 'blocked', reason: agentStatusView('claude', status).detail });
+  }
 });

@@ -115,6 +115,11 @@
   --study-segment-height: 6px;
   --study-bar-width: 120px;
   --study-instructions-min-height: 110px;
+  --study-main-gap: 22px;
+  --proposal-fields-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(96px, auto);
+  --pencil-line: var(--stroke) dashed var(--pencil);
+  --pencil-track-width: 96px;
+  --pencil-lead-width: 32%;
   --settings-max-width: 860px;
   --agent-fields-columns: minmax(0, 1.6fr) minmax(0, 1fr);
   --agent-status-dot: 7px;
@@ -125,6 +130,7 @@
 
   /* Movimiento y opacidades. */
   --duration-tone: .4s;
+  --duration-pencil: 1.4s;
   --opacity-disabled: .5;
   --opacity-quiet: .55;
 
@@ -350,6 +356,45 @@ h2 { font-family:var(--serif); font-size:var(--fs-heading); font-weight:var(--we
 .study-hint { margin:0; color:var(--graphite); font-size:var(--fs-sm); line-height:var(--lh-relaxed); }
 .study-footer-actions { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-left:auto; }
 
+/*
+  Propuestas del agente: van «a lápiz» (trazo discontinuo, grafito) hasta que se añaden al Planner,
+  donde pasan a tinta con la marca verde de hecho.
+*/
+.study-main { display:grid; gap:var(--study-main-gap); min-width:0; }
+.proposal-sheet { min-width:0; padding:20px 26px 18px; background:var(--sheet); border:var(--pencil-line); border-top:var(--stroke-accent) solid var(--graphite); border-radius:var(--corner-md); }
+.proposal-head { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:flex-start; gap:12px 20px; }
+.proposal-head .sheet-head { min-width:0; flex:1 1 280px; }
+.proposal-head .section-subtitle { max-width:var(--measure-detail); }
+.proposal-request { flex:none; }
+.proposal-notice { margin:14px 0 0; padding:10px 14px; max-width:var(--measure-detail); border-left:var(--stroke-accent) solid var(--highlight); border-radius:var(--corner-sm); background:var(--highlight-soft); color:var(--ink); font-size:var(--fs-sm); line-height:var(--lh-loose); }
+.proposal-privacy, .proposal-blocked { margin:12px 0 0; max-width:var(--measure-detail); color:var(--pencil); font-size:var(--fs-xs); line-height:var(--lh-loose); }
+.proposal-blocked { color:var(--margin-deep); font-size:var(--fs-sm); }
+
+.proposal-waiting { display:flex; flex-wrap:wrap; align-items:center; gap:8px 14px; margin-top:16px; padding:12px 0; border-top:var(--pencil-line); border-bottom:var(--pencil-line); }
+.proposal-waiting p { flex:1 1 220px; margin:0; color:var(--graphite); font-family:var(--serif); font-style:italic; font-size:var(--fs-md); }
+.proposal-elapsed { font-family:var(--sans); font-style:normal; font-size:var(--fs-sm); font-variant-numeric:tabular-nums; color:var(--pencil); }
+.proposal-pencil { position:relative; flex:none; width:var(--pencil-track-width); height:var(--study-segment-height); border-radius:var(--corner-sm); background:var(--rule); overflow:hidden; }
+.proposal-pencil i { position:absolute; inset:0 auto 0 0; width:var(--pencil-lead-width); border-radius:var(--corner-sm); background:var(--graphite); animation:proposal-pencil var(--duration-pencil) ease-in-out infinite alternate; }
+/* El trazo recorre la pista entera: se desplaza su propio ancho (32 %) hasta tocar el borde derecho. */
+@keyframes proposal-pencil { from { transform:translateX(0); } to { transform:translateX(212%); } }
+
+.proposal-list { list-style:none; margin:16px 0 0; padding:0; border-top:var(--pencil-line); }
+.proposal { display:grid; gap:8px; padding:14px 0; border-bottom:var(--pencil-line); }
+.proposal .proposal-title { height:var(--control-lg); font-family:var(--serif); font-size:var(--fs-lg); font-weight:var(--weight-semibold); }
+.proposal-sheet input, .proposal-sheet .study-select { background:var(--sheet); border-color:var(--rule); box-shadow:none; color:var(--ink); font-size:var(--fs-base); }
+.proposal-fields { display:grid; grid-template-columns:var(--proposal-fields-columns); gap:12px; align-items:end; }
+.proposal-estimate { display:grid; gap:5px; margin:0; color:var(--ink); font-size:var(--fs-base); line-height:var(--control-button); white-space:nowrap; }
+.proposal-estimate span, .proposal-note span { color:var(--graphite); font-size:var(--fs-sm); font-weight:var(--weight-medium); line-height:var(--lh-normal); }
+.proposal-note { margin:0; max-width:var(--measure-detail); color:var(--ink); font-size:var(--fs-sm); line-height:var(--lh-loose); overflow-wrap:anywhere; }
+.proposal-reason { margin:0; max-width:var(--measure-detail); color:var(--graphite); font-family:var(--serif); font-style:italic; font-size:var(--fs-base); line-height:var(--lh-loose); overflow-wrap:anywhere; }
+.proposal-actions { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+.proposal-actions .study-hint { flex:1 1 200px; font-size:var(--fs-xs); }
+.proposal-accepted { grid-template-columns:auto minmax(0,1fr) auto; align-items:baseline; gap:10px; padding:10px 0; border-bottom-style:solid; border-bottom-color:var(--rule); }
+.proposal-check { color:var(--leaf); font-weight:var(--weight-bold); }
+.proposal-accepted-title { color:var(--ink); font-family:var(--serif); font-size:var(--fs-md); overflow-wrap:anywhere; }
+.proposal-accepted-day { color:var(--leaf); font-size:var(--fs-xs); white-space:nowrap; }
+.proposal-footer { justify-content:flex-end; margin-top:14px; padding-top:12px; border-top:0; }
+
 /* Estado del agente en la pantalla de rutas: una línea bajo el encabezado. */
 .study-agent { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 12px; margin:14px 0 0; color:var(--graphite); font-size:var(--fs-sm); line-height:var(--lh-relaxed); }
 .study-agent::before, .agent-state::before { content:""; flex:none; align-self:center; width:var(--agent-status-dot); height:var(--agent-status-dot); border-radius:var(--corner-pill); background:var(--pencil); }
@@ -382,6 +427,7 @@ h2 { font-family:var(--serif); font-size:var(--fs-heading); font-weight:var(--we
 
 @media (prefers-reduced-motion: reduce) {
   .timer-panel, .timer-beats { transition:none; }
+  .proposal-pencil i { animation:none; width:100%; opacity:var(--opacity-quiet); }
 }
 /* Los puntos de corte no admiten variables CSS: se mantienen como literales. */
 @media (max-width:1100px) {
@@ -414,4 +460,9 @@ h2 { font-family:var(--serif); font-size:var(--fs-heading); font-weight:var(--we
   .agent-sheet { padding:18px 16px; }
   .agent-fields { grid-template-columns:1fr; padding-left:0; }
   .agent-detail { padding-left:0; }
+  .proposal-sheet { padding:18px 16px 16px; }
+  .proposal-fields { grid-template-columns:1fr 1fr; }
+  .proposal-estimate { grid-column:1 / -1; display:flex; gap:8px; line-height:var(--lh-normal); }
+  .proposal-accepted { grid-template-columns:auto minmax(0,1fr); }
+  .proposal-accepted-day { grid-column:2; white-space:normal; }
 }

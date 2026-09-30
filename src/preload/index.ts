@@ -39,6 +39,10 @@ const ritmo: RitmoAPI = {
   getAgentSettings: () => invoke('get-agent-settings'),
   saveAgentSettings: settings => invoke('save-agent-settings', settings),
   checkStudyAgents: () => invoke('check-study-agents'),
+  getAgentNotices: () => invoke('get-agent-notices'),
+  acceptAgentNotice: provider => invoke('accept-agent-notice', provider),
+  proposeStudyTasks: routeId => invoke('propose-study-tasks', routeId),
+  cancelStudyProposals: () => invoke('cancel-study-proposals'),
   onState: callback => {
     const channel = 'state' satisfies keyof RitmoEvents;
     const listener = (_event: Electron.IpcRendererEvent, state: RitmoEvents[typeof channel]) => callback(state);

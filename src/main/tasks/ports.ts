@@ -1,3 +1,4 @@
+import type { StudyTaskRecord } from '../study/ports';
 import type { DaySummary, Task, TaskLink, TaskPatch, TaskSummary } from '../../shared/tasks/contract';
 
 export interface TaskRepositoryPort {
@@ -11,6 +12,8 @@ export interface TaskRepositoryPort {
   summarizeByStage(): Record<string, DaySummary>;
   /** Desvincula las tareas de la ruta cuya etapa no está en `keep`; con `keep` vacío, todas las de la ruta. */
   unlinkStages(routeId: string, keep: readonly string[]): void;
+  /** Tareas vinculadas a la ruta, de todos los días, por día. */
+  listByRoute(routeId: string): Task[];
   importLegacy(tasks: ReadonlyArray<{ id: string; title: string; done: boolean }>, day: string): void;
   close(): void;
 }
@@ -32,4 +35,10 @@ export interface StudyTasksPort {
    * actualiza las de hoy en el estado.
    */
   unlinkStages(routeId: string, keep: readonly string[]): void;
+}
+
+/** Lo que la petición al agente necesita de las tareas: el historial de una ruta. */
+export interface RouteTasksPort {
+  /** Tareas vinculadas a la ruta, de todos los días, completadas o pendientes. */
+  routeTasks(routeId: string): StudyTaskRecord[];
 }

@@ -8,8 +8,8 @@ import { createHarness } from '../../../helpers/harness';
 
 test('los canales de rutas de estudio validan y reenvían al servicio', async t => {
   const ipc = new FakeIpc();
-  const { study, agents } = createHarness(t);
-  registerStudyIpc(createHandle(ipc), { study, agents });
+  const { study, agents, proposals } = createHarness(t);
+  registerStudyIpc(createHandle(ipc), { study, agents, proposals });
   const input = { topic: 'Rust', goal: '', level: 'beginner', dailyPomodoros: 2, stages: [{ title: 'Ownership', topics: [] }], instructions: '' };
   const created = await ipc.invoke('create-study-route', input) as StudyRoute;
   assert.equal(created.id, 'study-1');
@@ -25,8 +25,8 @@ test('los canales de rutas de estudio validan y reenvían al servicio', async t 
 
 test('los canales del agente validan la configuración y comprueban los CLI', async t => {
   const ipc = new FakeIpc();
-  const { study, agents } = createHarness(t);
-  registerStudyIpc(createHandle(ipc), { study, agents });
+  const { study, agents, proposals } = createHarness(t);
+  registerStudyIpc(createHandle(ipc), { study, agents, proposals });
   assert.deepEqual(await ipc.invoke('get-agent-settings'), DEFAULT_AGENT_SETTINGS);
   const settings = { ...DEFAULT_AGENT_SETTINGS, provider: 'codex' };
   assert.deepEqual(await ipc.invoke('save-agent-settings', settings), settings);
@@ -36,4 +36,26 @@ test('los canales del agente validan la configuración y comprueban los CLI', as
     { provider: 'claude', availability: 'ready', path: '/usr/local/bin/claude', configured: false },
     { provider: 'codex', availability: 'missing', path: null, configured: false },
   ]);
+});
+
+test('los canales de propuestas exigen el aviso, piden al agente y cancelan', async t => {
+  const ipc = new FakeIpc();
+  const harness = createHarness(t);
+  registerStudyIpc(createHandle(ipc), harness);
+  const route = harness.study.create({ topic: 'Rust', goal: '', level: 'beginner', dailyPomodoros: 2, stages: [{ title: 'Ownership', topics: [] }], instructions: '' });
+  const stageId = route.stages[0].id;
+  harness.agent.respondWith({ proposals: [{ title: 'Leer el capítulo 4', stageId, pomodoros: 2, doneWhen: 'Resumen escrito', reason: 'Empieza la etapa' }] });
+
+  assert.deepEqual(await ipc.invoke('get-agent-notices'), []);
+  await assert.rejects(ipc.invoke('propose-study-tasks', route.id), /Acepta el aviso de privacidad antes de enviar la ruta a Claude Code/);
+  await assert.rejects(ipc.invoke('accept-agent-notice', 'gemini'), /Elige Claude Code o Codex/);
+  assert.deepEqual(await ipc.invoke('accept-agent-notice', 'claude'), ['claude']);
+  assert.deepEqual(await ipc.invoke('propose-study-tasks', route.id), [{ title: 'Leer el capítulo 4', stageId, pomodoros: 2, doneWhen: 'Resumen escrito', reason: 'Empieza la etapa' }]);
+  await assert.rejects(ipc.invoke('propose-study-tasks', 7), /La ruta no es válida/);
+
+  harness.agent.hang();
+  const running = ipc.invoke('propose-study-tasks', route.id);
+  await new Promise(resolve => setImmediate(resolve));
+  await ipc.invoke('cancel-study-proposals');
+  await assert.rejects(running, /Se canceló la petición al agente/);
 });

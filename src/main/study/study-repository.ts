@@ -3,9 +3,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { PublicError } from '../../shared/ipc';
-import { DEFAULT_AGENT_SETTINGS, safeAgentSettings, type AgentSettings, type StudyLevel, type StudyRoute, type StudyRouteInput, type StudyStage } from '../../shared/study/contract';
+import { DEFAULT_AGENT_SETTINGS, safeAgentSettings, STUDY_PROVIDERS, type StudyProvider, type AgentSettings, type StudyLevel, type StudyRoute, type StudyRouteInput, type StudyStage } from '../../shared/study/contract';
 import type { Clock, IdGenerator } from '../common/ports';
-import type { AgentSettingsRepositoryPort, StudyRepositoryPort, StudyStagesPort } from './ports';
+import type { AgentNoticeRepositoryPort, AgentSettingsRepositoryPort, StudyRepositoryPort, StudyRouteReaderPort, StudyStagesPort } from './ports';
 
 interface RouteRow {
   id: string;
@@ -44,13 +44,15 @@ export interface StudyRepositoryDeps {
 
 /** Clave de la configuración del agente en `study_settings`. */
 const AGENT_SETTINGS_KEY = 'agent';
+/** Clave de los avisos de privacidad aceptados en `study_settings`. */
+const AGENT_NOTICES_KEY = 'agent-notices';
 
 /**
  * Rutas de estudio en las tablas `study_routes` y `study_stages` de `ritmo.db`, con su propia
  * conexión. Las etapas guardan su posición en la ruta y sus temas como JSON; borrar una ruta borra
- * sus etapas. La configuración del agente va como JSON en `study_settings`.
+ * sus etapas. La configuración del agente y los avisos aceptados van como JSON en `study_settings`.
  */
-export class StudyRepository implements StudyRepositoryPort, StudyStagesPort, AgentSettingsRepositoryPort {
+export class StudyRepository implements StudyRepositoryPort, StudyRouteReaderPort, StudyStagesPort, AgentSettingsRepositoryPort, AgentNoticeRepositoryPort {
   private readonly db: DatabaseSync;
   private closed = false;
   private readonly now: Clock;
@@ -110,11 +112,11 @@ export class StudyRepository implements StudyRepositoryPort, StudyStagesPort, Ag
       `).run(id, route.topic, route.goal, route.level, route.dailyPomodoros, route.instructions, timestamp, timestamp);
       this.writeStages(id, route, new Set());
     });
-    return this.require(id);
+    return this.get(id);
   }
 
   update(id: string, route: StudyRouteInput): StudyRoute {
-    this.require(id);
+    this.get(id);
     const owned = new Set((this.db.prepare('SELECT id FROM study_stages WHERE route_id = ?').all(id) as unknown as Array<{ id: string }>).map(row => row.id));
     this.transaction(() => {
       this.db.prepare(`
@@ -123,11 +125,19 @@ export class StudyRepository implements StudyRepositoryPort, StudyStagesPort, Ag
       this.db.prepare('DELETE FROM study_stages WHERE route_id = ?').run(id);
       this.writeStages(id, route, owned);
     });
-    return this.require(id);
+    return this.get(id);
   }
 
   delete(id: string): void {
     this.db.prepare('DELETE FROM study_routes WHERE id = ?').run(id);
+  }
+
+  /** Falla con un `PublicError` si la ruta no existe. */
+  get(id: string): StudyRoute {
+    const row = this.db.prepare('SELECT * FROM study_routes WHERE id = ?').get(id) as RouteRow | undefined;
+    if (!row) throw new PublicError('La ruta no existe.');
+    const stages = this.db.prepare('SELECT * FROM study_stages WHERE route_id = ? ORDER BY position').all(id) as unknown as StageRow[];
+    return routeFromRow(row, stages.map(stageFromRow));
   }
 
   hasStage(routeId: string, stageId: string): boolean {
@@ -146,8 +156,28 @@ export class StudyRepository implements StudyRepositoryPort, StudyStagesPort, Ag
   }
 
   saveAgentSettings(settings: AgentSettings): void {
+    this.writeSetting(AGENT_SETTINGS_KEY, settings);
+  }
+
+  /** Solo los proveedores que siguen existiendo; lo que no se puede leer cuenta como ningún aviso aceptado. */
+  loadAgentNotices(): StudyProvider[] {
+    const row = this.db.prepare('SELECT value FROM study_settings WHERE key = ?').get(AGENT_NOTICES_KEY) as { value: string } | undefined;
+    let saved: unknown;
+    try {
+      saved = row ? JSON.parse(row.value) : [];
+    } catch {
+      saved = [];
+    }
+    return Array.isArray(saved) ? STUDY_PROVIDERS.filter(provider => saved.includes(provider)) : [];
+  }
+
+  saveAgentNotices(providers: readonly StudyProvider[]): void {
+    this.writeSetting(AGENT_NOTICES_KEY, providers);
+  }
+
+  private writeSetting(key: string, value: unknown): void {
     this.db.prepare('INSERT INTO study_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value')
-      .run(AGENT_SETTINGS_KEY, JSON.stringify(settings));
+      .run(key, JSON.stringify(value));
   }
 
   close(): void {
@@ -169,13 +199,6 @@ export class StudyRepository implements StudyRepositoryPort, StudyStagesPort, Ag
       work();
       this.db.exec('COMMIT');
     } catch (error) { this.db.exec('ROLLBACK'); throw error; }
-  }
-
-  private require(id: string): StudyRoute {
-    const row = this.db.prepare('SELECT * FROM study_routes WHERE id = ?').get(id) as RouteRow | undefined;
-    if (!row) throw new PublicError('La ruta no existe.');
-    const stages = this.db.prepare('SELECT * FROM study_stages WHERE route_id = ? ORDER BY position').all(id) as unknown as StageRow[];
-    return routeFromRow(row, stages.map(stageFromRow));
   }
 
   private timestamp(): string { return new Date(this.now()).toISOString(); }

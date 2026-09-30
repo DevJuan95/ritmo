@@ -187,3 +187,13 @@ test('añade las columnas del vínculo a una base creada antes de las rutas', t 
   repository.update('vieja', { link: { routeId: 'r1', stageId: 's1' } });
   assert.deepEqual(repository.summarizeByStage(), { s1: { total: 1, done: 0 } });
 });
+
+test('lista las tareas vinculadas a una ruta, de todos los días, por día', t => {
+  const { repository } = openRepository(t);
+  repository.create('Después', '2026-10-02', { routeId: 'r1', stageId: 's2' });
+  repository.create('Antes', '2026-09-01', { routeId: 'r1', stageId: 's1' });
+  repository.create('Otra ruta', '2026-09-01', { routeId: 'r2', stageId: 's9' });
+  repository.create('Suelta', '2026-09-01');
+  assert.deepEqual(repository.listByRoute('r1').map(task => [task.title, task.plannedDate]), [['Antes', '2026-09-01'], ['Después', '2026-10-02']]);
+  assert.deepEqual(repository.listByRoute('nada'), []);
+});

@@ -9,10 +9,11 @@ import { LifecycleService } from '../../src/main/lifecycle/lifecycle-service';
 import { StateStore } from '../../src/main/state/state-store';
 import { AgentService } from '../../src/main/study/agent-service';
 import { StudyRepository } from '../../src/main/study/study-repository';
+import { ProposalService } from '../../src/main/study/proposal-service';
 import { StudyService } from '../../src/main/study/study-service';
 import { TaskService } from '../../src/main/tasks/task-service';
 import { TaskRepository } from '../../src/main/tasks/task-repository';
-import { FakeAgentDetector, FakeBlocker, FakeClock, FakeNotifier, FakeSoundPlayer, sequentialIds } from './fakes';
+import { FakeAgentDetector, FakeBlocker, FakeStudyAgent, FakeStudyAgentFactory, FakeClock, FakeNotifier, FakeSoundPlayer, sequentialIds } from './fakes';
 import { tempDir } from './temp';
 
 export function buildState(overrides: Partial<AppState> = {}, clock = new FakeClock()): AppState {
@@ -50,6 +51,11 @@ export interface Harness {
   /** Configuración y estado del agente, con `detector` en lugar de los CLI reales. */
   agents: AgentService;
   detector: FakeAgentDetector;
+  /** Peticiones de propuestas al agente, con `agent` en lugar de los CLI reales. */
+  proposals: ProposalService;
+  /** El agente que crea `agentFactory` para cualquier proveedor. */
+  agent: FakeStudyAgent;
+  agentFactory: FakeStudyAgentFactory;
   /** Usa `clock` como temporizadores. */
   lifecycle: LifecycleService;
   /** Vuelve a abrir el estado desde disco con las mismas dependencias. */
@@ -79,6 +85,7 @@ export function createHarness(t: TestContext, options: HarnessOptions = {}): Har
 
   const tasks = new TaskService(store, repository, studyRepository);
   const detector = new FakeAgentDetector();
+  const agentFactory = new FakeStudyAgentFactory();
 
   return {
     directory, statePath, dbPath, clock, blocker, notifier, sound, published, repository, studyRepository, store, focus,
@@ -88,6 +95,11 @@ export function createHarness(t: TestContext, options: HarnessOptions = {}): Har
     study: new StudyService(studyRepository, tasks),
     agents: new AgentService(studyRepository, detector),
     detector,
+    proposals: new ProposalService({
+      routes: studyRepository, tasks, settings: studyRepository, notices: studyRepository, locator: detector, agents: agentFactory, day: store
+    }),
+    agent: agentFactory.agent,
+    agentFactory,
     reopen: open,
     readSaved: () => JSON.parse(fs.readFileSync(statePath, 'utf8'))
   };
