@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import type { PublicState } from '../../../shared/contracts';
+import type { PublicState } from '../../../shared/state/contract';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { DomainsPanel } from '../components/domains-panel';

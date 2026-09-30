@@ -1,4 +1,4 @@
-import { PublicError } from '../../shared/contracts';
+import { PublicError } from '../../shared/ipc';
 import { execFile } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';

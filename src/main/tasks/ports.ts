@@ -1,6 +1,4 @@
-import type { Task, TaskSummary } from '../../shared/contracts';
-
-export type TaskPatch = { title?: string; plannedDate?: string; done?: boolean };
+import type { Task, TaskPatch, TaskSummary } from '../../shared/tasks/contract';
 
 export interface TaskRepositoryPort {
   listByDay(date: string): Task[];

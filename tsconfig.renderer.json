@@ -12,5 +12,5 @@
     "skipLibCheck": true,
     "rootDir": "src"
   },
-  "include": ["src/renderer/src/**/*.ts", "src/renderer/src/**/*.tsx", "src/shared/contracts.ts", "src/shared/validation.ts"]
+  "include": ["src/renderer/src/**/*.ts", "src/renderer/src/**/*.tsx", "src/shared/**/*.ts"]
 }

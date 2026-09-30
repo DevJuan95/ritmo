@@ -1,12 +1,12 @@
 import { createContext, useContext, useEffect, useState, type ComponentProps, type FormEvent } from 'react';
 import { es } from 'react-day-picker/locale';
-import type { PublicState, Task, TaskSummary } from '../../../shared/contracts';
+import { todayKey, type PublicState } from '../../../shared/state/contract';
+import { FIRST_PLANNED_DATE, LAST_PLANNED_DATE, type Task, type TaskSummary } from '../../../shared/tasks/contract';
 import { Button } from '../components/ui/button';
 import { Calendar, CalendarDayButton } from '../components/ui/calendar';
 import { Input } from '../components/ui/input';
 import { cn } from '../lib/utils';
 import { TaskList } from '../components/task-list';
-import { FIRST_PLANNED_DATE, LAST_PLANNED_DATE, todayKey } from '../../../shared/validation';
 import { calendarRange, completionText, dateLabel, dayButtonLabel, dayIndicator, dayToDate, monthOf, tasksRevision } from '../view';
 import type { RunAction } from '../use-ritmo';
 

@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain, Notification, powerMonitor, screen } from 'electron';
 import path from 'node:path';
+import type { RitmoEvents } from '../shared/api';
 import { createMainContainer } from './container';
 import { registerHandlers } from './ipc/handlers';
 import { createQuitSignals } from './lifecycle/quit-signals';
@@ -30,7 +31,7 @@ app.whenReady().then(() => {
     userDataPath: app.getPath('userData'),
     resourcesPath,
     notificationApi: Notification,
-    publish: state => { if (window && !window.isDestroyed()) window.webContents.send('state', state); }
+    publish: state => { if (window && !window.isDestroyed()) window.webContents.send('state' satisfies keyof RitmoEvents, state); }
   });
   const { lifecycle } = container.cradle;
   // Todas las vías de salida pasan por el cierre ordenado, que ya cierra SQLite; `app.exit()` no

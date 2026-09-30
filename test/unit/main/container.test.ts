@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { asValue } from 'awilix';
-import type { PublicState } from '../../../src/shared/contracts';
+import type { PublicState } from '../../../src/shared/state/contract';
 import { createMainContainer } from '../../../src/main/container';
 import type { NotificationApi } from '../../../src/main/common/notifier';
 import { FakeBlocker, FakeClock, FakeSoundPlayer } from '../../helpers/fakes';

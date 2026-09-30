@@ -36,7 +36,35 @@ flowchart LR
   api -- "onState(callback)" --> ui
 ```
 
-Canales: `get-state`, `start-focus`, `finish-focus`, `retry-unblock`, `start-break`, `finish-break`, `add-task`, `toggle-task`, `delete-task`, `get-tasks-for-day`, `get-task-summary`, `update-task`, `add-domain` y `remove-domain`, en `invoke`, y `state`, que va del proceso principal al renderer. `retry-unblock` y `finish-focus` llaman al mismo método, `FocusService.finishFocus()`. `get-task-summary` devuelve el resumen de tareas del rango que muestra el calendario del Planner en una sola consulta, en lugar de pedir cada día con `get-tasks-for-day`. `test/contract/` comprueba que `RitmoAPI`, el preload e `ipc/handlers.ts` sigan sincronizados.
+Canales: `get-state` (`state`), `start-focus`, `finish-focus`, `start-break` y `finish-break` (`focus`), `add-task`, `toggle-task`, `delete-task`, `get-tasks-for-day`, `get-task-summary` y `update-task` (`tasks`), y `add-domain`, `remove-domain` y `retry-unblock` (`blocking`), en `invoke`, y `state`, que va del proceso principal al renderer. `retry-unblock` y `finish-focus` llaman al mismo método, `FocusService.finishFocus()`. `get-task-summary` devuelve el resumen de tareas del rango que muestra el calendario del Planner en una sola consulta, en lugar de pedir cada día con `get-tasks-for-day`. `test/contract/` comprueba que `RitmoAPI`, el preload e `ipc/handlers.ts` sigan sincronizados.
+
+### 1.1 Contratos compartidos
+
+Lo que cruza procesos está en `src/shared/`, con un contrato por módulo en `src/shared/<módulo>/contract.ts` (`focus`, `tasks`, `blocking` y `state`). Cada uno declara sus tipos, su parte de `AppState`, la API que ofrece al renderer, sus canales IPC y la validación de su entrada, que usan los servicios del proceso principal y la vista. `src/shared/ipc.ts` guarda lo común a todos los canales: `PublicError`, `IpcResult`, `ApiError` y los tipos auxiliares `ChannelMap` y `UnvalidatedArgs`. `src/shared/api.ts` solo compone: `RitmoAPI`, `RitmoChannels`, `RitmoEvents` y el tipo de `window.ritmo`.
+
+Los canales son solo tipos: el preload se ejecuta con sandbox y no puede cargar módulos locales, así que importa los contratos con `import type` y repite `GENERIC_ERROR_MESSAGE`. `ChannelMap` asigna a cada método de la API de un módulo su canal y toma de él la firma. Con `RitmoChannels`, el preload solo compila si invoca un canal existente con los argumentos de su método, y `registerHandlers()` solo si registra canales existentes con la misma aridad; allí los argumentos llegan como `unknown` y los valida el servicio.
+
+```mermaid
+flowchart LR
+  api["api.ts<br/>RitmoAPI, RitmoChannels, RitmoEvents"]
+  state["state/contract.ts<br/>AppState, PublicState, todayKey"]
+  focus["focus/contract.ts<br/>Session, MINUTES"]
+  tasks["tasks/contract.ts<br/>Task, safeTaskTitle, safePlannedDate"]
+  blocking["blocking/contract.ts<br/>normalizeDomains, DEFAULT_DOMAINS"]
+  ipc["ipc.ts<br/>PublicError, IpcResult, ChannelMap"]
+
+  api --> state
+  api --> focus
+  api --> tasks
+  api --> blocking
+  state -- "FocusState, TasksState,<br/>BlockingState" --> focus
+  state --> tasks
+  state --> blocking
+  focus --> ipc
+  tasks --> ipc
+  blocking --> ipc
+  state --> ipc
+```
 
 ## 2. Servicios y dependencias
 

@@ -3,7 +3,7 @@ import type { Notifier, TimerHandle, Timers } from '../../src/main/common/ports'
 import type { SoundPlayer } from '../../src/main/focus/ports';
 import type { IpcRegistrar } from '../../src/main/ipc/ports';
 import type { QuitReason, QuitSignals } from '../../src/main/lifecycle/ports';
-import type { IpcResult } from '../../src/shared/contracts';
+import type { IpcResult } from '../../src/shared/ipc';
 
 /** Rechaza cuando se aborta `signal`, como `execFile` al terminar el proceso hijo. */
 function aborted(signal?: AbortSignal): Promise<never> {
