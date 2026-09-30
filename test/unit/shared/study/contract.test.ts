@@ -8,6 +8,7 @@ import {
   safeStudyLevel,
   safeStudyProvider,
   safeStudyRoute,
+  safeStudyRouteId,
   safeStudyStage,
   safeTaskProposals,
 } from '../../../../src/shared/study/contract';
@@ -104,4 +105,9 @@ test('valida las propuestas del agente contra las etapas de la ruta', () => {
     { proposals: [{ ...proposal, reason: 5 }] },
   ];
   for (const value of invalid) assert.throws(() => safeTaskProposals(value, stageIds), /respuesta que no se puede usar/);
+});
+
+test('safeStudyRouteId acepta un texto de 1 a 64 caracteres', () => {
+  assert.equal(safeStudyRouteId('route-1'), 'route-1');
+  for (const value of ['', 'x'.repeat(65), 42, undefined, null]) assert.throws(() => safeStudyRouteId(value), /La ruta no es válida/);
 });

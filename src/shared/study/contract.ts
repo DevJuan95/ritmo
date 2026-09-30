@@ -1,4 +1,4 @@
-import { PublicError } from '../ipc';
+import { PublicError, type ChannelMap } from '../ipc';
 import { safeTaskTitle } from '../tasks/contract';
 
 /** Agente de IA local que propone tareas: el CLI de Claude Code o el de Codex. */
@@ -143,3 +143,23 @@ export function safeTaskProposals(value: unknown, stageIds: ReadonlySet<string>)
     };
   });
 }
+
+/** Identificador de una ruta: texto de 1 a 64 caracteres. */
+export function safeStudyRouteId(value: unknown): string {
+  if (typeof value !== 'string' || !value || value.length > 64) throw new PublicError('La ruta no es válida.');
+  return value;
+}
+
+export interface StudyAPI {
+  listStudyRoutes(): Promise<StudyRoute[]>;
+  createStudyRoute(route: StudyRouteInput): Promise<StudyRoute>;
+  updateStudyRoute(id: string, route: StudyRouteInput): Promise<StudyRoute>;
+  deleteStudyRoute(id: string): Promise<void>;
+}
+
+export type StudyChannels = ChannelMap<StudyAPI, {
+  listStudyRoutes: 'list-study-routes';
+  createStudyRoute: 'create-study-route';
+  updateStudyRoute: 'update-study-route';
+  deleteStudyRoute: 'delete-study-route';
+}>;

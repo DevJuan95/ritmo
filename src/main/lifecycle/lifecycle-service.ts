@@ -1,8 +1,7 @@
 import type { Notifier, TimerHandle, Timers } from '../common/ports';
 import type { FocusLifecyclePort } from '../focus/ports';
 import type { StateShutdownPort, StateStorePort } from '../state/ports';
-import type { TaskRepositoryPort } from '../tasks/ports';
-import type { LifecycleServicePort, QuitSignals } from './ports';
+import type { Database, LifecycleServicePort, QuitSignals } from './ports';
 
 /**
  * Tiempo máximo de cada fase del cierre ordenado si no se configura otro: la espera de la operación
@@ -19,7 +18,8 @@ export interface LifecycleDeps {
   store: StateStorePort & StateShutdownPort;
   focus: FocusLifecyclePort;
   notifier: Notifier;
-  tasks: TaskRepositoryPort;
+  /** Conexiones SQLite que se cierran al final, en orden. */
+  databases: readonly Database[];
   timers: Timers;
   shutdownTimeoutMs?: number;
 }
@@ -29,7 +29,7 @@ export class LifecycleService implements LifecycleServicePort {
   private readonly store: StateStorePort & StateShutdownPort;
   private readonly focus: FocusLifecyclePort;
   private readonly notifier: Notifier;
-  private readonly tasks: TaskRepositoryPort;
+  private readonly databases: readonly Database[];
   private readonly timers: Timers;
   private readonly timeoutMs: number;
   private ticker?: TimerHandle;
@@ -41,7 +41,7 @@ export class LifecycleService implements LifecycleServicePort {
     this.store = deps.store;
     this.focus = deps.focus;
     this.notifier = deps.notifier;
-    this.tasks = deps.tasks;
+    this.databases = deps.databases;
     this.timers = deps.timers;
     this.timeoutMs = deps.shutdownTimeoutMs ?? DEFAULT_SHUTDOWN_TIMEOUT_MS;
   }
@@ -89,8 +89,18 @@ export class LifecycleService implements LifecycleServicePort {
         this.leavePending(this.store.state.blockError ?? 'Ritmo se cerró antes de quitar el bloqueo.');
       }
       try { this.store.seal(); }
-      finally { this.tasks.close(); }
+      finally { this.closeDatabases(); }
     }
+  }
+
+  /** Cierra todas las conexiones aunque falle alguna, y lanza el primer error. */
+  private closeDatabases(): void {
+    const errors: unknown[] = [];
+    for (const database of this.databases) {
+      try { database.close(); }
+      catch (error) { errors.push(error); }
+    }
+    if (errors.length) throw errors[0];
   }
 
   /**

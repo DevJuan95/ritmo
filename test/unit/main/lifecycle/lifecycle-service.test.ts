@@ -344,7 +344,7 @@ test('al agotarse el tiempo sin nada que desbloquear no inventa un bloqueo pendi
 test('usa un tiempo máximo por defecto', async t => {
   const harness = createHarness(t);
   const lifecycle = new LifecycleService({
-    store: harness.store, focus: harness.focus, notifier: harness.notifier, tasks: harness.repository, timers: harness.clock
+    store: harness.store, focus: harness.focus, notifier: harness.notifier, databases: [harness.repository], timers: harness.clock
   });
   harness.store.guarded(() => new Promise<void>(() => {})).catch(() => {});
   const closing = lifecycle.shutdown();
@@ -354,4 +354,14 @@ test('usa un tiempo máximo por defecto', async t => {
   harness.clock.advance(1);
   await closing;
   assert.equal(repositoryClosed(harness), true);
+});
+
+test('cierra todas las bases aunque falle una y sale con ese error', async t => {
+  const harness = createHarness(t);
+  const failure = new Error('no se pudo cerrar');
+  const closeTasks = t.mock.method(harness.repository, 'close', () => { throw failure; });
+  const closeStudy = t.mock.method(harness.studyRepository, 'close');
+  await assert.rejects(harness.lifecycle.shutdown(), failure);
+  assert.equal(closeStudy.mock.callCount(), 1);
+  closeTasks.mock.restore();
 });

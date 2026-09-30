@@ -31,6 +31,10 @@ const ritmo: RitmoAPI = {
   addDomain: domain => invoke('add-domain', domain),
   removeDomain: domain => invoke('remove-domain', domain),
   retryUnblock: () => invoke('retry-unblock'),
+  listStudyRoutes: () => invoke('list-study-routes'),
+  createStudyRoute: route => invoke('create-study-route', route),
+  updateStudyRoute: (id, route) => invoke('update-study-route', id, route),
+  deleteStudyRoute: id => invoke('delete-study-route', id),
   onState: callback => {
     const channel = 'state' satisfies keyof RitmoEvents;
     const listener = (_event: Electron.IpcRendererEvent, state: RitmoEvents[typeof channel]) => callback(state);

@@ -20,7 +20,11 @@ const channels: { [C in RitmoChannel]: true } = {
   'update-task': true,
   'add-domain': true,
   'remove-domain': true,
-  'retry-unblock': true
+  'retry-unblock': true,
+  'list-study-routes': true,
+  'create-study-route': true,
+  'update-study-route': true,
+  'delete-study-route': true
 };
 
 test('registra una sola vez los canales de todos los módulos', t => {
