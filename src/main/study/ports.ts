@@ -134,9 +134,10 @@ export interface StudyAgentFactory {
 }
 
 /**
- * Petición de propuestas al agente elegido: el aviso de privacidad de cada proveedor, una petición
- * a la vez y su cancelación. Las propuestas no se guardan; el usuario acepta las que quiere como
- * tareas del Planner.
+ * Peticiones al agente elegido, de propuestas de tareas o de un roadmap: el aviso de privacidad de
+ * cada proveedor, una petición a la vez (de cualquiera de los dos tipos) y su cancelación. Ni las
+ * propuestas ni el roadmap se guardan; el usuario acepta las propuestas que quiere como tareas del
+ * Planner y guarda el roadmap, ya revisado, como ruta.
  */
 export interface ProposalServicePort {
   /** Proveedores con el aviso de privacidad aceptado. */
@@ -144,11 +145,13 @@ export interface ProposalServicePort {
   acceptNotice(provider: unknown): StudyProvider[];
   /** Envía la ruta guardada al agente; rechaza si el aviso de su proveedor no está aceptado o si ya hay otra petición. */
   propose(routeId: unknown): Promise<TaskProposal[]>;
+  /** Envía el brief al agente y devuelve un roadmap sin guardar; mismas reglas que `propose()`. */
+  draft(brief: unknown): Promise<RoadmapDraft>;
   /** Cancela la petición en curso, si la hay. */
   cancel(): void;
 }
 
-/** Parte de la petición de propuestas que usa el cierre ordenado. */
+/** Parte de las peticiones al agente que usa el cierre ordenado. */
 export interface ProposalLifecyclePort {
   /**
    * Deja de aceptar peticiones y cancela la que esté en curso. Se cumple, sin rechazar nunca, cuando

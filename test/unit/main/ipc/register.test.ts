@@ -32,6 +32,7 @@ const channels: { [C in RitmoChannel]: true } = {
   'get-agent-notices': true,
   'accept-agent-notice': true,
   'propose-study-tasks': true,
+  'draft-study-route': true,
   'cancel-study-proposals': true
 };
 

@@ -356,7 +356,16 @@ export interface StudyAPI {
    * tareas: el renderer añade las que el usuario acepta con `addTask`.
    */
   proposeStudyTasks(routeId: string): Promise<TaskProposal[]>;
-  /** Cancela la petición en curso, que rechaza con `AGENT_CANCELLED`; sin petición, no hace nada. */
+  /**
+   * Envía el brief al agente elegido y devuelve un roadmap sin guardar, ya validado, con las mismas
+   * reglas que `proposeStudyTasks`: aviso aceptado y una petición a la vez. El renderer lo revisa y
+   * lo guarda con `createStudyRoute`.
+   */
+  draftStudyRoute(brief: RoadmapBrief): Promise<RoadmapDraft>;
+  /**
+   * Cancela la petición al agente en curso, de propuestas o de roadmap, que rechaza con
+   * `AGENT_CANCELLED`; sin petición, no hace nada.
+   */
   cancelStudyProposals(): Promise<void>;
 }
 
@@ -372,5 +381,6 @@ export type StudyChannels = ChannelMap<StudyAPI, {
   getAgentNotices: 'get-agent-notices';
   acceptAgentNotice: 'accept-agent-notice';
   proposeStudyTasks: 'propose-study-tasks';
+  draftStudyRoute: 'draft-study-route';
   cancelStudyProposals: 'cancel-study-proposals';
 }>;

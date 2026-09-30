@@ -1,10 +1,10 @@
 import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { PublicError } from '../../../../src/shared/ipc';
-import { AGENT_CANCELLED, DEFAULT_AGENT_SETTINGS, type TaskProposal } from '../../../../src/shared/study/contract';
+import { AGENT_CANCELLED, DEFAULT_AGENT_SETTINGS, INVALID_AGENT_RESPONSE, MAX_ROADMAP_BRIEF, type TaskProposal } from '../../../../src/shared/study/contract';
 import { AGENT_BUSY, agentMissing, agentNoticeRequired } from '../../../../src/main/study/proposal-service';
 import { createHarness } from '../../../helpers/harness';
-import { stage } from '../../../helpers/study';
+import { sampleRoadmap, stage } from '../../../helpers/study';
 
 const rustRoute = {
   topic: 'Rust', goal: 'Escribir una CLI.', level: 'beginner', dailyPomodoros: 3,
@@ -124,4 +124,92 @@ test('stop se cumple sin petición en curso y aunque la petición falle', async 
   await proposals.stop();
   await assert.rejects(failing, new PublicError(AGENT_CANCELLED));
   await proposals.stop();
+});
+
+const brief = 'Senior Backend → Tech Lead, con Java como vehículo, 2 h al día.';
+
+test('no envía el brief sin el aviso aceptado del proveedor elegido', async t => {
+  const { proposals, agents, agent, detector } = setup(t);
+  await assert.rejects(proposals.draft(brief), new PublicError(agentNoticeRequired('claude')));
+  proposals.acceptNotice('claude');
+  agents.saveSettings({ ...DEFAULT_AGENT_SETTINGS, provider: 'codex' });
+  await assert.rejects(proposals.draft(brief), new PublicError(agentNoticeRequired('codex')));
+  assert.equal(agent.roadmapRequests.length, 0);
+  assert.deepEqual(detector.calls, [], 'ni siquiera busca el CLI');
+});
+
+test('pide al CLI configurado un roadmap para el brief validado y no guarda nada', async t => {
+  const { proposals, agents, agent, agentFactory, detector, study } = setup(t);
+  proposals.acceptNotice('codex');
+  detector.executables.add('~/bin/codex');
+  agents.saveSettings({ ...DEFAULT_AGENT_SETTINGS, provider: 'codex', codex: { path: '~/bin/codex', model: 'gpt-6-luna' } });
+  agent.respondWith(sampleRoadmap());
+  const before = study.list();
+
+  assert.deepEqual(await proposals.draft(`  ${brief}\r\nSin prisa.  `), sampleRoadmap());
+  assert.deepEqual(agentFactory.created, [{ provider: 'codex', command: '~/bin/codex', model: 'gpt-6-luna' }]);
+  assert.deepEqual(agent.roadmapRequests.map(request => request.brief), [`${brief}\nSin prisa.`]);
+  assert.deepEqual(study.list(), before, 'el roadmap no se guarda como ruta');
+});
+
+test('valida el brief y la respuesta, y falla con un mensaje claro si falta el CLI', async t => {
+  const { proposals, detector, agent } = setup(t);
+  proposals.acceptNotice('claude');
+  await assert.rejects(proposals.draft('   '), /Describe qué quieres estudiar/);
+  await assert.rejects(proposals.draft(42), /Describe qué quieres estudiar/);
+  await assert.rejects(proposals.draft('a'.repeat(MAX_ROADMAP_BRIEF + 1)), /Describe qué quieres estudiar/);
+  agent.respondWith({ ...sampleRoadmap(), stages: [] });
+  await assert.rejects(proposals.draft(brief), new PublicError(INVALID_AGENT_RESPONSE));
+  detector.detected.claude = null;
+  await assert.rejects(proposals.draft(brief), new PublicError(agentMissing('claude')));
+  assert.equal(agent.roadmapRequests.length, 1);
+});
+
+test('el roadmap y las propuestas comparten la petición única y la cancelación', async t => {
+  const { proposals, agent, route, proposal } = setup(t);
+  proposals.acceptNotice('claude');
+  agent.hang();
+  const drafting = proposals.draft(brief);
+  await assert.rejects(proposals.propose(route.id), new PublicError(AGENT_BUSY));
+  await assert.rejects(proposals.draft(brief), new PublicError(AGENT_BUSY));
+  await settle();
+  proposals.cancel();
+  await assert.rejects(drafting, new PublicError(AGENT_CANCELLED));
+
+  agent.hang();
+  const proposing = proposals.propose(route.id);
+  await assert.rejects(proposals.draft(brief), new PublicError(AGENT_BUSY));
+  await settle();
+  proposals.cancel();
+  await assert.rejects(proposing, new PublicError(AGENT_CANCELLED));
+
+  agent.respondWith(sampleRoadmap());
+  assert.deepEqual(await proposals.draft(brief), sampleRoadmap(), 'al cancelar queda libre para otra petición');
+  agent.respondWith({ proposals: [proposal] });
+  assert.deepEqual(await proposals.propose(route.id), [proposal]);
+});
+
+test('una cancelación mientras busca el CLI no llega a pedir el roadmap', async t => {
+  const { proposals, agent } = setup(t);
+  proposals.acceptNotice('claude');
+  const running = proposals.draft(brief);
+  proposals.cancel();
+  await assert.rejects(running, new PublicError(AGENT_CANCELLED));
+  assert.equal(agent.roadmapRequests.length, 0);
+});
+
+test('stop cancela el roadmap en curso, espera a que termine y rechaza los siguientes', async t => {
+  const { proposals, agent } = setup(t);
+  proposals.acceptNotice('claude');
+  agent.hang();
+  const running = proposals.draft(brief);
+  running.catch(() => {});
+  await settle();
+  let stopped = false;
+  const stopping = proposals.stop().then(() => { stopped = true; });
+  assert.equal(stopped, false);
+  await stopping;
+  await assert.rejects(running, new PublicError(AGENT_CANCELLED));
+  await assert.rejects(proposals.draft(brief), new PublicError(AGENT_CANCELLED));
+  assert.equal(agent.roadmapRequests.length, 1, 'no lanza otra petición tras el cierre');
 });

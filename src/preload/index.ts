@@ -42,6 +42,7 @@ const ritmo: RitmoAPI = {
   getAgentNotices: () => invoke('get-agent-notices'),
   acceptAgentNotice: provider => invoke('accept-agent-notice', provider),
   proposeStudyTasks: routeId => invoke('propose-study-tasks', routeId),
+  draftStudyRoute: brief => invoke('draft-study-route', brief),
   cancelStudyProposals: () => invoke('cancel-study-proposals'),
   onState: callback => {
     const channel = 'state' satisfies keyof RitmoEvents;

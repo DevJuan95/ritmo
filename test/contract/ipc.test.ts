@@ -88,6 +88,7 @@ const sampleCalls: { [K in Exclude<keyof RitmoAPI, 'onState'>]: Parameters<Ritmo
   getAgentNotices: [],
   acceptAgentNotice: ['claude'],
   proposeStudyTasks: ['study-1'],
+  draftStudyRoute: ['Rust para escribir CLIs, 1 h al día'],
   cancelStudyProposals: []
 };
 
