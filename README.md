@@ -14,7 +14,7 @@
 | 🗓️ **Planner** | Tareas por día y un calendario mensual para completarlas y moverlas de fecha. Las pendientes esperan en su día hasta que las muevas. |
 | ✅ **Seguimiento** | Un contador de pomodoros del día, que vuelve a cero cada día. |
 | 🧭 **Rutas de estudio** | El roadmap de un tema: objetivo, nivel, pomodoros al día, etapas con sus temas e instrucciones para el agente. Las tareas del Planner se vinculan a una etapa y cada etapa muestra su avance. |
-| 🤖 **Tareas propuestas** | Claude Code o Codex proponen las próximas tareas de una ruta según sus etapas y tu avance. Las revisas, las editas y eliges el día antes de añadirlas al Planner. |
+| 🤖 **Tareas propuestas** | Claude Code o Codex proponen las próximas tareas de una ruta según su roadmap (etapas, proyectos, recursos y reglas de estudio) y tu avance. Las revisas, las editas y eliges el día antes de añadirlas al Planner. |
 | 🔒 **Todo local** | Sin cuentas, servidores ni sincronización. Solo sale del Mac lo que envías al agente cuando pulsas «Proponer tareas». |
 
 ![Un descanso en curso y el Planner con el calendario del mes](docs/capturas/descanso-y-planner.png)
