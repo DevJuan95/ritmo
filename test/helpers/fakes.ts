@@ -4,7 +4,7 @@ import type { SoundPlayer } from '../../src/main/focus/ports';
 import type { IpcRegistrar } from '../../src/main/ipc/ports';
 import type { QuitReason, QuitSignals } from '../../src/main/lifecycle/ports';
 import { buildAgentRequest, readAgentProposals, type AgentRequest } from '../../src/main/study/agent-prompt';
-import type { AgentDetector, AgentLogin, StudyAgent, StudyAgentContext, StudyAgentOptions } from '../../src/main/study/ports';
+import type { AgentDetector, AgentLogin, StudyAgent, StudyAgentCli, StudyAgentContext, StudyAgentFactory, StudyAgentOptions } from '../../src/main/study/ports';
 import type { StudyProvider, TaskProposal } from '../../src/shared/study/contract';
 import type { IpcResult } from '../../src/shared/ipc';
 
@@ -151,6 +151,17 @@ export class FakeStudyAgent implements StudyAgent {
     this.failure = undefined;
     if (failure) throw failure;
     return readAgentProposals(this.output, context.route);
+  }
+}
+
+/** Fábrica que siempre devuelve el mismo `FakeStudyAgent` y registra con qué CLI se pidió. */
+export class FakeStudyAgentFactory implements StudyAgentFactory {
+  readonly agent = new FakeStudyAgent();
+  readonly created: Array<{ provider: StudyProvider } & StudyAgentCli> = [];
+
+  create(provider: StudyProvider, cli: StudyAgentCli): StudyAgent {
+    this.created.push({ provider, ...cli });
+    return this.agent;
   }
 }
 

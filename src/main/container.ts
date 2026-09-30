@@ -11,14 +11,19 @@ import type { FocusLifecyclePort, FocusServicePort, SoundPlayer } from './focus/
 import { createSoundPlayer } from './focus/sound-player';
 import { LifecycleService } from './lifecycle/lifecycle-service';
 import type { LifecycleServicePort } from './lifecycle/ports';
-import type { PublicStatePort, PublishState, StateShutdownPort, StateStorePort } from './state/ports';
+import type { PublicStatePort, PublishState, StateShutdownPort, StateStorePort, TodayPort } from './state/ports';
 import { StateStore } from './state/state-store';
 import { AgentService } from './study/agent-service';
 import { SystemAgentDetector } from './study/agent-detector';
-import type { AgentDetector, AgentServicePort, AgentSettingsRepositoryPort, StudyRepositoryPort, StudyServicePort, StudyStagesPort } from './study/ports';
+import { CliStudyAgentFactory } from './study/agent-factory';
+import type {
+  AgentDetector, AgentNoticeRepositoryPort, AgentServicePort, AgentSettingsRepositoryPort, ProposalServicePort, StudyAgentFactory, StudyRepositoryPort,
+  StudyRouteReaderPort, StudyServicePort, StudyStagesPort
+} from './study/ports';
+import { ProposalService } from './study/proposal-service';
 import { StudyRepository } from './study/study-repository';
 import { StudyService } from './study/study-service';
-import type { StudyTasksPort, TaskRepositoryPort, TaskServicePort } from './tasks/ports';
+import type { RouteTasksPort, StudyTasksPort, TaskRepositoryPort, TaskServicePort } from './tasks/ports';
 import { TaskRepository } from './tasks/task-repository';
 import { TaskService } from './tasks/task-service';
 
@@ -34,14 +39,16 @@ export interface MainCradle {
   notifier: Notifier;
   sound: SoundPlayer;
   taskRepository: TaskRepositoryPort;
-  studyRepository: StudyRepositoryPort & StudyStagesPort & AgentSettingsRepositoryPort;
+  studyRepository: StudyRepositoryPort & StudyRouteReaderPort & StudyStagesPort & AgentSettingsRepositoryPort & AgentNoticeRepositoryPort;
   agentDetector: AgentDetector;
-  store: StateStorePort & PublicStatePort & StateShutdownPort;
+  agentFactory: StudyAgentFactory;
+  store: StateStorePort & TodayPort & PublicStatePort & StateShutdownPort;
   focus: FocusServicePort & FocusLifecyclePort;
-  tasks: TaskServicePort & StudyTasksPort;
+  tasks: TaskServicePort & StudyTasksPort & RouteTasksPort;
   domains: DomainServicePort;
   study: StudyServicePort;
   agents: AgentServicePort;
+  proposals: ProposalServicePort;
   lifecycle: LifecycleServicePort;
 }
 
@@ -85,6 +92,7 @@ export function createMainContainer(options: MainContainerOptions): AwilixContai
       .singleton()
       .disposer(repository => repository.close()),
     agentDetector: asFunction(() => new SystemAgentDetector()).singleton(),
+    agentFactory: asFunction(() => new CliStudyAgentFactory()).singleton(),
     store: asFunction(({ userDataPath, taskRepository, publish, now }: MainCradle) =>
       new StateStore(path.join(userDataPath, 'state.json'), { tasks: taskRepository, publish, now })).singleton(),
     focus: asFunction(({ store, blocker, notifier, sound }: MainCradle) => new FocusService(store, { blocker, notifier, sound })).singleton(),
@@ -92,6 +100,9 @@ export function createMainContainer(options: MainContainerOptions): AwilixContai
     domains: asFunction(({ store }: MainCradle) => new DomainService(store)).singleton(),
     study: asFunction(({ studyRepository, tasks }: MainCradle) => new StudyService(studyRepository, tasks)).singleton(),
     agents: asFunction(({ studyRepository, agentDetector }: MainCradle) => new AgentService(studyRepository, agentDetector)).singleton(),
+    proposals: asFunction(({ studyRepository, tasks, agentDetector, agentFactory, store }: MainCradle) => new ProposalService({
+      routes: studyRepository, tasks, settings: studyRepository, notices: studyRepository, locator: agentDetector, agents: agentFactory, day: store
+    })).singleton(),
     lifecycle: asFunction(({ store, focus, notifier, taskRepository, studyRepository, timers, shutdownTimeoutMs }: MainCradle) =>
       new LifecycleService({ store, focus, notifier, databases: [taskRepository, studyRepository], timers, shutdownTimeoutMs })).singleton()
   });

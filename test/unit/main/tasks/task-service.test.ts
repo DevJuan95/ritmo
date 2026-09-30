@@ -125,3 +125,18 @@ test('resume el avance por etapa y desvincula las tareas de etapas quitadas', t 
   assert.equal(store.state.tasks[0].stageId, null, 'la lista de hoy queda al día');
   assert.deepEqual(tasks.stageProgress(), { [traits.id]: { total: 1, done: 0 } });
 });
+
+test('da el historial de tareas de una ruta para el agente', t => {
+  const { tasks, store, study } = createHarness(t);
+  const route = study.create(rustRoute);
+  const [ownership, traits] = route.stages;
+  tasks.add('Leer', undefined, { routeId: route.id, stageId: ownership.id });
+  tasks.add('Practicar', '2026-10-01', { routeId: route.id, stageId: traits.id });
+  tasks.add('Suelta', undefined);
+  tasks.toggle(store.state.tasks[0].id);
+  assert.deepEqual(tasks.routeTasks(route.id), [
+    { title: 'Leer', stageId: ownership.id, done: true, plannedDate: store.today() },
+    { title: 'Practicar', stageId: traits.id, done: false, plannedDate: '2026-10-01' },
+  ]);
+  assert.deepEqual(tasks.routeTasks('otra'), []);
+});

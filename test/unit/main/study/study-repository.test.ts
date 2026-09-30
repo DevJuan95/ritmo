@@ -146,3 +146,32 @@ test('una configuración del agente guardada que no es válida vuelve a la de po
     assert.deepEqual(repository.loadAgentSettings(), DEFAULT_AGENT_SETTINGS);
   }
 });
+
+test('lee una ruta guardada por su id y falla si no existe', t => {
+  const { repository } = openRepository(t);
+  const route = repository.create(input());
+  assert.deepEqual(repository.get(route.id), route);
+  assert.throws(() => repository.get('otra'), /La ruta no existe/);
+});
+
+test('guarda los avisos de privacidad aceptados y los recupera tras reabrir la base', t => {
+  const { repository, dbPath } = openRepository(t);
+  assert.deepEqual(repository.loadAgentNotices(), []);
+  repository.saveAgentNotices(['codex']);
+  repository.saveAgentNotices(['claude', 'codex']);
+  repository.close();
+  const reopened = new StudyRepository(dbPath);
+  t.after(() => reopened.close());
+  assert.deepEqual(reopened.loadAgentNotices(), ['claude', 'codex']);
+});
+
+test('unos avisos guardados que no se pueden leer cuentan como ninguno aceptado', t => {
+  const { repository, dbPath } = openRepository(t);
+  const db = new DatabaseSync(dbPath);
+  t.after(() => db.close());
+  const cases: Array<[string, string[]]> = [['{no es json', []], ['"claude"', []], [JSON.stringify(['gemini', 'codex', 'codex']), ['codex']]];
+  for (const [value, expected] of cases) {
+    db.prepare("INSERT OR REPLACE INTO study_settings (key, value) VALUES ('agent-notices', ?)").run(value);
+    assert.deepEqual(repository.loadAgentNotices(), expected);
+  }
+});

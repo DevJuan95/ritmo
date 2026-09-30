@@ -128,6 +128,9 @@ export function safeStudyRoute(value: unknown): StudyRouteInput {
   };
 }
 
+/** Error público de una petición al agente que canceló el usuario o el cierre de la app. */
+export const AGENT_CANCELLED = 'Se canceló la petición al agente.';
+
 /** Error público de una respuesta del agente que no cumple el esquema; no incluye la respuesta. */
 export const INVALID_AGENT_RESPONSE = 'El agente devolvió una respuesta que no se puede usar.';
 
@@ -253,6 +256,17 @@ export interface StudyAPI {
   saveAgentSettings(settings: AgentSettings): Promise<AgentSettings>;
   /** Busca el CLI de cada proveedor y comprueba su sesión; no envía ningún prompt. */
   checkStudyAgents(): Promise<AgentStatus[]>;
+  /** Proveedores cuyo aviso de privacidad ya aceptó el usuario. */
+  getAgentNotices(): Promise<StudyProvider[]>;
+  /** Acepta el aviso de privacidad de un proveedor y devuelve los aceptados. */
+  acceptAgentNotice(provider: StudyProvider): Promise<StudyProvider[]>;
+  /**
+   * Envía la ruta guardada al agente elegido y devuelve sus propuestas, ya validadas. No crea
+   * tareas: el renderer añade las que el usuario acepta con `addTask`.
+   */
+  proposeStudyTasks(routeId: string): Promise<TaskProposal[]>;
+  /** Cancela la petición en curso, que rechaza con `AGENT_CANCELLED`; sin petición, no hace nada. */
+  cancelStudyProposals(): Promise<void>;
 }
 
 export type StudyChannels = ChannelMap<StudyAPI, {
@@ -264,4 +278,8 @@ export type StudyChannels = ChannelMap<StudyAPI, {
   getAgentSettings: 'get-agent-settings';
   saveAgentSettings: 'save-agent-settings';
   checkStudyAgents: 'check-study-agents';
+  getAgentNotices: 'get-agent-notices';
+  acceptAgentNotice: 'accept-agent-notice';
+  proposeStudyTasks: 'propose-study-tasks';
+  cancelStudyProposals: 'cancel-study-proposals';
 }>;

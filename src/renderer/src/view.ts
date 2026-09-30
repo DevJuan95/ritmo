@@ -3,9 +3,10 @@ import { MINUTES } from '../../shared/focus/contract.js';
 import { GENERIC_ERROR_MESSAGE, type PublicError } from '../../shared/ipc.js';
 import {
   AGENT_NAMES, DEFAULT_AGENT_INSTRUCTIONS, DEFAULT_AGENT_MODELS, MAX_STAGES, safeAgentSettings, safeStudyRoute, STUDY_PROVIDERS,
-  type AgentProviderSettings, type AgentSettings, type AgentStatus, type StageProgress, type StudyProvider, type StudyLevel, type StudyProgress, type StudyRoute, type StudyRouteInput } from '../../shared/study/contract.js';
+  type AgentProviderSettings, type AgentSettings, type AgentStatus, type StageProgress, type StudyProvider, type StudyLevel, type StudyProgress, type StudyRoute, type StudyRouteInput,
+  type TaskProposal } from '../../shared/study/contract.js';
 import { todayKey, type PublicState } from '../../shared/state/contract.js';
-import { FIRST_PLANNED_DATE, LAST_PLANNED_DATE, safePlannedDate, type DaySummary, type Task, type TaskLink } from '../../shared/tasks/contract.js';
+import { FIRST_PLANNED_DATE, LAST_PLANNED_DATE, safePlannedDate, safeTaskTitle, type DaySummary, type Task, type TaskLink } from '../../shared/tasks/contract.js';
 
 // Lógica de presentación sin DOM: los módulos de render solo copian estos valores a la página.
 
@@ -466,4 +467,134 @@ export function agentSummary(settings: AgentSettings, statuses: readonly AgentSt
     case 'unknown': return { tone: view.tone, text: `No se pudo confirmar la sesión de ${name}.` };
     default: return { tone: view.tone, text: `${name} no está listo: ${view.label.toLowerCase()}.` };
   }
+}
+
+// Propuestas del agente.
+
+/** Proveedor de cada CLI, para el aviso de privacidad. */
+export const AGENT_COMPANIES: Readonly<Record<StudyProvider, string>> = { claude: 'Anthropic', codex: 'OpenAI' };
+
+/** Lo que se envía al proveedor al pedir tareas; se muestra junto al botón y en el aviso. */
+export function agentNoticeText(provider: StudyProvider): string {
+  return `Al pedir tareas, Ritmo envía a ${AGENT_NAMES[provider]} (${AGENT_COMPANIES[provider]}) el tema, el objetivo, el nivel, las etapas y las instrucciones de esta ruta, y el título, el día y el estado de sus tareas. Ritmo no envía nada más, y solo cuando pulsas el botón.`;
+}
+
+/** Propuesta tal como se revisa: editable y con el día en el que se añadirá al Planner. */
+export interface ProposalDraft {
+  /** Clave estable para React. */
+  key: string;
+  title: string;
+  stageId: string;
+  /** Día del Planner, `AAAA-MM-DD`; puede estar a medio escribir. */
+  plannedDate: string;
+  pomodoros: number;
+  doneWhen: string;
+  reason: string;
+  /** Día en el que se añadió al Planner, o `null` si sigue por revisar. */
+  acceptedOn: string | null;
+}
+
+/** Propuestas por revisar de cada ruta, por `routeId`. Viven en `App` para no perderse al cambiar de sección. */
+export type ProposalsByRoute = Readonly<Record<string, readonly ProposalDraft[]>>;
+
+/** El día `days` días después de `day`. */
+export function addDays(day: string, days: number): string {
+  const date = dayToDate(day);
+  return todayKey(new Date(date.getFullYear(), date.getMonth(), date.getDate() + days));
+}
+
+/**
+ * Convierte las propuestas en borradores y les reparte días desde hoy según los pomodoros al día de
+ * la ruta: una propuesta pasa al día siguiente cuando ya no cabe en el día. Una sola propuesta más
+ * larga que el día ocupa un día entero.
+ */
+export function scheduleProposals(proposals: readonly TaskProposal[], today: string, dailyPomodoros: number, key: (index: number) => string): ProposalDraft[] {
+  const budget = Math.max(1, dailyPomodoros);
+  let day = 0;
+  let used = 0;
+  return proposals.map((proposal, index) => {
+    if (used > 0 && used + proposal.pomodoros > budget) { day += 1; used = 0; }
+    used += proposal.pomodoros;
+    return { ...proposal, key: key(index), plannedDate: addDays(today, day), acceptedOn: null };
+  });
+}
+
+/** Copia de las propuestas de todas las rutas con las de `routeId` sustituidas; sin propuestas, quita la ruta. */
+export function withRouteProposals(all: ProposalsByRoute, routeId: string, proposals: readonly ProposalDraft[]): ProposalsByRoute {
+  const { [routeId]: _previous, ...rest } = all;
+  return proposals.length ? { ...rest, [routeId]: proposals } : rest;
+}
+
+/** Copia de la lista con los campos de una propuesta cambiados. */
+export function withProposal(proposals: readonly ProposalDraft[], key: string, patch: Partial<Omit<ProposalDraft, 'key'>>): ProposalDraft[] {
+  return proposals.map(proposal => proposal.key === key ? { ...proposal, ...patch } : proposal);
+}
+
+/** Copia de la lista sin las propuestas de `keys`. */
+export function withoutProposals(proposals: readonly ProposalDraft[], keys: readonly string[]): ProposalDraft[] {
+  return proposals.filter(proposal => !keys.includes(proposal.key));
+}
+
+/** Por qué no se puede añadir la propuesta al Planner, con las reglas del proceso principal, o `null`. */
+export function proposalProblem(proposal: ProposalDraft, route: StudyRoute): string | null {
+  try { safeTaskTitle(proposal.title); }
+  catch (error) { return (error as PublicError).message; }
+  if (!route.stages.some(stage => stage.id === proposal.stageId)) return 'La etapa ya no existe. Elige otra.';
+  if (!isPlannableDate(proposal.plannedDate)) return 'Elige un día entre 2000 y 2100.';
+  return null;
+}
+
+/** Propuestas por revisar que ya se pueden añadir al Planner. */
+export function acceptableProposals(proposals: readonly ProposalDraft[], route: StudyRoute): ProposalDraft[] {
+  return proposals.filter(proposal => proposal.acceptedOn === null && proposalProblem(proposal, route) === null);
+}
+
+/** Nombre de la etapa de una propuesta, p. ej. «Etapa 2: Traits», o `null` si ya no existe. */
+export function proposalStageLabel(route: StudyRoute, stageId: string): string | null {
+  const index = route.stages.findIndex(stage => stage.id === stageId);
+  return index === -1 ? null : `Etapa ${index + 1}: ${route.stages[index].title}`;
+}
+
+export function pomodorosText(count: number): string {
+  return `${count} ${count === 1 ? 'pomodoro' : 'pomodoros'}`;
+}
+
+/** Día relativo a hoy para una propuesta: «hoy», «mañana» o la fecha, p. ej. «jueves, 1 de octubre». */
+export function relativeDayLabel(day: string, today: string): string {
+  if (day === today) return 'hoy';
+  if (day === addDays(today, 1)) return 'mañana';
+  return dateLabel(day);
+}
+
+/** Resumen de la revisión, p. ej. «3 por revisar, 1 añadida al Planner». */
+export function proposalsSummary(proposals: readonly ProposalDraft[]): string {
+  const accepted = proposals.filter(proposal => proposal.acceptedOn !== null).length;
+  const pending = proposals.length - accepted;
+  if (!pending) return accepted === 1 ? 'La propuesta ya está en el Planner.' : `Las ${accepted} propuestas ya están en el Planner.`;
+  const parts = [`${pending} por revisar`];
+  if (accepted) parts.push(`${accepted} ${accepted === 1 ? 'añadida' : 'añadidas'} al Planner`);
+  return parts.join(', ');
+}
+
+/** Tiempo de espera de la petición, p. ej. «0:07» o «2:15». */
+export function elapsedText(ms: number): string {
+  const seconds = Math.max(0, Math.floor(ms / 1000));
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+}
+
+/** Si se pueden pedir tareas: listo, primero el aviso de privacidad o bloqueado con el motivo. */
+export type ProposalGate = { kind: 'ready' } | { kind: 'notice' } | { kind: 'blocked'; reason: string };
+
+/**
+ * Qué pasa al pulsar «Proponer tareas». Un CLI que falta, sin sesión o con clave de API bloquea con
+ * lo que hay que hacer; mientras se comprueba o si la sesión no se pudo confirmar, se deja pedir y
+ * el proceso principal lo comprueba otra vez. La ruta debe estar guardada, porque se envía la guardada.
+ */
+export function proposalGate(provider: StudyProvider, status: AgentStatus | undefined, notices: readonly StudyProvider[], routeChanged: boolean): ProposalGate {
+  const availability = status?.availability;
+  if (availability === 'missing' || availability === 'logged-out' || availability === 'api-key') {
+    return { kind: 'blocked', reason: agentStatusView(provider, status).detail };
+  }
+  if (routeChanged) return { kind: 'blocked', reason: 'Guarda los cambios de la ruta: el agente usa la ruta guardada.' };
+  return notices.includes(provider) ? { kind: 'ready' } : { kind: 'notice' };
 }

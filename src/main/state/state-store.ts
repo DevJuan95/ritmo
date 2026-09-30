@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { Clock } from '../common/ports';
 import type { TaskRepositoryPort } from '../tasks/ports';
-import type { PublicStatePort, PublishState, StateShutdownPort, StateStorePort } from './ports';
+import type { PublicStatePort, PublishState, StateShutdownPort, StateStorePort, TodayPort } from './ports';
 
 export interface StateStoreDeps {
   publish?: PublishState;
@@ -14,7 +14,7 @@ export interface StateStoreDeps {
   tasks?: TaskRepositoryPort;
 }
 
-export class StateStore implements StateStorePort, PublicStatePort, StateShutdownPort {
+export class StateStore implements StateStorePort, TodayPort, PublicStatePort, StateShutdownPort {
   state: AppState;
   busy = false;
   /** Tras `closeWith`, ya no se aceptan operaciones protegidas. */

@@ -3,13 +3,18 @@ import type { Clock } from '../common/ports';
 
 export type PublishState = (state: PublicState) => void;
 
+/** El día de hoy según el reloj del almacén. */
+export interface TodayPort {
+  /** `AAAA-MM-DD`. */
+  today(): string;
+}
+
 /** Lo que los servicios usan del almacén de estado. */
-export interface StateStorePort {
+export interface StateStorePort extends TodayPort {
   readonly state: AppState;
   /** Hay una operación protegida en curso. */
   readonly busy: boolean;
   readonly now: Clock;
-  today(): string;
   save(): void;
   rollDay(): void;
   guarded<T>(work: () => Promise<T>): Promise<T>;
