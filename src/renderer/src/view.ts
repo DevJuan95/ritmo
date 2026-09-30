@@ -520,7 +520,7 @@ export const AGENT_COMPANIES: Readonly<Record<StudyProvider, string>> = { claude
 
 /** Lo que se envía al proveedor al pedir tareas; se muestra junto al botón y en el aviso. */
 export function agentNoticeText(provider: StudyProvider): string {
-  return `Al pedir tareas, Ritmo envía a ${AGENT_NAMES[provider]} (${AGENT_COMPANIES[provider]}) el tema, el objetivo, el nivel, las etapas y las instrucciones de esta ruta, y el título, el día y el estado de sus tareas. Ritmo no envía nada más, y solo cuando pulsas el botón.`;
+  return `Al pedir tareas, Ritmo envía a ${AGENT_NAMES[provider]} (${AGENT_COMPANIES[provider]}) el tema, el objetivo, el nivel, el roadmap (enfoque, etapas, proyecto final y reglas de estudio) y las instrucciones de esta ruta, y el título, el día y el estado de sus tareas. Ritmo no envía nada más, y solo cuando pulsas el botón.`;
 }
 
 /** Propuesta tal como se revisa: editable y con el día en el que se añadirá al Planner. */
