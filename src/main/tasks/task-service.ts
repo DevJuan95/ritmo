@@ -77,7 +77,9 @@ export class TaskService implements TaskServicePort, StudyTasksPort, RouteTasksP
     return id;
   }
 
+  /** Tras cualquier cambio de tareas: recarga las de hoy y publica el cambio, que puede ser de otro día. */
   private refreshToday(): void {
+    this.store.tasksChanged();
     this.store.state.tasks = this.repository.listByDay(this.store.today());
     this.store.save();
   }

@@ -1,5 +1,9 @@
 import path from 'node:path';
 import { asFunction, asValue, createContainer, InjectionMode, type AwilixContainer } from 'awilix';
+import { BRIDGE_SOCKET_NAME } from '../shared/bridge/contract';
+import { BridgeService } from './bridge/bridge-service';
+import type { BridgeLifecyclePort, BridgeServer, BridgeServicePort } from './bridge/ports';
+import { SocketBridgeServer } from './bridge/socket-server';
 import { DomainService } from './blocking/domain-service';
 import type { DomainServicePort, SiteBlocker } from './blocking/ports';
 import { createSiteBlocker } from './blocking/site-blocker';
@@ -42,6 +46,7 @@ export interface MainCradle {
   studyRepository: StudyRepositoryPort & StudyRouteReaderPort & StudyStagesPort & AgentSettingsRepositoryPort & AgentNoticeRepositoryPort;
   agentDetector: AgentDetector;
   agentFactory: StudyAgentFactory;
+  bridgeServer: BridgeServer;
   store: StateStorePort & TodayPort & PublicStatePort & StateShutdownPort;
   focus: FocusServicePort & FocusLifecyclePort;
   tasks: TaskServicePort & StudyTasksPort & RouteTasksPort;
@@ -49,6 +54,7 @@ export interface MainCradle {
   study: StudyServicePort;
   agents: AgentServicePort;
   proposals: ProposalServicePort & ProposalLifecyclePort;
+  bridge: BridgeServicePort & BridgeLifecyclePort;
   lifecycle: LifecycleServicePort;
 }
 
@@ -93,6 +99,7 @@ export function createMainContainer(options: MainContainerOptions): AwilixContai
       .disposer(repository => repository.close()),
     agentDetector: asFunction(() => new SystemAgentDetector()).singleton(),
     agentFactory: asFunction(() => new CliStudyAgentFactory()).singleton(),
+    bridgeServer: asFunction(() => new SocketBridgeServer()).singleton(),
     store: asFunction(({ userDataPath, taskRepository, publish, now }: MainCradle) =>
       new StateStore(path.join(userDataPath, 'state.json'), { tasks: taskRepository, publish, now })).singleton(),
     focus: asFunction(({ store, blocker, notifier, sound }: MainCradle) => new FocusService(store, { blocker, notifier, sound })).singleton(),
@@ -103,8 +110,11 @@ export function createMainContainer(options: MainContainerOptions): AwilixContai
     proposals: asFunction(({ studyRepository, tasks, agentDetector, agentFactory, store }: MainCradle) => new ProposalService({
       routes: studyRepository, tasks, settings: studyRepository, notices: studyRepository, locator: agentDetector, agents: agentFactory, day: store
     })).singleton(),
-    lifecycle: asFunction(({ store, focus, proposals, notifier, taskRepository, studyRepository, timers, shutdownTimeoutMs }: MainCradle) =>
-      new LifecycleService({ store, focus, proposals, notifier, databases: [taskRepository, studyRepository], timers, shutdownTimeoutMs })).singleton()
+    bridge: asFunction(({ bridgeServer, userDataPath, studyRepository, tasks, store }: MainCradle) => new BridgeService({
+      server: bridgeServer, socketPath: path.join(userDataPath, BRIDGE_SOCKET_NAME), routes: studyRepository, tasks, day: store
+    })).singleton(),
+    lifecycle: asFunction(({ store, focus, proposals, bridge, notifier, taskRepository, studyRepository, timers, shutdownTimeoutMs }: MainCradle) =>
+      new LifecycleService({ store, focus, proposals, bridge, notifier, databases: [taskRepository, studyRepository], timers, shutdownTimeoutMs })).singleton()
   });
   return container;
 }

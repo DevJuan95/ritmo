@@ -12,9 +12,16 @@ const devWithoutCsp: Plugin = {
   transformIndexHtml: html => html.replace(/\s*<meta http-equiv="Content-Security-Policy"[^>]*>/, '')
 };
 
-// Entradas por defecto: src/main/index.ts, src/preload/index.ts y src/renderer/index.html; salida en out/.
+// Entradas: src/main/index.ts, src/mcp/index.ts (el servidor MCP, que se ejecuta con `node out/main/mcp.js`),
+// src/preload/index.ts y src/renderer/index.html; salida en out/.
 export default defineConfig({
-  main: {},
+  main: {
+    build: {
+      rollupOptions: {
+        input: { index: path.resolve(__dirname, 'src/main/index.ts'), mcp: path.resolve(__dirname, 'src/mcp/index.ts') }
+      }
+    }
+  },
   preload: {},
   renderer: {
     plugins: [react(), tailwindcss(), devWithoutCsp],

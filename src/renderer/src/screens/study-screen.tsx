@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router';
 import { MAX_DAILY_POMODOROS, STUDY_LEVELS, type AgentSettings, type AgentStatus, type StudyProgress, type StudyProvider, type StudyRoute } from '../../../shared/study/contract';
 import { ProposalsPanel } from '../components/proposals-panel';
@@ -28,6 +28,8 @@ interface StudyScreenProps {
   /** Propuestas del agente y la petición en curso; viven en `App` por la misma razón. */
   proposals: ProposalsController;
   today: string;
+  /** `tasksVersion` del estado: cuando cambia, el avance se vuelve a pedir. */
+  tasksVersion: number;
 }
 
 /** Agente elegido, su estado y los avisos de privacidad aceptados. */
@@ -37,7 +39,7 @@ interface AgentInfo {
   notices: StudyProvider[];
 }
 
-export function StudyScreen({ run, showError, drafts, onDraftsChange, proposals, today }: StudyScreenProps) {
+export function StudyScreen({ run, showError, drafts, onDraftsChange, proposals, today, tasksVersion }: StudyScreenProps) {
   const [routes, setRoutes] = useState<StudyRoute[]>();
   const [progress, setProgress] = useState<StudyProgress>({});
   const [selection, setSelection] = useState<Selection>();
@@ -63,6 +65,16 @@ export function StudyScreen({ run, showError, drafts, onDraftsChange, proposals,
     }).catch(error => { if (active) showError(error); });
     return () => { active = false; };
   }, [fetchAll, showError]);
+
+  // Las tareas pueden cambiar fuera de esta pantalla, por ejemplo si un agente las añade por el puente.
+  // El montaje ya pide el avance junto con las rutas; solo hace falta pedirlo de nuevo si la versión cambia.
+  const seenVersion = useRef(tasksVersion);
+  useEffect(() => {
+    if (tasksVersion === seenVersion.current) return;
+    seenVersion.current = tasksVersion;
+    // Sin limpieza que descarte la respuesta: solo se aplica la de la versión más reciente.
+    window.ritmo.getStudyProgress().then(stages => { if (seenVersion.current === tasksVersion) setProgress(stages); }, showError);
+  }, [tasksVersion, showError]);
 
   useEffect(() => {
     let active = true;
