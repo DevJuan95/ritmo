@@ -11,8 +11,15 @@ import { safePlannedDate, safeTaskLink, safeTaskTitle, type DaySummary } from '.
 /** Nombre del socket dentro de los datos de la app. */
 export const BRIDGE_SOCKET_NAME = 'ritmo.sock';
 
-/** Tamaño máximo de una petición o una respuesta, en bytes. */
-export const MAX_BRIDGE_MESSAGE = 256 * 1024;
+/** Tamaño máximo de una petición, en bytes. */
+export const MAX_BRIDGE_REQUEST = 256 * 1024;
+
+/**
+ * Tamaño máximo de una respuesta, en bytes. `get-route` devuelve el roadmap completo: una ruta con
+ * todos los campos al máximo que admite `safeStudyRoute()` ronda los 330 000 caracteres, y en el peor
+ * caso cada uno ocupa 6 bytes en JSON (un carácter de control escapado como `\u0001`), unos 2 MB.
+ */
+export const MAX_BRIDGE_RESPONSE = 4 * 1024 * 1024;
 
 /** Tareas de la ruta, las más recientes, que devuelve `get-route`; el avance cuenta todas. */
 export const MAX_BRIDGE_TASKS = 60;
@@ -37,10 +44,16 @@ export interface BridgeRouteSummary {
   progress: DaySummary;
 }
 
+/** Etapa de `get-route`, con los campos del roadmap (vacíos si la etapa no los tiene) y su avance. */
 export interface BridgeStage {
   id: string;
   title: string;
+  summary: string;
+  /** Temas que hay que dominar. */
   topics: string[];
+  deprioritized: string[];
+  project: string;
+  resources: string[];
   progress: DaySummary;
 }
 
@@ -51,13 +64,19 @@ export interface BridgeTask {
   plannedDate: string;
 }
 
-/** Ruta completa de `get-route`, con el avance de cada etapa y sus tareas más recientes. */
+/**
+ * Ruta completa de `get-route`: el roadmap (enfoque, etapas, proyecto final y reglas de estudio), el
+ * avance de cada etapa y sus tareas más recientes.
+ */
 export interface BridgeRouteDetail {
   id: string;
   topic: string;
   goal: string;
   level: StudyLevel;
   dailyPomodoros: number;
+  approach: string;
+  finalProject: string;
+  studyRules: string;
   instructions: string;
   /** Día de hoy en la app, `AAAA-MM-DD`. */
   today: string;

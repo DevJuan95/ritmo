@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
-import { INVALID_BRIDGE_REQUEST, MAX_BRIDGE_MESSAGE } from '../../../../src/shared/bridge/contract';
+import { INVALID_BRIDGE_REQUEST, MAX_BRIDGE_REQUEST } from '../../../../src/shared/bridge/contract';
 import { GENERIC_ERROR_MESSAGE, PublicError } from '../../../../src/shared/ipc';
 import { BRIDGE_IDLE_TIMEOUT_MS, BRIDGE_MAX_CONNECTIONS, SocketBridgeServer, bridgeResponse } from '../../../../src/main/bridge/socket-server';
 import type { BridgeHandler } from '../../../../src/main/bridge/ports';
@@ -64,7 +64,7 @@ test('rechaza JSON inválido y peticiones demasiado grandes sin llamar al maneja
   let calls = 0;
   const { socketPath } = await setup(t, () => { calls++; return null; });
   assert.deepEqual(JSON.parse(await exchange(socketPath, 'no es json\n')), { ok: false, error: INVALID_BRIDGE_REQUEST });
-  assert.deepEqual(JSON.parse(await exchange(socketPath, `${'x'.repeat(MAX_BRIDGE_MESSAGE + 1)}\n`)), { ok: false, error: INVALID_BRIDGE_REQUEST });
+  assert.deepEqual(JSON.parse(await exchange(socketPath, `${'x'.repeat(MAX_BRIDGE_REQUEST + 1)}\n`)), { ok: false, error: INVALID_BRIDGE_REQUEST });
   assert.equal(calls, 0);
 });
 

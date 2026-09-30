@@ -63,9 +63,11 @@ export class BridgeService implements BridgeServicePort, BridgeLifecyclePort {
     const tasks: BridgeTask[] = this.deps.tasks.routeTasks(route.id);
     return {
       id: route.id, topic: route.topic, goal: route.goal, level: route.level, dailyPomodoros: route.dailyPomodoros,
+      approach: route.approach, finalProject: route.finalProject, studyRules: route.studyRules,
       instructions: route.instructions, today: this.deps.day.today(),
       stages: route.stages.map(stage => ({
-        id: stage.id, title: stage.title, topics: stage.topics, progress: summarize(tasks.filter(task => task.stageId === stage.id))
+        id: stage.id, title: stage.title, summary: stage.summary, topics: stage.topics, deprioritized: stage.deprioritized,
+        project: stage.project, resources: stage.resources, progress: summarize(tasks.filter(task => task.stageId === stage.id))
       })),
       tasks: tasks.slice(-MAX_BRIDGE_TASKS),
       totalTasks: tasks.length

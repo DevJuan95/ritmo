@@ -36,7 +36,9 @@ test('Claude Code o Codex leen una ruta y crean una tarea en la app abierta por 
   const harness = createHarness(t);
   const route = harness.study.create({
     topic: 'Rust', goal: 'Escribir una CLI.', level: 'beginner', dailyPomodoros: 2,
-    stages: [stage({ title: 'Ownership', topics: ['Borrowing'] })], instructions: 'En español.'
+    approach: 'Práctica antes que teoría.', finalProject: 'Una CLI publicada.', studyRules: 'Un ejercicio al día.',
+    stages: [stage({ title: 'Ownership', topics: ['Borrowing'], deprioritized: ['Unsafe'], project: 'Un parser.', resources: ['The Rust Book'] })],
+    instructions: 'En español.'
   });
   const socketPath = path.join(harness.directory, 'ritmo.sock');
   const bridge = new BridgeService({
@@ -56,6 +58,8 @@ test('Claude Code o Codex leen una ruta y crean una tarea en la app abierta por 
   const read = await send('tools/call', { name: 'get_study_route', arguments: { routeId: route.id } });
   const detail = JSON.parse(read.result.content[0].text);
   assert.equal(detail.stages[0].title, 'Ownership');
+  assert.deepEqual([detail.approach, detail.finalProject, detail.studyRules], ['Práctica antes que teoría.', 'Una CLI publicada.', 'Un ejercicio al día.']);
+  assert.deepEqual([detail.stages[0].deprioritized, detail.stages[0].project, detail.stages[0].resources], [['Unsafe'], 'Un parser.', ['The Rust Book']]);
 
   const added = await send('tools/call', { name: 'add_study_task', arguments: { routeId: route.id, stageId: detail.stages[0].id, title: 'Leer el capítulo 4' } });
   assert.equal(added.result.isError, undefined);

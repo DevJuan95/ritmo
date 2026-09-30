@@ -1,6 +1,6 @@
 import net from 'node:net';
 import path from 'node:path';
-import { BRIDGE_SOCKET_NAME, MAX_BRIDGE_MESSAGE, type BridgeResponse } from '../shared/bridge/contract';
+import { BRIDGE_SOCKET_NAME, MAX_BRIDGE_RESPONSE, type BridgeResponse } from '../shared/bridge/contract';
 
 /** Tiempo máximo de una petición a la app, desde que se conecta hasta que llega la respuesta. */
 export const BRIDGE_TIMEOUT_MS = 10000;
@@ -54,7 +54,7 @@ export function callBridge(socketPath: string, request: object, options: CallBri
       received = Buffer.concat([received, chunk]);
       const end = received.indexOf(0x0a);
       if (end >= 0) finish(readResponse(received.subarray(0, end).toString('utf8')));
-      else if (received.length > MAX_BRIDGE_MESSAGE) finish({ ok: false, error: APP_INVALID_RESPONSE });
+      else if (received.length > MAX_BRIDGE_RESPONSE) finish({ ok: false, error: APP_INVALID_RESPONSE });
     });
     socket.on('end', () => finish(readResponse(received.toString('utf8'))));
   });
