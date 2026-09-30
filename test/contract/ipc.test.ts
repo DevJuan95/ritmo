@@ -5,6 +5,7 @@ import path from 'node:path';
 import type { RitmoAPI } from '../../src/shared/api';
 import { GENERIC_ERROR_MESSAGE, PublicError } from '../../src/shared/ipc';
 import type { PublicState } from '../../src/shared/state/contract';
+import { DEFAULT_AGENT_INSTRUCTIONS, type StudyRouteInput } from '../../src/shared/study/contract';
 import { registerHandlers } from '../../src/main/ipc/register';
 import { errorMessage } from '../../src/renderer/src/view';
 import { FakeIpc } from '../helpers/fakes';
@@ -54,6 +55,11 @@ function loadPreload(invoke?: (channel: string, ...args: unknown[]) => Promise<u
   return { api, invocations, listeners };
 }
 
+const studyRoute: StudyRouteInput = {
+  topic: 'Rust', goal: 'Escribir una CLI.', level: 'beginner', dailyPomodoros: 4,
+  stages: [{ title: 'Ownership', topics: ['Borrowing'] }], instructions: DEFAULT_AGENT_INSTRUCTIONS
+};
+
 /** Un ejemplo de llamada por método. Si RitmoAPI crece, este objeto deja de compilar. */
 const sampleCalls: { [K in Exclude<keyof RitmoAPI, 'onState'>]: Parameters<RitmoAPI[K]> } = {
   getState: [],
@@ -69,7 +75,11 @@ const sampleCalls: { [K in Exclude<keyof RitmoAPI, 'onState'>]: Parameters<Ritmo
   updateTask: ['id-1', { done: true }],
   addDomain: ['x.com'],
   removeDomain: ['x.com'],
-  retryUnblock: []
+  retryUnblock: [],
+  listStudyRoutes: [],
+  createStudyRoute: [studyRoute],
+  updateStudyRoute: ['study-1', studyRoute],
+  deleteStudyRoute: ['study-1']
 };
 
 test('cada método del preload invoca un canal registrado por el proceso principal con sus argumentos', async t => {

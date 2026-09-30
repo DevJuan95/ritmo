@@ -4,6 +4,8 @@ import { registerFocusIpc } from '../focus/ipc';
 import type { FocusServicePort } from '../focus/ports';
 import { registerStateIpc } from '../state/ipc';
 import type { PublicStatePort } from '../state/ports';
+import { registerStudyIpc } from '../study/ipc';
+import type { StudyServicePort } from '../study/ports';
 import { registerTasksIpc } from '../tasks/ipc';
 import type { TaskServicePort } from '../tasks/ports';
 import { createHandle } from './handle';
@@ -14,12 +16,14 @@ export interface Services {
   focus: FocusServicePort;
   tasks: TaskServicePort;
   domains: DomainServicePort;
+  study: StudyServicePort;
 }
 
 /** Registra los canales de cada módulo; cada uno solo conoce los de su contrato. */
-export function registerHandlers(ipc: IpcRegistrar, { store, focus, tasks, domains }: Services): void {
+export function registerHandlers(ipc: IpcRegistrar, { store, focus, tasks, domains, study }: Services): void {
   registerStateIpc(createHandle(ipc), store);
   registerFocusIpc(createHandle(ipc), focus);
   registerTasksIpc(createHandle(ipc), tasks);
   registerBlockingIpc(createHandle(ipc), { domains, focus });
+  registerStudyIpc(createHandle(ipc), study);
 }

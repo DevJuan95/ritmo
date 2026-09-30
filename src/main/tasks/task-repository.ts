@@ -4,8 +4,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
-import type { Clock } from '../common/ports';
-import type { IdGenerator, TaskRepositoryPort } from './ports';
+import type { Clock, IdGenerator } from '../common/ports';
+import type { TaskRepositoryPort } from './ports';
 
 interface TaskRow {
   id: string;

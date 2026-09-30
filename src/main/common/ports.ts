@@ -15,3 +15,6 @@ export interface Timers {
 export interface Notifier {
   notify(title: string, body: string): void;
 }
+
+/** Identificadores nuevos de tareas, rutas y etapas. */
+export type IdGenerator = () => string;

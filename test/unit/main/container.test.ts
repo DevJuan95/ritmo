@@ -67,13 +67,26 @@ test('usa el reloj del sistema y el bloqueador real por defecto', t => {
   assert.equal(typeof container.cradle.blocker.hasManagedBlock, 'function');
 });
 
-test('dispose cierra la conexión SQLite', async t => {
+test('dispose cierra las conexiones SQLite', async t => {
   const container = createMainContainer({ userDataPath: tempDir(t), resourcesPath, publish: () => {}, notificationApi: fakeNotificationApi([]) });
-  const repository = container.cradle.taskRepository;
-  const close = t.mock.method(repository, 'close');
+  const repositories = [container.cradle.taskRepository, container.cradle.studyRepository];
+  const closes = repositories.map(repository => t.mock.method(repository, 'close'));
   await container.dispose();
-  assert.equal(close.mock.callCount(), 1);
-  assert.equal((repository as unknown as { closed: boolean }).closed, true);
+  assert.deepEqual(closes.map(close => close.mock.callCount()), [1, 1]);
+  for (const repository of repositories) assert.equal((repository as unknown as { closed: boolean }).closed, true);
+});
+
+test('arma las rutas de estudio sobre ritmo.db', async t => {
+  const directory = tempDir(t);
+  const clock = new FakeClock();
+  const container = createMainContainer({ userDataPath: directory, resourcesPath, publish: () => {}, notificationApi: fakeNotificationApi([]), now: clock.now });
+  t.after(() => container.dispose());
+  const { study, studyRepository } = container.cradle;
+  assert.equal(container.cradle.study, study);
+  const route = study.create({ topic: 'Rust', goal: '', level: 'beginner', dailyPomodoros: 2, stages: [{ title: 'Ownership', topics: [] }], instructions: '' });
+  assert.equal(route.createdAt, new Date(clock.now()).toISOString());
+  assert.deepEqual(studyRepository.list(), [route]);
+  assert.ok(fs.existsSync(path.join(directory, 'ritmo.db')));
 });
 
 test('registra el ciclo de vida con los temporizadores y el tiempo máximo del cierre', async t => {
@@ -83,10 +96,11 @@ test('registra el ciclo de vida con los temporizadores y el tiempo máximo del c
     now: clock.now, timers: clock, shutdownTimeoutMs: 10
   });
   t.after(() => container.dispose());
-  const { lifecycle, store, taskRepository } = container.cradle;
+  const { lifecycle, store, taskRepository, studyRepository } = container.cradle;
   store.guarded(() => new Promise<void>(() => {})).catch(() => {});
   const closing = lifecycle.shutdown();
   clock.advance(10);
   await closing;
   assert.equal((taskRepository as unknown as { closed: boolean }).closed, true);
+  assert.equal((studyRepository as unknown as { closed: boolean }).closed, true);
 });

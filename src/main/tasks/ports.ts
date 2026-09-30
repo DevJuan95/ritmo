@@ -11,8 +11,6 @@ export interface TaskRepositoryPort {
   close(): void;
 }
 
-export type IdGenerator = () => string;
-
 export interface TaskServicePort {
   add(title: unknown, date: unknown): void;
   toggle(id: unknown): void;

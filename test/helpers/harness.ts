@@ -7,6 +7,8 @@ import { DomainService } from '../../src/main/blocking/domain-service';
 import { FocusService } from '../../src/main/focus/focus-service';
 import { LifecycleService } from '../../src/main/lifecycle/lifecycle-service';
 import { StateStore } from '../../src/main/state/state-store';
+import { StudyRepository } from '../../src/main/study/study-repository';
+import { StudyService } from '../../src/main/study/study-service';
 import { TaskService } from '../../src/main/tasks/task-service';
 import { TaskRepository } from '../../src/main/tasks/task-repository';
 import { FakeBlocker, FakeClock, FakeNotifier, FakeSoundPlayer, sequentialIds } from './fakes';
@@ -37,10 +39,13 @@ export interface Harness {
   sound: FakeSoundPlayer;
   published: PublicState[];
   repository: TaskRepository;
+  /** Abre su propia conexión a `dbPath`, como en la app. */
+  studyRepository: StudyRepository;
   store: StateStore;
   focus: FocusService;
   tasks: TaskService;
   domains: DomainService;
+  study: StudyService;
   /** Usa `clock` como temporizadores. */
   lifecycle: LifecycleService;
   /** Vuelve a abrir el estado desde disco con las mismas dependencias. */
@@ -62,15 +67,18 @@ export function createHarness(t: TestContext, options: HarnessOptions = {}): Har
   const published: PublicState[] = [];
   const repository = new TaskRepository(dbPath, { now: clock.now, newId: sequentialIds() });
   t.after(() => repository.close());
+  const studyRepository = new StudyRepository(dbPath, { now: clock.now, newId: sequentialIds('study') });
+  t.after(() => studyRepository.close());
   const open = () => new StateStore(statePath, { tasks: repository, now: clock.now, publish: state => published.push(state) });
   const store = open();
   const focus = new FocusService(store, { blocker, notifier, sound });
 
   return {
-    directory, statePath, dbPath, clock, blocker, notifier, sound, published, repository, store, focus,
-    lifecycle: new LifecycleService({ store, focus, notifier, tasks: repository, timers: clock, shutdownTimeoutMs: options.shutdownTimeoutMs }),
+    directory, statePath, dbPath, clock, blocker, notifier, sound, published, repository, studyRepository, store, focus,
+    lifecycle: new LifecycleService({ store, focus, notifier, databases: [repository, studyRepository], timers: clock, shutdownTimeoutMs: options.shutdownTimeoutMs }),
     tasks: new TaskService(store, repository),
     domains: new DomainService(store),
+    study: new StudyService(studyRepository),
     reopen: open,
     readSaved: () => JSON.parse(fs.readFileSync(statePath, 'utf8'))
   };

@@ -14,7 +14,7 @@ La ventana abre hasta 1280 × 840 píxeles, limitada por el área útil de la pa
 
 ## Datos locales
 
-Las tareas se guardan en SQLite (`ritmo.db`) dentro de los datos de la app. Los dominios y el estado del temporizador siguen en `state.json`. Al abrir una instalación anterior, Ritmo importa sus tareas a SQLite y conserva una copia del JSON como `state.json.backup`.
+Las tareas y las rutas de estudio se guardan en SQLite (`ritmo.db`) dentro de los datos de la app. Los dominios y el estado del temporizador siguen en `state.json`. Al abrir una instalación anterior, Ritmo importa sus tareas a SQLite y conserva una copia del JSON como `state.json.backup`.
 
 ## Icono
 

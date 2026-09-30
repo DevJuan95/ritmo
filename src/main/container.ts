@@ -13,6 +13,9 @@ import { LifecycleService } from './lifecycle/lifecycle-service';
 import type { LifecycleServicePort } from './lifecycle/ports';
 import type { PublicStatePort, PublishState, StateShutdownPort, StateStorePort } from './state/ports';
 import { StateStore } from './state/state-store';
+import type { StudyRepositoryPort, StudyServicePort } from './study/ports';
+import { StudyRepository } from './study/study-repository';
+import { StudyService } from './study/study-service';
 import type { TaskRepositoryPort, TaskServicePort } from './tasks/ports';
 import { TaskRepository } from './tasks/task-repository';
 import { TaskService } from './tasks/task-service';
@@ -29,10 +32,12 @@ export interface MainCradle {
   notifier: Notifier;
   sound: SoundPlayer;
   taskRepository: TaskRepositoryPort;
+  studyRepository: StudyRepositoryPort;
   store: StateStorePort & PublicStatePort & StateShutdownPort;
   focus: FocusServicePort & FocusLifecyclePort;
   tasks: TaskServicePort;
   domains: DomainServicePort;
+  study: StudyServicePort;
   lifecycle: LifecycleServicePort;
 }
 
@@ -50,7 +55,8 @@ export interface MainContainerOptions {
 
 /**
  * Registra las dependencias del proceso principal. Todas son singletons: comparten el mismo
- * `StateStore` y la misma conexión SQLite, que se cierra con `container.dispose()`.
+ * `StateStore` y los mismos repositorios. Cada repositorio abre su conexión a `ritmo.db`; las cierran
+ * el cierre ordenado y `container.dispose()`.
  * Los servicios no conocen el contenedor; las fábricas llaman a sus constructores explícitamente.
  * Es el único módulo que construye las clases de servicio: el resto depende de sus puertos.
  * Antes de resolver, se puede sustituir cualquier registro (por ejemplo, el bloqueador en pruebas).
@@ -71,13 +77,17 @@ export function createMainContainer(options: MainContainerOptions): AwilixContai
     taskRepository: asFunction(({ userDataPath, now }: MainCradle) => new TaskRepository(path.join(userDataPath, 'ritmo.db'), { now }))
       .singleton()
       .disposer(repository => repository.close()),
+    studyRepository: asFunction(({ userDataPath, now }: MainCradle) => new StudyRepository(path.join(userDataPath, 'ritmo.db'), { now }))
+      .singleton()
+      .disposer(repository => repository.close()),
     store: asFunction(({ userDataPath, taskRepository, publish, now }: MainCradle) =>
       new StateStore(path.join(userDataPath, 'state.json'), { tasks: taskRepository, publish, now })).singleton(),
     focus: asFunction(({ store, blocker, notifier, sound }: MainCradle) => new FocusService(store, { blocker, notifier, sound })).singleton(),
     tasks: asFunction(({ store, taskRepository }: MainCradle) => new TaskService(store, taskRepository)).singleton(),
     domains: asFunction(({ store }: MainCradle) => new DomainService(store)).singleton(),
-    lifecycle: asFunction(({ store, focus, notifier, taskRepository, timers, shutdownTimeoutMs }: MainCradle) =>
-      new LifecycleService({ store, focus, notifier, tasks: taskRepository, timers, shutdownTimeoutMs })).singleton()
+    study: asFunction(({ studyRepository }: MainCradle) => new StudyService(studyRepository)).singleton(),
+    lifecycle: asFunction(({ store, focus, notifier, taskRepository, studyRepository, timers, shutdownTimeoutMs }: MainCradle) =>
+      new LifecycleService({ store, focus, notifier, databases: [taskRepository, studyRepository], timers, shutdownTimeoutMs })).singleton()
   });
   return container;
 }

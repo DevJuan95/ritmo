@@ -11,3 +11,8 @@ export interface LifecycleServicePort {
   listen(signals: QuitSignals, exit: (error?: unknown) => void): void;
   shutdown(): Promise<void>;
 }
+
+/** Conexión a una base de datos que el cierre ordenado debe cerrar. */
+export interface Database {
+  close(): void;
+}
