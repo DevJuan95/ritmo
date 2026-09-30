@@ -1,4 +1,4 @@
-import type { AgentAvailability, AgentSettings, AgentStatus, StudyProgress, StudyProvider, StudyRoute, StudyRouteInput, TaskProposal } from '../../shared/study/contract';
+import type { AgentAvailability, AgentSettings, AgentStatus, RoadmapBrief, RoadmapDraft, StudyProgress, StudyProvider, StudyRoute, StudyRouteInput, TaskProposal } from '../../shared/study/contract';
 
 /** Lo que las tareas necesitan de las rutas: comprobar que la etapa de un vínculo existe. */
 export interface StudyStagesPort {
@@ -62,12 +62,15 @@ export interface StudyAgentOptions {
 }
 
 /**
- * Agente de IA local (Claude Code o Codex) que propone las siguientes tareas de una ruta. Cada
- * adaptador arma la petición con `buildAgentRequest()` y devuelve solo propuestas validadas con
- * `readAgentProposals()`; si la respuesta no cumple el esquema, rechaza con un `PublicError`.
+ * Agente de IA local (Claude Code o Codex) que propone las siguientes tareas de una ruta o un roadmap
+ * completo a partir de un brief. Cada adaptador arma la petición con `buildAgentRequest()` o
+ * `buildRoadmapRequest()` y devuelve solo respuestas validadas con `readAgentProposals()` o
+ * `readAgentRoadmap()`; si la respuesta no cumple el esquema, rechaza con un `PublicError`.
  */
 export interface StudyAgent {
   propose(context: StudyAgentContext, options?: StudyAgentOptions): Promise<TaskProposal[]>;
+  /** Roadmap sin guardar para el brief, ya validado con `safeRoadmapBrief()`. */
+  draftRoadmap(brief: RoadmapBrief, options?: StudyAgentOptions): Promise<RoadmapDraft>;
 }
 
 /** Lectura de la configuración del agente guardada en SQLite. */

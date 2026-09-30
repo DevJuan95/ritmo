@@ -3,13 +3,13 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { AGENT_CANCELLED } from '../../src/main/study/agent-cli';
-import { buildAgentRequest } from '../../src/main/study/agent-prompt';
+import { buildAgentRequest, buildRoadmapRequest } from '../../src/main/study/agent-prompt';
 import { CLAUDE_CODE_API_KEY, CLAUDE_CODE_FAILED, CLAUDE_CODE_LOGIN, CLAUDE_CODE_STATUS_ARGS, ClaudeCodeAgent } from '../../src/main/study/claude-code-agent';
 import type { StudyAgentContext } from '../../src/main/study/ports';
 import { PublicError } from '../../src/shared/ipc';
 import { INVALID_AGENT_RESPONSE, type StudyRoute } from '../../src/shared/study/contract';
 import { fakeCli, isAlive, waitUntil } from '../helpers/fake-cli';
-import { emptyRouteRoadmap, stage } from '../helpers/study';
+import { emptyRouteRoadmap, sampleRoadmap, stage } from '../helpers/study';
 
 const route: StudyRoute = {
   id: 'r1',
@@ -185,4 +185,53 @@ test('por defecto lanza el ejecutable claude del PATH', async (t) => {
   t.after(() => { process.env.PATH = previous; });
   assert.deepEqual(await new ClaudeCodeAgent().propose(context), [proposal]);
   assert.equal(cli.calls().length, 2);
+});
+
+const brief = 'Senior Backend → Tech Lead, con Java como vehículo, 2 h al día.';
+
+test('pide el roadmap con claude -p, su prompt y su esquema, tras comprobar la sesión', async (t) => {
+  const cli = fakeClaude(t, success({ structured_output: sampleRoadmap() }));
+  const roadmap = await new ClaudeCodeAgent({ command: cli.command, model: 'sonnet' }).draftRoadmap(brief);
+  assert.deepEqual(roadmap, sampleRoadmap());
+  const { prompt, schema } = buildRoadmapRequest(brief);
+  assert.deepEqual(cli.calls().map((call) => call.args), [
+    CLAUDE_CODE_STATUS_ARGS,
+    ['-p', prompt, '--output-format', 'json', '--json-schema', JSON.stringify(schema), '--tools', '', '--strict-mcp-config', '--safe-mode', '--no-session-persistence', '--model', 'sonnet'],
+  ]);
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(cli.dir, 'env.json'), 'utf8')), []);
+});
+
+test('el roadmap se lee también del texto de result y se valida', async (t) => {
+  const cli = fakeClaude(t, success({ result: '```json\n' + JSON.stringify(sampleRoadmap()) + '\n```' }));
+  assert.deepEqual(await new ClaudeCodeAgent({ command: cli.command }).draftRoadmap(brief), sampleRoadmap());
+  const invalid = { ...sampleRoadmap(), stages: [] };
+  for (const envelope of [success({ structured_output: invalid }), success({ structured_output: { proposals: [proposal] } }), success({ result: 'No puedo.' })]) {
+    const bad = fakeClaude(t, envelope);
+    await assert.rejects(new ClaudeCodeAgent({ command: bad.command }).draftRoadmap(brief), publicError(INVALID_AGENT_RESPONSE));
+  }
+  const failed = fakeClaude(t, success({ structured_output: sampleRoadmap() }), 1);
+  await assert.rejects(new ClaudeCodeAgent({ command: failed.command }).draftRoadmap(brief), publicError(CLAUDE_CODE_FAILED));
+});
+
+test('sin sesión no envía el brief', async (t) => {
+  const cli = fakeClaude(t, success({ structured_output: sampleRoadmap() }), 0, authStatus({ loggedIn: false }, 1));
+  await assert.rejects(new ClaudeCodeAgent({ command: cli.command }).draftRoadmap(brief), publicError(CLAUDE_CODE_LOGIN));
+  assert.deepEqual(cli.calls().map((call) => call.args), [CLAUDE_CODE_STATUS_ARGS]);
+});
+
+test('el roadmap tiene su propio tiempo máximo y se puede cancelar sin dejar el proceso vivo', async (t) => {
+  const slow = fakeCli(t, `${authStatus()} setTimeout(() => { process.stdout.write(${JSON.stringify(JSON.stringify(success({ structured_output: sampleRoadmap() })))}); }, 400);`);
+  const agent = new ClaudeCodeAgent({ command: slow.command, timeoutMs: 100, roadmapTimeoutMs: 5_000 });
+  assert.deepEqual(await agent.draftRoadmap(brief), sampleRoadmap(), 'no usa el tiempo de las propuestas');
+  await assert.rejects(new ClaudeCodeAgent({ command: slow.command, timeoutMs: 5_000, roadmapTimeoutMs: 100 }).draftRoadmap(brief),
+    publicError('Claude Code tardó demasiado en responder. Inténtalo de nuevo.'));
+
+  const cli = fakeCli(t, `${authStatus()} fs.writeFileSync(path.join(dir, 'ready'), String(process.pid)); setInterval(() => {}, 1000);`);
+  const ready = path.join(cli.dir, 'ready');
+  const controller = new AbortController();
+  const running = new ClaudeCodeAgent({ command: cli.command, killGraceMs: 100 }).draftRoadmap(brief, { signal: controller.signal });
+  await waitUntil(() => fs.existsSync(ready));
+  controller.abort();
+  await assert.rejects(running, publicError(AGENT_CANCELLED));
+  assert.equal(isAlive(Number(fs.readFileSync(ready, 'utf8'))), false);
 });

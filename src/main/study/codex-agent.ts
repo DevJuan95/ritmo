@@ -1,7 +1,7 @@
 import { PublicError } from '../../shared/ipc';
-import { AGENT_MODEL_PATTERN, INVALID_AGENT_RESPONSE, type TaskProposal } from '../../shared/study/contract';
-import { AGENT_LOGIN_TIMEOUT_MS, AGENT_TIMEOUT_MS, runAgentCli } from './agent-cli';
-import { buildAgentRequest, readAgentProposals } from './agent-prompt';
+import { AGENT_MODEL_PATTERN, INVALID_AGENT_RESPONSE, type RoadmapBrief, type RoadmapDraft, type TaskProposal } from '../../shared/study/contract';
+import { AGENT_LOGIN_TIMEOUT_MS, AGENT_ROADMAP_TIMEOUT_MS, AGENT_TIMEOUT_MS, runAgentCli } from './agent-cli';
+import { buildAgentRequest, buildRoadmapRequest, readAgentProposals, readAgentRoadmap, type AgentRequest } from './agent-prompt';
 import type { AgentLogin, StudyAgent, StudyAgentContext, StudyAgentOptions } from './ports';
 
 export const CODEX_NAME = 'Codex';
@@ -21,7 +21,10 @@ export interface CodexAgentOptions {
   command?: string;
   /** Modelo para `-m`; sin él, el modelo por defecto de Codex. */
   model?: string;
+  /** Tiempo máximo de la petición de propuestas. */
   timeoutMs?: number;
+  /** Tiempo máximo de la petición de un roadmap. */
+  roadmapTimeoutMs?: number;
   /** Espera entre `SIGTERM` y `SIGKILL` al terminar el CLI. */
   killGraceMs?: number;
 }
@@ -85,23 +88,34 @@ export function checkCodexLogin(stdout: string, exitCode: number): void {
 /**
  * Adaptador de `StudyAgent` que lanza `codex exec` en un sandbox de solo lectura, en un directorio
  * temporal, con tiempo máximo y cancelable. Antes comprueba que hay sesión con la cuenta de ChatGPT,
- * para no enviar nada si no la hay. Solo devuelve propuestas validadas.
+ * para no enviar nada si no la hay. Las propuestas y el roadmap comparten la ejecución (`send()`) y
+ * solo cambian la petición, el tiempo máximo y la validación de la respuesta.
  */
 export class CodexAgent implements StudyAgent {
   private readonly command: string;
   private readonly timeoutMs: number;
+  private readonly roadmapTimeoutMs: number;
 
   constructor(private readonly options: CodexAgentOptions = {}) {
     this.command = options.command ?? 'codex';
     this.timeoutMs = options.timeoutMs ?? AGENT_TIMEOUT_MS;
+    this.roadmapTimeoutMs = options.roadmapTimeoutMs ?? AGENT_ROADMAP_TIMEOUT_MS;
   }
 
   async propose(context: StudyAgentContext, { signal }: StudyAgentOptions = {}): Promise<TaskProposal[]> {
-    const { prompt, schema } = buildAgentRequest(context);
+    return readAgentProposals(await this.send(buildAgentRequest(context), this.timeoutMs, signal), context.route);
+  }
+
+  async draftRoadmap(brief: RoadmapBrief, { signal }: StudyAgentOptions = {}): Promise<RoadmapDraft> {
+    return readAgentRoadmap(await this.send(buildRoadmapRequest(brief), this.roadmapTimeoutMs, signal));
+  }
+
+  /** Comprueba la sesión, envía la petición y devuelve la respuesta del agente sin validar. */
+  private async send({ prompt, schema }: AgentRequest<object>, timeoutMs: number, signal?: AbortSignal): Promise<string> {
     const args = codexArgs(prompt, this.options.model);
     const status = await runAgentCli(this.command, CODEX_STATUS_ARGS, {
       name: CODEX_NAME,
-      timeoutMs: Math.min(this.timeoutMs, AGENT_LOGIN_TIMEOUT_MS),
+      timeoutMs: Math.min(timeoutMs, AGENT_LOGIN_TIMEOUT_MS),
       killGraceMs: this.options.killGraceMs,
       signal,
       mergeStderr: true,
@@ -109,12 +123,12 @@ export class CodexAgent implements StudyAgent {
     checkCodexLogin(status.stdout, status.exitCode);
     const { output, exitCode } = await runAgentCli(this.command, args, {
       name: CODEX_NAME,
-      timeoutMs: this.timeoutMs,
+      timeoutMs,
       killGraceMs: this.options.killGraceMs,
       signal,
       files: { [CODEX_SCHEMA_FILE]: JSON.stringify(schema) },
       outputFile: CODEX_OUTPUT_FILE,
     });
-    return readAgentProposals(readCodexOutput(output, exitCode), context.route);
+    return readCodexOutput(output, exitCode);
   }
 }

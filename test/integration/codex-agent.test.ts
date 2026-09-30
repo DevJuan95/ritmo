@@ -3,13 +3,13 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { AGENT_CANCELLED } from '../../src/main/study/agent-cli';
-import { buildAgentRequest } from '../../src/main/study/agent-prompt';
+import { buildAgentRequest, buildRoadmapRequest } from '../../src/main/study/agent-prompt';
 import { CODEX_API_KEY, CODEX_FAILED, CODEX_LOGIN, CODEX_STATUS_ARGS, CodexAgent, codexArgs } from '../../src/main/study/codex-agent';
 import type { StudyAgentContext } from '../../src/main/study/ports';
 import { PublicError } from '../../src/shared/ipc';
 import { INVALID_AGENT_RESPONSE, type StudyRoute } from '../../src/shared/study/contract';
 import { fakeCli, isAlive, waitUntil } from '../helpers/fake-cli';
-import { emptyRouteRoadmap, stage } from '../helpers/study';
+import { emptyRouteRoadmap, sampleRoadmap, stage } from '../helpers/study';
 
 const route: StudyRoute = {
   id: 'r1',
@@ -164,4 +164,57 @@ test('por defecto lanza el ejecutable codex del PATH', async (t) => {
   t.after(() => { process.env.PATH = previous; });
   assert.deepEqual(await new CodexAgent().propose(context), [proposal]);
   assert.equal(cli.calls().length, 2);
+});
+
+const brief = 'Senior Backend → Tech Lead, con Java como vehículo, 2 h al día.';
+
+test('pide el roadmap con codex exec, su prompt y su esquema en un archivo, tras comprobar la sesión', async (t) => {
+  const cli = fakeCodex(t, JSON.stringify(sampleRoadmap()));
+  const roadmap = await new CodexAgent({ command: cli.command, model: 'gpt-5.1-codex-mini' }).draftRoadmap(brief);
+  assert.deepEqual(roadmap, sampleRoadmap());
+  const { prompt, schema } = buildRoadmapRequest(brief);
+  const [status, call] = cli.calls();
+  assert.equal(cli.calls().length, 2);
+  assert.deepEqual(status.args, CODEX_STATUS_ARGS);
+  assert.deepEqual(call.args, codexArgs(prompt, 'gpt-5.1-codex-mini'));
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(cli.dir, 'schema.json'), 'utf8')), schema);
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(cli.dir, 'env.json'), 'utf8')), []);
+  assert.equal(fs.existsSync(call.cwd), false);
+});
+
+test('el roadmap se lee también de un bloque de código y se valida', async (t) => {
+  const cli = fakeCodex(t, '```json\n' + JSON.stringify(sampleRoadmap()) + '\n```');
+  assert.deepEqual(await new CodexAgent({ command: cli.command }).draftRoadmap(brief), sampleRoadmap());
+  const invalid = JSON.stringify({ ...sampleRoadmap(), level: 'experto' });
+  for (const message of [invalid, JSON.stringify({ proposals: [proposal] }), '', undefined]) {
+    const bad = fakeCodex(t, message);
+    await assert.rejects(new CodexAgent({ command: bad.command }).draftRoadmap(brief), publicError(INVALID_AGENT_RESPONSE));
+  }
+  const failed = fakeCodex(t, JSON.stringify(sampleRoadmap()), 1);
+  await assert.rejects(new CodexAgent({ command: failed.command }).draftRoadmap(brief), publicError(CODEX_FAILED));
+});
+
+test('sin sesión no envía el brief', async (t) => {
+  const cli = fakeCodex(t, JSON.stringify(sampleRoadmap()), 0, loginStatus('Not logged in', 1));
+  await assert.rejects(new CodexAgent({ command: cli.command }).draftRoadmap(brief), publicError(CODEX_LOGIN));
+  assert.deepEqual(cli.calls().map((call) => call.args), [CODEX_STATUS_ARGS]);
+});
+
+test('el roadmap tiene su propio tiempo máximo y se puede cancelar sin dejar el proceso vivo', async (t) => {
+  const slow = fakeCli(t, `${loginStatus()}
+const args = process.argv.slice(2);
+setTimeout(() => { fs.writeFileSync(args[args.indexOf('-o') + 1], ${JSON.stringify(JSON.stringify(sampleRoadmap()))}); }, 400);`);
+  const agent = new CodexAgent({ command: slow.command, timeoutMs: 100, roadmapTimeoutMs: 5_000 });
+  assert.deepEqual(await agent.draftRoadmap(brief), sampleRoadmap(), 'no usa el tiempo de las propuestas');
+  await assert.rejects(new CodexAgent({ command: slow.command, timeoutMs: 5_000, roadmapTimeoutMs: 100 }).draftRoadmap(brief),
+    publicError('Codex tardó demasiado en responder. Inténtalo de nuevo.'));
+
+  const cli = fakeCli(t, `${loginStatus()} fs.writeFileSync(path.join(dir, 'ready'), String(process.pid)); setInterval(() => {}, 1000);`);
+  const ready = path.join(cli.dir, 'ready');
+  const controller = new AbortController();
+  const running = new CodexAgent({ command: cli.command, killGraceMs: 100 }).draftRoadmap(brief, { signal: controller.signal });
+  await waitUntil(() => fs.existsSync(ready));
+  controller.abort();
+  await assert.rejects(running, publicError(AGENT_CANCELLED));
+  assert.equal(isAlive(Number(fs.readFileSync(ready, 'utf8'))), false);
 });
