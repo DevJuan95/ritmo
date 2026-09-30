@@ -2,9 +2,9 @@ import type { RitmoAPI } from '../../shared/api.js';
 import { MINUTES } from '../../shared/focus/contract.js';
 import { GENERIC_ERROR_MESSAGE, type PublicError } from '../../shared/ipc.js';
 import {
-  AGENT_NAMES, DEFAULT_AGENT_INSTRUCTIONS, DEFAULT_AGENT_MODELS, MAX_STAGES, safeAgentSettings, safeStudyRoute, STUDY_PROVIDERS,
-  type AgentProviderSettings, type AgentSettings, type AgentStatus, type StageProgress, type StudyProvider, type StudyLevel, type StudyProgress, type StudyRoute, type StudyRouteInput,
-  type TaskProposal } from '../../shared/study/contract.js';
+  AGENT_CANCELLED, AGENT_NAMES, DEFAULT_AGENT_INSTRUCTIONS, DEFAULT_AGENT_MODELS, MAX_STAGES, safeAgentSettings, safeRoadmapBrief, safeStudyRoute, STUDY_PROVIDERS,
+  type AgentProviderSettings, type AgentSettings, type AgentStatus, type RoadmapDraft, type StageProgress, type StudyProvider, type StudyLevel, type StudyProgress, type StudyRoute,
+  type StudyRouteInput, type StudyStageInput, type TaskProposal } from '../../shared/study/contract.js';
 import { todayKey, type PublicState } from '../../shared/state/contract.js';
 import { FIRST_PLANNED_DATE, LAST_PLANNED_DATE, safePlannedDate, safeTaskTitle, type DaySummary, type Task, type TaskLink } from '../../shared/tasks/contract.js';
 
@@ -177,8 +177,8 @@ export const LEVEL_LABELS: Record<StudyLevel, string> = {
 };
 
 /**
- * Etapa tal como se edita en el formulario: los temas y los temas que no priorizar en un solo campo,
- * separados por comas, y los recursos uno por línea, porque un recurso puede llevar comas.
+ * Etapa tal como se edita en el formulario: los temas, los temas que no priorizar y los recursos,
+ * uno por línea, porque cualquiera puede llevar comas («Replicación, particionado y consenso»).
  */
 export interface StageDraft {
   /** Clave estable para React; en las etapas guardadas es su `id`. */
@@ -217,7 +217,16 @@ export function emptyRouteDraft(stageKey: string): RouteDraft {
   };
 }
 
-export function routeToDraft(route: StudyRoute): RouteDraft {
+/** Etapa tal como se edita, con la clave dada; conserva el `id` si la etapa ya está guardada. */
+function stageToDraft(stage: StudyStageInput, key: string): StageDraft {
+  return {
+    key, ...(stage.id ? { id: stage.id } : {}), title: stage.title, summary: stage.summary, topics: stage.topics.join('\n'),
+    deprioritized: stage.deprioritized.join('\n'), project: stage.project, resources: stage.resources.join('\n')
+  };
+}
+
+/** Borrador de una ruta con sus etapas; cada etapa recibe la clave que devuelve `key`. */
+function inputToDraft(route: Omit<StudyRouteInput, 'stages'>, stages: StageDraft[]): RouteDraft {
   return {
     topic: route.topic,
     goal: route.goal,
@@ -227,16 +236,20 @@ export function routeToDraft(route: StudyRoute): RouteDraft {
     finalProject: route.finalProject,
     studyRules: route.studyRules,
     instructions: route.instructions,
-    stages: route.stages.map(stage => ({
-      key: stage.id, id: stage.id, title: stage.title, summary: stage.summary, topics: stage.topics.join(', '),
-      deprioritized: stage.deprioritized.join(', '), project: stage.project, resources: stage.resources.join('\n')
-    }))
+    stages
   };
 }
 
-/** Temas escritos en un campo, separados por comas o saltos de línea, sin vacíos. */
-export function parseTopics(text: string): string[] {
-  return text.split(/[,\n]/).map(topic => topic.trim()).filter(Boolean);
+export function routeToDraft(route: StudyRoute): RouteDraft {
+  return inputToDraft(route, route.stages.map(stage => stageToDraft(stage, stage.id)));
+}
+
+/**
+ * Borrador de una ruta nueva a partir del roadmap que propuso el agente, para revisarlo en el editor
+ * antes de guardarlo. Sus etapas no tienen `id`, así que cada una recibe una clave nueva.
+ */
+export function roadmapToDraft(roadmap: RoadmapDraft, stageKey: () => string): RouteDraft {
+  return inputToDraft(roadmap, roadmap.stages.map(stage => stageToDraft(stage, stageKey())));
 }
 
 /** Elementos escritos uno por línea, sin vacíos. */
@@ -257,8 +270,8 @@ export function draftToInput(draft: RouteDraft): StudyRouteInput {
     studyRules: draft.studyRules,
     instructions: draft.instructions,
     stages: draft.stages.map(stage => ({
-      ...(stage.id ? { id: stage.id } : {}), title: stage.title, summary: stage.summary, topics: parseTopics(stage.topics),
-      deprioritized: parseTopics(stage.deprioritized), project: stage.project, resources: parseLines(stage.resources)
+      ...(stage.id ? { id: stage.id } : {}), title: stage.title, summary: stage.summary, topics: parseLines(stage.topics),
+      deprioritized: parseLines(stage.deprioritized), project: stage.project, resources: parseLines(stage.resources)
     }))
   };
 }
@@ -628,4 +641,97 @@ export function proposalGate(provider: StudyProvider, status: AgentStatus | unde
   }
   if (routeChanged) return { kind: 'blocked', reason: 'Guarda los cambios de la ruta: el agente usa la ruta guardada.' };
   return notices.includes(provider) ? { kind: 'ready' } : { kind: 'notice' };
+}
+
+/** Petición al agente en curso, una a la vez en toda la app: propuestas de una ruta o un roadmap. */
+export type AgentRequest =
+  | { kind: 'tasks'; routeId: string; startedAt: number }
+  | { kind: 'roadmap'; startedAt: number };
+
+/**
+ * Por qué otra petición en curso impide pedir desde un panel, o `undefined` si no hay ninguna o es la
+ * del propio panel. `routeId` es la ruta del panel de propuestas, o `null` en el panel del roadmap.
+ */
+export function agentBusyText(request: AgentRequest | undefined, routes: readonly StudyRoute[] | undefined, routeId: string | null): string | undefined {
+  if (!request) return undefined;
+  if (request.kind === 'roadmap') return routeId === null ? undefined : 'Espera a que el agente termine el roadmap que estás generando.';
+  if (request.routeId === routeId) return undefined;
+  const topic = routes?.find(route => route.id === request.routeId)?.topic ?? 'otra ruta';
+  return `Espera a que terminen las propuestas de «${topic}».`;
+}
+
+// Roadmap del agente.
+
+/** Lo que se envía al proveedor al generar un roadmap; se muestra junto al botón y en el aviso. */
+export function roadmapNoticeText(provider: StudyProvider): string {
+  return `Al generar un roadmap, Ritmo envía a ${AGENT_NAMES[provider]} (${AGENT_COMPANIES[provider]}) solo el brief que escribes aquí. Ritmo no envía nada más, y solo cuando pulsas el botón.`;
+}
+
+/** Por qué no se puede enviar el brief todavía, con las reglas del proceso principal, o `null`. */
+export function briefProblem(brief: string): string | null {
+  try { safeRoadmapBrief(brief); return null; }
+  // `safeRoadmapBrief()` solo lanza `PublicError`, con un mensaje pensado para el usuario.
+  catch (error) { return (error as PublicError).message; }
+}
+
+/** Mensaje de una petición de roadmap cancelada; el brief se conserva para volver a intentarlo. */
+export const ROADMAP_CANCELLED = 'Cancelaste la generación del roadmap. Tu brief sigue aquí para intentarlo de nuevo.';
+
+/**
+ * Qué decir cuando la petición del roadmap no terminó: la cancelación, que el usuario pidió o que
+ * llegó como `AGENT_CANCELLED`, o el error público (tiempo agotado, respuesta inválida…), con que el
+ * brief sigue ahí.
+ */
+export function roadmapFailureText(error: unknown, cancelled: boolean): string {
+  const message = errorMessage(error);
+  if (cancelled || message === AGENT_CANCELLED) return ROADMAP_CANCELLED;
+  return `${message} Tu brief sigue aquí.`;
+}
+
+/** Lista con nombre dentro de una etapa del roadmap, p. ej. «Dominar». */
+export interface RoadmapList {
+  label: string;
+  items: string[];
+}
+
+export interface RoadmapStageView {
+  id: string;
+  /** Posición en el orden recomendado, desde 1. */
+  number: number;
+  title: string;
+  summary: string;
+  /** Dominar, no priorizar todavía y recursos, solo las que tienen elementos. */
+  lists: RoadmapList[];
+  project: string;
+}
+
+/** Roadmap de una ruta guardada, listo para leer: solo las secciones con contenido. */
+export interface RoadmapView {
+  approach: string;
+  /** Títulos de las etapas en el orden recomendado. */
+  order: string[];
+  stages: RoadmapStageView[];
+  finalProject: string;
+  studyRules: string;
+}
+
+export function roadmapView(route: StudyRoute): RoadmapView {
+  return {
+    approach: route.approach,
+    order: route.stages.map(stage => stage.title),
+    stages: route.stages.map((stage, index) => ({
+      id: stage.id,
+      number: index + 1,
+      title: stage.title,
+      summary: stage.summary,
+      lists: ([
+        { label: 'Dominar', items: stage.topics },
+        { label: 'No priorizar todavía', items: stage.deprioritized },
+        { label: 'Recursos', items: stage.resources }
+      ] satisfies RoadmapList[]).filter(list => list.items.length > 0),
+      project: stage.project
+    })),
+    finalProject: route.finalProject,
+    studyRules: route.studyRules
+  };
 }

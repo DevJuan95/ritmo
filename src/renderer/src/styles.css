@@ -356,6 +356,31 @@ h2 { font-family:var(--serif); font-size:var(--fs-heading); font-weight:var(--we
 .study-hint { margin:0; color:var(--graphite); font-size:var(--fs-sm); line-height:var(--lh-relaxed); }
 .study-footer-actions { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-left:auto; }
 
+/* Roadmap: la ruta guardada se lee por secciones, en el orden recomendado, o se edita. */
+.study-header-actions { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:8px; }
+.study-header-actions [aria-pressed="true"] { border-color:var(--ink); }
+.study-mode { display:flex; gap:4px; margin-bottom:calc(var(--study-main-gap) * -0.5); }
+.study-mode [aria-pressed="true"] { color:var(--ink); text-decoration:underline; text-decoration-color:var(--highlight); text-decoration-thickness:.4em; text-underline-offset:-.25em; text-decoration-skip-ink:none; }
+.study-stage-body textarea { min-height:0; line-height:var(--lh-relaxed); }
+.roadmap-drafted { margin:10px 0 0; padding:10px 14px; max-width:var(--measure-detail); border-left:var(--stroke-accent) solid var(--highlight); border-radius:var(--corner-sm); background:var(--highlight-soft); color:var(--ink); font-size:var(--fs-sm); line-height:var(--lh-loose); }
+.roadmap-goal { margin:8px 0 0; max-width:var(--measure-detail); color:var(--graphite); font-family:var(--serif); font-style:italic; font-size:var(--fs-md); line-height:var(--lh-loose); overflow-wrap:anywhere; }
+.roadmap-section { margin-top:22px; }
+.roadmap-section h4, .roadmap-stage h4 { margin:0; font-family:var(--serif); font-size:var(--fs-lg); font-weight:var(--weight-semibold); letter-spacing:var(--tracking-heading); overflow-wrap:anywhere; }
+.roadmap-text { margin:6px 0 0; max-width:var(--measure-detail); color:var(--ink); font-size:var(--fs-base); line-height:var(--lh-loose); white-space:pre-line; overflow-wrap:anywhere; }
+.roadmap-order { margin:8px 0 0; padding-left:1.4em; color:var(--ink); font-size:var(--fs-base); line-height:var(--lh-loose); }
+.roadmap-order li::marker { color:var(--margin); font-weight:var(--weight-semibold); }
+.roadmap-stages { list-style:none; margin:22px 0 0; padding:0; border-top:var(--stroke) solid var(--rule); }
+.roadmap-stage { display:grid; grid-template-columns:var(--study-stage-number) minmax(0,1fr); gap:12px; align-items:start; padding:16px 0; border-bottom:var(--stroke) solid var(--rule); }
+.roadmap-stage-body { display:grid; gap:8px; min-width:0; }
+.roadmap-list h5 { margin:0; color:var(--graphite); font-size:var(--fs-sm); font-weight:var(--weight-medium); }
+.roadmap-list ul { margin:4px 0 0; padding-left:1.2em; color:var(--ink); font-size:var(--fs-base); line-height:var(--lh-loose); overflow-wrap:anywhere; }
+.roadmap-list .roadmap-text { margin-top:4px; }
+.roadmap-brief { margin-top:16px; }
+.roadmap-brief textarea { line-height:var(--lh-loose); }
+.roadmap-sheet textarea { background:var(--sheet); border-color:var(--rule); box-shadow:none; color:var(--ink); font-size:var(--fs-base); }
+.roadmap-sheet textarea::placeholder { color:var(--pencil); }
+.roadmap-problem { margin:12px 0 0; max-width:var(--measure-detail); color:var(--margin-deep); font-size:var(--fs-sm); line-height:var(--lh-loose); }
+
 /*
   Propuestas del agente: van «a lápiz» (trazo discontinuo, grafito) hasta que se añaden al Planner,
   donde pasan a tinta con la marca verde de hecho.
@@ -456,7 +481,9 @@ h2 { font-family:var(--serif); font-size:var(--fs-heading); font-weight:var(--we
   .study-editor { padding:18px 16px; }
   .study-fields { grid-template-columns:1fr 1fr; }
   .study-field-wide { grid-column:1 / -1; }
-  .study-stage { gap:8px; }
+  .study-stage, .roadmap-stage { gap:8px; }
+  .planner-header { flex-wrap:wrap; }
+  .study-header-actions { justify-content:flex-start; }
   .agent-sheet { padding:18px 16px; }
   .agent-fields { grid-template-columns:1fr; padding-left:0; }
   .agent-detail { padding-left:0; }

@@ -1,12 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { AGENT_NAMES, type StudyProvider, type StudyRoute } from '../../../shared/study/contract';
 import { FIRST_PLANNED_DATE, LAST_PLANNED_DATE, MAX_TASK_TITLE } from '../../../shared/tasks/contract';
 import type { ProposalsController } from '../use-proposals';
 import type { RunAction } from '../use-ritmo';
 import {
-  acceptableProposals, agentNoticeText, elapsedText, oneAtATime, pomodorosText, proposalProblem, proposalsSummary, proposalStageLabel, relativeDayLabel,
+  acceptableProposals, agentNoticeText, oneAtATime, pomodorosText, proposalProblem, proposalsSummary, proposalStageLabel, relativeDayLabel,
   withoutProposals, withProposal, type ProposalDraft, type ProposalGate
 } from '../view';
+import { AgentWaiting } from './agent-waiting';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 
@@ -17,8 +18,8 @@ interface ProposalsPanelProps {
   today: string;
   controller: ProposalsController;
   run: RunAction;
-  /** Tema de la ruta con una petición en curso, si no es esta. */
-  busyWith: string | undefined;
+  /** Por qué otra petición al agente en curso impide pedir tareas para esta ruta, si la hay. */
+  busy: string | undefined;
   onAcceptNotice: () => Promise<boolean>;
   /** Se añadieron tareas al Planner: el avance de las etapas cambió. */
   onTasksAdded: () => void;
@@ -29,19 +30,19 @@ interface ProposalsPanelProps {
  * etapa y día) y las aceptadas se añaden al Planner vinculadas a su etapa. Las propuestas van «a
  * lápiz» hasta que se pasan a tinta en el Planner.
  */
-export function ProposalsPanel({ route, provider, gate, today, controller, run, busyWith, onAcceptNotice, onTasksAdded }: ProposalsPanelProps) {
+export function ProposalsPanel({ route, provider, gate, today, controller, run, busy: otherRequest, onAcceptNotice, onTasksAdded }: ProposalsPanelProps) {
   const { request, propose, cancel, update } = controller;
   const items = controller.proposals[route.id] ?? [];
-  const waiting = request?.routeId === route.id;
+  const waiting = request?.kind === 'tasks' && request.routeId === route.id;
   const [busy, setBusy] = useState(false);
   const [exclusive] = useState(() => oneAtATime(setBusy));
   const name = AGENT_NAMES[provider];
   const pending = items.filter(item => item.acceptedOn === null);
   const ready = acceptableProposals(items, route);
-  const blocked = gate.kind === 'blocked' ? gate.reason : busyWith ? `Espera a que terminen las propuestas de «${busyWith}».` : null;
+  const blocked = gate.kind === 'blocked' ? gate.reason : otherRequest ?? null;
 
   async function start() {
-    if (gate.kind === 'blocked' || busyWith || request) return;
+    if (gate.kind === 'blocked' || otherRequest || request) return;
     if (gate.kind === 'notice' && !await onAcceptNotice()) return;
     await propose(route, today);
   }
@@ -79,7 +80,7 @@ export function ProposalsPanel({ route, provider, gate, today, controller, run, 
       Se envía esta ruta a {name} solo al pulsar el botón.{pending.length > 0 && ' Pedir otras reemplaza las que no hayas añadido.'}
     </p>}
 
-    {waiting && request && <Waiting name={name} startedAt={request.startedAt} onCancel={() => void cancel()} />}
+    {waiting && <AgentWaiting text={`${name} está preparando propuestas.`} startedAt={request.startedAt} onCancel={() => void cancel()} />}
 
     {items.length > 0 && <ol className="proposal-list">
       {items.map(item => item.acceptedOn === null
@@ -102,23 +103,6 @@ export function ProposalsPanel({ route, provider, gate, today, controller, run, 
         : <Button type="button" variant="ghost" className="row-action" disabled={waiting} onClick={() => discard(items.map(item => item.key))}>Limpiar la lista</Button>}
     </div>}
   </section>;
-}
-
-/** Espera de la petición, con el tiempo que lleva y la cancelación. */
-function Waiting({ name, startedAt, onCancel }: { name: string; startedAt: number; onCancel: () => void }) {
-  const [now, setNow] = useState(() => Date.now());
-  const [cancelling, setCancelling] = useState(false);
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-  return <div className="proposal-waiting" role="status">
-    <span className="proposal-pencil" aria-hidden="true"><i /></span>
-    <p>{name} está preparando propuestas. <span className="proposal-elapsed">{elapsedText(now - startedAt)}</span></p>
-    <Button type="button" variant="ghost" className="row-action row-action-danger" disabled={cancelling} onClick={() => { setCancelling(true); onCancel(); }}>
-      {cancelling ? 'Cancelando…' : 'Cancelar'}
-    </Button>
-  </div>;
 }
 
 interface ProposalItemProps {
