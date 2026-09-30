@@ -36,3 +36,34 @@ test('edita y borra una ruta por su id', t => {
   study.remove(route.id);
   assert.deepEqual(study.list(), []);
 });
+
+test('el avance viene de las tareas vinculadas a cada etapa', t => {
+  const { study, tasks, store } = createHarness(t);
+  const route = study.create({ ...input, stages: [{ title: 'Consenso', topics: [] }, { title: 'Replicación', topics: [] }] });
+  const [consensus, replication] = route.stages;
+  assert.deepEqual(study.progress(), {});
+  tasks.add('Leer el paper de Raft', undefined, { routeId: route.id, stageId: consensus.id });
+  tasks.add('Implementar el log', '2026-10-01', { routeId: route.id, stageId: consensus.id });
+  tasks.add('Leer sobre quórums', undefined, { routeId: route.id, stageId: replication.id });
+  tasks.toggle(store.state.tasks[0].id);
+  assert.deepEqual(study.progress(), { [consensus.id]: { total: 2, done: 1 }, [replication.id]: { total: 1, done: 0 } });
+});
+
+test('quitar una etapa o borrar la ruta deja sus tareas en el Planner, sin vincular', t => {
+  const { study, tasks, store, repository } = createHarness(t);
+  const route = study.create({ ...input, stages: [{ title: 'Consenso', topics: [] }, { title: 'Replicación', topics: [] }] });
+  const other = study.create({ ...input, topic: 'Go' });
+  const [consensus, replication] = route.stages;
+  tasks.add('Raft', undefined, { routeId: route.id, stageId: consensus.id });
+  tasks.add('Quórums', undefined, { routeId: route.id, stageId: replication.id });
+  tasks.add('Goroutines', undefined, { routeId: other.id, stageId: other.stages[0].id });
+
+  study.update(route.id, { ...input, stages: [consensus] });
+  const links = () => store.state.tasks.map(task => [task.title, task.stageId]);
+  assert.deepEqual(links(), [['Raft', consensus.id], ['Quórums', null], ['Goroutines', other.stages[0].id]]);
+
+  study.remove(route.id);
+  assert.deepEqual(links(), [['Raft', null], ['Quórums', null], ['Goroutines', other.stages[0].id]]);
+  assert.equal(repository.listByDay(store.today()).length, 3);
+  assert.deepEqual(study.progress(), { [other.stages[0].id]: { total: 1, done: 0 } });
+});

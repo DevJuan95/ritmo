@@ -41,6 +41,15 @@ export interface TaskProposal {
   reason: string;
 }
 
+/** Tareas vinculadas a una etapa y cuántas están completadas, de todos los días. */
+export interface StageProgress {
+  done: number;
+  total: number;
+}
+
+/** Avance de las etapas por `stageId`. Una etapa sin tareas vinculadas no aparece. */
+export type StudyProgress = Record<string, StageProgress>;
+
 export const STUDY_PROVIDERS: readonly StudyProvider[] = ['claude', 'codex'];
 export const STUDY_LEVELS: readonly StudyLevel[] = ['beginner', 'intermediate', 'advanced'];
 export const MAX_STAGES = 30;
@@ -155,6 +164,7 @@ export interface StudyAPI {
   createStudyRoute(route: StudyRouteInput): Promise<StudyRoute>;
   updateStudyRoute(id: string, route: StudyRouteInput): Promise<StudyRoute>;
   deleteStudyRoute(id: string): Promise<void>;
+  getStudyProgress(): Promise<StudyProgress>;
 }
 
 export type StudyChannels = ChannelMap<StudyAPI, {
@@ -162,4 +172,5 @@ export type StudyChannels = ChannelMap<StudyAPI, {
   createStudyRoute: 'create-study-route';
   updateStudyRoute: 'update-study-route';
   deleteStudyRoute: 'delete-study-route';
+  getStudyProgress: 'get-study-progress';
 }>;

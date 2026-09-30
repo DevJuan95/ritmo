@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { safePlannedDate, safeTaskTitle } from '../../../../src/shared/tasks/contract';
+import { safePlannedDate, safeTaskLink, safeTaskTitle } from '../../../../src/shared/tasks/contract';
 
 test('los títulos de tarea tienen formato estable', () => {
   assert.equal(safeTaskTitle('  Terminar   reporte  '), 'Terminar reporte');
@@ -22,4 +22,15 @@ test('solo acepta fechas entre 2000 y 2100', () => {
   for (const value of ['0202-09-29', '1999-12-31', '2101-01-01']) {
     assert.throws(() => safePlannedDate(value), /entre 2000 y 2100/);
   }
+});
+
+test('un vínculo de tarea es nulo o una ruta y una etapa, sin campos de más', () => {
+  assert.equal(safeTaskLink(undefined), null);
+  assert.equal(safeTaskLink(null), null);
+  assert.deepEqual(safeTaskLink({ routeId: 'r1', stageId: 's1' }), { routeId: 'r1', stageId: 's1' });
+  assert.deepEqual(safeTaskLink({ routeId: 'r'.repeat(64), stageId: 's1' }), { routeId: 'r'.repeat(64), stageId: 's1' });
+  for (const invalid of [
+    'r1', [], ['r1', 's1'], {}, { routeId: 'r1' }, { stageId: 's1' }, { routeId: '', stageId: 's1' }, { routeId: 'r1', stageId: 7 },
+    { routeId: 'r'.repeat(65), stageId: 's1' }, { routeId: 'r1', stageId: 's1', extra: true }
+  ]) assert.throws(() => safeTaskLink(invalid), /Elige una etapa válida/);
 });

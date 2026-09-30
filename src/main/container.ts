@@ -13,10 +13,10 @@ import { LifecycleService } from './lifecycle/lifecycle-service';
 import type { LifecycleServicePort } from './lifecycle/ports';
 import type { PublicStatePort, PublishState, StateShutdownPort, StateStorePort } from './state/ports';
 import { StateStore } from './state/state-store';
-import type { StudyRepositoryPort, StudyServicePort } from './study/ports';
+import type { StudyRepositoryPort, StudyServicePort, StudyStagesPort } from './study/ports';
 import { StudyRepository } from './study/study-repository';
 import { StudyService } from './study/study-service';
-import type { TaskRepositoryPort, TaskServicePort } from './tasks/ports';
+import type { StudyTasksPort, TaskRepositoryPort, TaskServicePort } from './tasks/ports';
 import { TaskRepository } from './tasks/task-repository';
 import { TaskService } from './tasks/task-service';
 
@@ -32,10 +32,10 @@ export interface MainCradle {
   notifier: Notifier;
   sound: SoundPlayer;
   taskRepository: TaskRepositoryPort;
-  studyRepository: StudyRepositoryPort;
+  studyRepository: StudyRepositoryPort & StudyStagesPort;
   store: StateStorePort & PublicStatePort & StateShutdownPort;
   focus: FocusServicePort & FocusLifecyclePort;
-  tasks: TaskServicePort;
+  tasks: TaskServicePort & StudyTasksPort;
   domains: DomainServicePort;
   study: StudyServicePort;
   lifecycle: LifecycleServicePort;
@@ -83,9 +83,9 @@ export function createMainContainer(options: MainContainerOptions): AwilixContai
     store: asFunction(({ userDataPath, taskRepository, publish, now }: MainCradle) =>
       new StateStore(path.join(userDataPath, 'state.json'), { tasks: taskRepository, publish, now })).singleton(),
     focus: asFunction(({ store, blocker, notifier, sound }: MainCradle) => new FocusService(store, { blocker, notifier, sound })).singleton(),
-    tasks: asFunction(({ store, taskRepository }: MainCradle) => new TaskService(store, taskRepository)).singleton(),
+    tasks: asFunction(({ store, taskRepository, studyRepository }: MainCradle) => new TaskService(store, taskRepository, studyRepository)).singleton(),
     domains: asFunction(({ store }: MainCradle) => new DomainService(store)).singleton(),
-    study: asFunction(({ studyRepository }: MainCradle) => new StudyService(studyRepository)).singleton(),
+    study: asFunction(({ studyRepository, tasks }: MainCradle) => new StudyService(studyRepository, tasks)).singleton(),
     lifecycle: asFunction(({ store, focus, notifier, taskRepository, studyRepository, timers, shutdownTimeoutMs }: MainCradle) =>
       new LifecycleService({ store, focus, notifier, databases: [taskRepository, studyRepository], timers, shutdownTimeoutMs })).singleton()
   });

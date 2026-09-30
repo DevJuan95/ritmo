@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ComponentProps, type FormEvent } from 'react';
 import { es } from 'react-day-picker/locale';
 import { todayKey, type PublicState } from '../../../shared/state/contract';
+import type { StudyRoute } from '../../../shared/study/contract';
 import { FIRST_PLANNED_DATE, LAST_PLANNED_DATE, type Task, type TaskSummary } from '../../../shared/tasks/contract';
 import { Button } from '../components/ui/button';
 import { Calendar, CalendarDayButton } from '../components/ui/calendar';
@@ -43,6 +44,7 @@ interface PlannerScreenProps {
 export function PlannerScreen({ state, run, showError, today, date, onDateChange, title, onTitleChange }: PlannerScreenProps) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [summary, setSummary] = useState<TaskSummary>({});
+  const [routes, setRoutes] = useState<StudyRoute[]>([]);
   const [month, setMonth] = useState(() => monthOf(date));
   const [reload, setReload] = useState(0);
   const revision = tasksRevision(state);
@@ -61,6 +63,13 @@ export function PlannerScreen({ state, run, showError, today, date, onDateChange
     window.ritmo.getTaskSummary(from, to).then(items => { if (active) setSummary(items); }).catch(error => { if (active) { setSummary({}); showError(error); } });
     return () => { active = false; };
   }, [from, to, revision, reload, showError]);
+
+  // Las rutas solo cambian en su pantalla, así que basta con pedirlas al abrir el Planner.
+  useEffect(() => {
+    let active = true;
+    window.ritmo.listStudyRoutes().then(items => { if (active) setRoutes(items); }).catch(error => { if (active) showError(error); });
+    return () => { active = false; };
+  }, [showError]);
 
   const runAndReload: RunAction = async work => {
     const ok = await run(work);
@@ -114,7 +123,7 @@ export function PlannerScreen({ state, run, showError, today, date, onDateChange
       <div className="planner-day-panel" aria-labelledby="planner-day-heading" role="region">
         <div className="sheet-head"><h3 id="planner-day-heading" className="planner-day-heading">{dateLabel(date)}</h3><p className="section-subtitle">{completionText(tasks, 'Sin tareas planificadas.')}</p></div>
         <form className="inline-form planner-form" onSubmit={event => void add(event)}><label className="sr-only" htmlFor="planner-task-input">Nueva tarea para el día elegido</label><Input id="planner-task-input" value={title} onChange={event => onTitleChange(event.target.value)} maxLength={160} placeholder="Añadir tarea para este día…" autoComplete="off" /><Button type="submit">Añadir</Button></form>
-        <TaskList tasks={tasks} planner run={runAndReload} />
+        <TaskList tasks={tasks} planner routes={routes} run={runAndReload} />
         {tasks.length === 0 && <p className="empty-state">No hay tareas para este día.</p>}
       </div>
     </div>

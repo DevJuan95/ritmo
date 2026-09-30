@@ -5,7 +5,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { PublicError } from '../../shared/ipc';
 import type { StudyLevel, StudyRoute, StudyRouteInput, StudyStage } from '../../shared/study/contract';
 import type { Clock, IdGenerator } from '../common/ports';
-import type { StudyRepositoryPort } from './ports';
+import type { StudyRepositoryPort, StudyStagesPort } from './ports';
 
 interface RouteRow {
   id: string;
@@ -47,7 +47,7 @@ export interface StudyRepositoryDeps {
  * conexión. Las etapas guardan su posición en la ruta y sus temas como JSON; borrar una ruta borra
  * sus etapas.
  */
-export class StudyRepository implements StudyRepositoryPort {
+export class StudyRepository implements StudyRepositoryPort, StudyStagesPort {
   private readonly db: DatabaseSync;
   private closed = false;
   private readonly now: Clock;
@@ -121,6 +121,10 @@ export class StudyRepository implements StudyRepositoryPort {
 
   delete(id: string): void {
     this.db.prepare('DELETE FROM study_routes WHERE id = ?').run(id);
+  }
+
+  hasStage(routeId: string, stageId: string): boolean {
+    return this.db.prepare('SELECT 1 FROM study_stages WHERE id = ? AND route_id = ?').get(stageId, routeId) !== undefined;
   }
 
   close(): void {

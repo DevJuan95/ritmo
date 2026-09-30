@@ -18,6 +18,7 @@ test('los canales de rutas de estudio validan y reenvían al servicio', async t 
   assert.deepEqual(await ipc.invoke('list-study-routes'), [updated]);
   await assert.rejects(ipc.invoke('create-study-route', { ...input, stages: [] }), /de 1 a 30 etapas/);
   await assert.rejects(ipc.invoke('update-study-route', 42, input), /La ruta no es válida/);
+  assert.deepEqual(await ipc.invoke('get-study-progress'), {});
   await ipc.invoke('delete-study-route', created.id);
   assert.deepEqual(await ipc.invoke('list-study-routes'), []);
 });

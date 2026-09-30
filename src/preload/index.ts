@@ -22,7 +22,7 @@ const ritmo: RitmoAPI = {
   finishFocus: () => invoke('finish-focus'),
   startBreak: kind => invoke('start-break', kind),
   finishBreak: () => invoke('finish-break'),
-  addTask: (title, date) => invoke('add-task', title, date),
+  addTask: (title, date, link) => invoke('add-task', title, date, link),
   toggleTask: id => invoke('toggle-task', id),
   deleteTask: id => invoke('delete-task', id),
   getTasksForDay: date => invoke('get-tasks-for-day', date),
@@ -35,6 +35,7 @@ const ritmo: RitmoAPI = {
   createStudyRoute: route => invoke('create-study-route', route),
   updateStudyRoute: (id, route) => invoke('update-study-route', id, route),
   deleteStudyRoute: id => invoke('delete-study-route', id),
+  getStudyProgress: () => invoke('get-study-progress'),
   onState: callback => {
     const channel = 'state' satisfies keyof RitmoEvents;
     const listener = (_event: Electron.IpcRendererEvent, state: RitmoEvents[typeof channel]) => callback(state);
