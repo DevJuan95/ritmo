@@ -9,16 +9,17 @@ import type { StudyAgentContext } from '../../src/main/study/ports';
 import { PublicError } from '../../src/shared/ipc';
 import { INVALID_AGENT_RESPONSE, type StudyRoute } from '../../src/shared/study/contract';
 import { fakeCli, isAlive, waitUntil } from '../helpers/fake-cli';
+import { emptyRouteRoadmap, stage } from '../helpers/study';
 
 const route: StudyRoute = {
   id: 'r1',
   topic: 'Rust',
   goal: 'Escribir un servidor HTTP.',
   level: 'intermediate',
-  dailyPomodoros: 4,
+  dailyPomodoros: 4, ...emptyRouteRoadmap(),
   stages: [
-    { id: 'e1', title: 'Propiedad', topics: ['Préstamos'] },
-    { id: 'e2', title: 'Concurrencia', topics: ['Hilos'] },
+    stage({ id: 'e1', title: 'Propiedad', topics: ['Préstamos'] }),
+    stage({ id: 'e2', title: 'Concurrencia', topics: ['Hilos'] }),
   ],
   instructions: '',
   createdAt: '2026-09-01T09:00:00.000Z',

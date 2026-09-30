@@ -7,6 +7,7 @@ import { StudyRepository } from '../../../../src/main/study/study-repository';
 import { TaskRepository } from '../../../../src/main/tasks/task-repository';
 import { FakeClock, sequentialIds } from '../../../helpers/fakes';
 import { tempDir } from '../../../helpers/temp';
+import { emptyRouteRoadmap, stage } from '../../../helpers/study';
 
 function openRepository(t: TestContext, clock = new FakeClock(), newId = sequentialIds('id')) {
   const dbPath = path.join(tempDir(t), 'datos', 'ritmo.db');
@@ -16,8 +17,8 @@ function openRepository(t: TestContext, clock = new FakeClock(), newId = sequent
 }
 
 const input = (patch: Partial<StudyRouteInput> = {}): StudyRouteInput => ({
-  topic: 'Rust', goal: 'Escribir una CLI.', level: 'beginner', dailyPomodoros: 4,
-  stages: [{ title: 'Ownership', topics: ['Move', 'Borrowing'] }, { title: 'Traits', topics: [] }],
+  topic: 'Rust', goal: 'Escribir una CLI.', level: 'beginner', dailyPomodoros: 4, ...emptyRouteRoadmap(),
+  stages: [stage({ title: 'Ownership', topics: ['Move', 'Borrowing'] }), stage({ title: 'Traits', topics: [] })],
   instructions: 'En español.', ...patch
 });
 
@@ -26,8 +27,8 @@ test('crea una ruta con sus etapas en orden y la recupera tras reabrir la base',
   const at = new Date(clock.now()).toISOString();
   const route = repository.create(input());
   assert.deepEqual(route, {
-    id: 'id-1', topic: 'Rust', goal: 'Escribir una CLI.', level: 'beginner', dailyPomodoros: 4,
-    stages: [{ id: 'id-2', title: 'Ownership', topics: ['Move', 'Borrowing'] }, { id: 'id-3', title: 'Traits', topics: [] }],
+    id: 'id-1', topic: 'Rust', goal: 'Escribir una CLI.', level: 'beginner', dailyPomodoros: 4, ...emptyRouteRoadmap(),
+    stages: [stage({ id: 'id-2', title: 'Ownership', topics: ['Move', 'Borrowing'] }), stage({ id: 'id-3', title: 'Traits', topics: [] })],
     instructions: 'En español.', createdAt: at, updatedAt: at
   });
   repository.close();
@@ -42,7 +43,7 @@ test('lista las rutas de la más antigua a la más reciente, cada una con sus et
   const { repository, clock } = openRepository(t);
   const first = repository.create(input({ topic: 'Rust' }));
   clock.advanceMinutes(1);
-  const second = repository.create(input({ topic: 'Go', stages: [{ title: 'Goroutines', topics: [] }] }));
+  const second = repository.create(input({ topic: 'Go', stages: [stage({ title: 'Goroutines', topics: [] })] }));
   const empty = repository.create(input({ topic: 'Sin etapas', stages: [] }));
   assert.deepEqual(repository.list(), [first, second, empty]);
   assert.deepEqual(empty.stages, []);
@@ -55,11 +56,11 @@ test('al editar conserva el id de las etapas que lo traen, crea las nuevas y bor
   clock.advanceMinutes(5);
   const updated = repository.update(route.id, input({
     topic: 'Rust avanzado', level: 'intermediate', dailyPomodoros: 6, goal: '', instructions: '',
-    stages: [{ id: traits.id, title: 'Traits y genéricos', topics: ['dyn'] }, { title: 'Async', topics: [] }]
+    stages: [stage({ id: traits.id, title: 'Traits y genéricos', topics: ['dyn'] }), stage({ title: 'Async', topics: [] })]
   }));
   assert.deepEqual(updated, {
     ...route, topic: 'Rust avanzado', level: 'intermediate', dailyPomodoros: 6, goal: '', instructions: '',
-    stages: [{ id: traits.id, title: 'Traits y genéricos', topics: ['dyn'] }, { id: 'id-4', title: 'Async', topics: [] }],
+    stages: [stage({ id: traits.id, title: 'Traits y genéricos', topics: ['dyn'] }), stage({ id: 'id-4', title: 'Async', topics: [] })],
     updatedAt: new Date(clock.now()).toISOString()
   });
   assert.deepEqual(repository.list(), [updated]);
@@ -71,14 +72,14 @@ test('rechaza editar una ruta inexistente o con etapas de otra ruta, sin cambiar
   const rust = repository.create(input());
   const go = repository.create(input({ topic: 'Go' }));
   assert.throws(() => repository.update('nada', input()), /La ruta no existe/);
-  assert.throws(() => repository.update(rust.id, input({ topic: 'Cambiado', stages: [{ id: go.stages[0].id, title: 'Ajena', topics: [] }] })), /La etapa no es válida/);
-  assert.throws(() => repository.update(rust.id, input({ stages: [{ id: 'inventada', title: 'X', topics: [] }] })), /La etapa no es válida/);
+  assert.throws(() => repository.update(rust.id, input({ topic: 'Cambiado', stages: [stage({ id: go.stages[0].id, title: 'Ajena', topics: [] })] })), /La etapa no es válida/);
+  assert.throws(() => repository.update(rust.id, input({ stages: [stage({ id: 'inventada', title: 'X', topics: [] })] })), /La etapa no es válida/);
   assert.deepEqual(repository.list(), [rust, go]);
 });
 
 test('una etapa con id no se acepta al crear la ruta', t => {
   const { repository } = openRepository(t);
-  assert.throws(() => repository.create(input({ stages: [{ id: 'propia', title: 'X', topics: [] }] })), /La etapa no es válida/);
+  assert.throws(() => repository.create(input({ stages: [stage({ id: 'propia', title: 'X', topics: [] })] })), /La etapa no es válida/);
   assert.deepEqual(repository.list(), []);
 });
 
@@ -97,7 +98,7 @@ test('borrar una ruta borra sus etapas; borrar una inexistente no falla', t => {
   assert.deepEqual(repository.list(), [other]);
   assert.throws(() => repository.update(route.id, input()), /La ruta no existe/);
   // Las etapas borradas no quedan huérfanas: su id no pertenece a ninguna ruta.
-  assert.throws(() => repository.update(other.id, input({ stages: [{ id: route.stages[0].id, title: 'X', topics: [] }] })), /La etapa no es válida/);
+  assert.throws(() => repository.update(other.id, input({ stages: [stage({ id: route.stages[0].id, title: 'X', topics: [] })] })), /La etapa no es válida/);
 });
 
 test('comparte ritmo.db con el repositorio de tareas, cada uno con su conexión', t => {

@@ -5,12 +5,13 @@ import { createHandle } from '../../../../src/main/ipc/handle';
 import { registerStudyIpc } from '../../../../src/main/study/ipc';
 import { FakeIpc } from '../../../helpers/fakes';
 import { createHarness } from '../../../helpers/harness';
+import { stage } from '../../../helpers/study';
 
 test('los canales de rutas de estudio validan y reenvían al servicio', async t => {
   const ipc = new FakeIpc();
   const { study, agents, proposals } = createHarness(t);
   registerStudyIpc(createHandle(ipc), { study, agents, proposals });
-  const input = { topic: 'Rust', goal: '', level: 'beginner', dailyPomodoros: 2, stages: [{ title: 'Ownership', topics: [] }], instructions: '' };
+  const input = { topic: 'Rust', goal: '', level: 'beginner', dailyPomodoros: 2, stages: [stage({ title: 'Ownership', topics: [] })], instructions: '' };
   const created = await ipc.invoke('create-study-route', input) as StudyRoute;
   assert.equal(created.id, 'study-1');
   const updated = await ipc.invoke('update-study-route', created.id, { ...input, topic: 'Rust avanzado', stages: created.stages }) as StudyRoute;
@@ -42,7 +43,7 @@ test('los canales de propuestas exigen el aviso, piden al agente y cancelan', as
   const ipc = new FakeIpc();
   const harness = createHarness(t);
   registerStudyIpc(createHandle(ipc), harness);
-  const route = harness.study.create({ topic: 'Rust', goal: '', level: 'beginner', dailyPomodoros: 2, stages: [{ title: 'Ownership', topics: [] }], instructions: '' });
+  const route = harness.study.create({ topic: 'Rust', goal: '', level: 'beginner', dailyPomodoros: 2, stages: [stage({ title: 'Ownership', topics: [] })], instructions: '' });
   const stageId = route.stages[0].id;
   harness.agent.respondWith({ proposals: [{ title: 'Leer el capítulo 4', stageId, pomodoros: 2, doneWhen: 'Resumen escrito', reason: 'Empieza la etapa' }] });
 

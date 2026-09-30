@@ -11,17 +11,18 @@ import type { StudyAgentContext, StudyTaskRecord } from '../../../../src/main/st
 import { PublicError } from '../../../../src/shared/ipc';
 import { DEFAULT_AGENT_INSTRUCTIONS, MAX_PROPOSALS, type StudyRoute } from '../../../../src/shared/study/contract';
 import { FakeStudyAgent } from '../../../helpers/fakes';
+import { emptyRouteRoadmap, stage } from '../../../helpers/study';
 
 const route: StudyRoute = {
   id: 'r1',
   topic: 'Rust',
   goal: 'Escribir un servidor HTTP.',
   level: 'intermediate',
-  dailyPomodoros: 4,
+  dailyPomodoros: 4, ...emptyRouteRoadmap(),
   stages: [
-    { id: 'e1', title: 'Propiedad', topics: ['Préstamos', 'Lifetimes'] },
-    { id: 'e2', title: 'Concurrencia', topics: ['Hilos', 'async'] },
-    { id: 'e3', title: 'Proyecto', topics: [] },
+    stage({ id: 'e1', title: 'Propiedad', topics: ['Préstamos', 'Lifetimes'] }),
+    stage({ id: 'e2', title: 'Concurrencia', topics: ['Hilos', 'async'] }),
+    stage({ id: 'e3', title: 'Proyecto', topics: [] }),
   ],
   instructions: 'Solo ejercicios de Rustlings.',
   createdAt: '2026-09-01T09:00:00.000Z',

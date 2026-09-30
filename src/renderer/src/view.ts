@@ -176,13 +176,20 @@ export const LEVEL_LABELS: Record<StudyLevel, string> = {
   advanced: 'Avanzado'
 };
 
-/** Etapa tal como se edita en el formulario: los temas en un solo campo, separados por comas. */
+/**
+ * Etapa tal como se edita en el formulario: los temas y los temas que no priorizar en un solo campo,
+ * separados por comas, y los recursos uno por línea, porque un recurso puede llevar comas.
+ */
 export interface StageDraft {
   /** Clave estable para React; en las etapas guardadas es su `id`. */
   key: string;
   id?: string;
   title: string;
+  summary: string;
   topics: string;
+  deprioritized: string;
+  project: string;
+  resources: string;
 }
 
 /** Ruta tal como se edita en el formulario, con los números como texto del campo. */
@@ -191,17 +198,23 @@ export interface RouteDraft {
   goal: string;
   level: StudyLevel;
   dailyPomodoros: string;
+  approach: string;
+  finalProject: string;
+  studyRules: string;
   instructions: string;
   stages: StageDraft[];
 }
 
 export function newStageDraft(key: string): StageDraft {
-  return { key, title: '', topics: '' };
+  return { key, title: '', summary: '', topics: '', deprioritized: '', project: '', resources: '' };
 }
 
 /** Borrador de una ruta nueva: una etapa vacía y las instrucciones por defecto del agente. */
 export function emptyRouteDraft(stageKey: string): RouteDraft {
-  return { topic: '', goal: '', level: 'beginner', dailyPomodoros: '4', instructions: DEFAULT_AGENT_INSTRUCTIONS, stages: [newStageDraft(stageKey)] };
+  return {
+    topic: '', goal: '', level: 'beginner', dailyPomodoros: '4', approach: '', finalProject: '', studyRules: '',
+    instructions: DEFAULT_AGENT_INSTRUCTIONS, stages: [newStageDraft(stageKey)]
+  };
 }
 
 export function routeToDraft(route: StudyRoute): RouteDraft {
@@ -210,14 +223,25 @@ export function routeToDraft(route: StudyRoute): RouteDraft {
     goal: route.goal,
     level: route.level,
     dailyPomodoros: String(route.dailyPomodoros),
+    approach: route.approach,
+    finalProject: route.finalProject,
+    studyRules: route.studyRules,
     instructions: route.instructions,
-    stages: route.stages.map(stage => ({ key: stage.id, id: stage.id, title: stage.title, topics: stage.topics.join(', ') }))
+    stages: route.stages.map(stage => ({
+      key: stage.id, id: stage.id, title: stage.title, summary: stage.summary, topics: stage.topics.join(', '),
+      deprioritized: stage.deprioritized.join(', '), project: stage.project, resources: stage.resources.join('\n')
+    }))
   };
 }
 
 /** Temas escritos en un campo, separados por comas o saltos de línea, sin vacíos. */
 export function parseTopics(text: string): string[] {
   return text.split(/[,\n]/).map(topic => topic.trim()).filter(Boolean);
+}
+
+/** Elementos escritos uno por línea, sin vacíos. */
+export function parseLines(text: string): string[] {
+  return text.split('\n').map(item => item.trim()).filter(Boolean);
 }
 
 /** Lo que se envía al proceso principal, que vuelve a validarlo. */
@@ -228,8 +252,14 @@ export function draftToInput(draft: RouteDraft): StudyRouteInput {
     goal: draft.goal,
     level: draft.level,
     dailyPomodoros: pomodoros === '' ? NaN : Number(pomodoros),
+    approach: draft.approach,
+    finalProject: draft.finalProject,
+    studyRules: draft.studyRules,
     instructions: draft.instructions,
-    stages: draft.stages.map(stage => ({ ...(stage.id ? { id: stage.id } : {}), title: stage.title, topics: parseTopics(stage.topics) }))
+    stages: draft.stages.map(stage => ({
+      ...(stage.id ? { id: stage.id } : {}), title: stage.title, summary: stage.summary, topics: parseTopics(stage.topics),
+      deprioritized: parseTopics(stage.deprioritized), project: stage.project, resources: parseLines(stage.resources)
+    }))
   };
 }
 

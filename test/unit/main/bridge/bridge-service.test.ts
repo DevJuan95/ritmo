@@ -3,10 +3,11 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { MAX_BRIDGE_TASKS } from '../../../../src/shared/bridge/contract';
 import { createHarness } from '../../../helpers/harness';
+import { stage } from '../../../helpers/study';
 
 const rustRoute = {
   topic: 'Rust', goal: 'Escribir una CLI.', level: 'beginner', dailyPomodoros: 3,
-  stages: [{ title: 'Ownership', topics: ['Borrowing'] }, { title: 'Traits', topics: [] }], instructions: 'En español.'
+  stages: [stage({ title: 'Ownership', topics: ['Borrowing'] }), stage({ title: 'Traits', topics: [] })], instructions: 'En español.'
 };
 
 function setup(t: TestContext) {
@@ -26,7 +27,7 @@ test('start abre el socket en los datos de la app y stop lo cierra', async t => 
 
 test('lista las rutas con sus etapas y el avance de sus tareas', t => {
   const { bridge, route, stages, tasks, store, study } = setup(t);
-  const other = study.create({ ...rustRoute, topic: 'Go', stages: [{ title: 'Sintaxis', topics: [] }] });
+  const other = study.create({ ...rustRoute, topic: 'Go', stages: [stage({ title: 'Sintaxis', topics: [] })] });
   tasks.add('Leer el capítulo 4', store.today(), { routeId: route.id, stageId: stages[0] });
   tasks.add('Ejercicios', store.today(), { routeId: route.id, stageId: stages[1] });
   tasks.toggle(store.state.tasks[0].id);
