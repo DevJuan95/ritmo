@@ -7,6 +7,8 @@ import { AGENT_CANCELLED } from '../../shared/study/contract';
 
 /** Tiempo máximo por defecto de una petición al agente. */
 export const AGENT_TIMEOUT_MS = 180_000;
+/** Tiempo máximo por defecto de la petición de un roadmap, cuya respuesta es mucho más larga. */
+export const AGENT_ROADMAP_TIMEOUT_MS = 420_000;
 /** Espera entre `SIGTERM` y `SIGKILL` al terminar un CLI que no sale solo. */
 export const AGENT_KILL_GRACE_MS = 2_000;
 /** Salida máxima que se acepta del CLI; una respuesta válida ocupa unos pocos KB. */

@@ -1,7 +1,7 @@
 import { PublicError } from '../../shared/ipc';
-import { AGENT_MODEL_PATTERN, INVALID_AGENT_RESPONSE, type TaskProposal } from '../../shared/study/contract';
-import { AGENT_LOGIN_TIMEOUT_MS, AGENT_TIMEOUT_MS, runAgentCli } from './agent-cli';
-import { buildAgentRequest, readAgentProposals } from './agent-prompt';
+import { AGENT_MODEL_PATTERN, INVALID_AGENT_RESPONSE, type RoadmapBrief, type RoadmapDraft, type TaskProposal } from '../../shared/study/contract';
+import { AGENT_LOGIN_TIMEOUT_MS, AGENT_ROADMAP_TIMEOUT_MS, AGENT_TIMEOUT_MS, runAgentCli } from './agent-cli';
+import { buildAgentRequest, buildRoadmapRequest, readAgentProposals, readAgentRoadmap, type AgentRequest } from './agent-prompt';
 import type { AgentLogin, StudyAgent, StudyAgentContext, StudyAgentOptions } from './ports';
 
 export const CLAUDE_CODE_NAME = 'Claude Code';
@@ -17,7 +17,10 @@ export interface ClaudeCodeAgentOptions {
   command?: string;
   /** Modelo o alias para `--model`; sin él, el que tenga configurado el usuario. */
   model?: string;
+  /** Tiempo máximo de la petición de propuestas. */
   timeoutMs?: number;
+  /** Tiempo máximo de la petición de un roadmap. */
+  roadmapTimeoutMs?: number;
   /** Espera entre `SIGTERM` y `SIGKILL` al terminar el CLI. */
   killGraceMs?: number;
 }
@@ -91,33 +94,44 @@ export function checkClaudeCodeLogin(stdout: string, exitCode: number): void {
 /**
  * Adaptador de `StudyAgent` que lanza `claude -p` sin herramientas, en un directorio temporal, con
  * tiempo máximo y cancelable. Antes comprueba que hay sesión con la cuenta de claude.ai, para no
- * enviar nada si no la hay. Solo devuelve propuestas validadas.
+ * enviar nada si no la hay. Las propuestas y el roadmap comparten la ejecución (`send()`) y solo
+ * cambian la petición, el tiempo máximo y la validación de la respuesta.
  */
 export class ClaudeCodeAgent implements StudyAgent {
   private readonly command: string;
   private readonly timeoutMs: number;
+  private readonly roadmapTimeoutMs: number;
 
   constructor(private readonly options: ClaudeCodeAgentOptions = {}) {
     this.command = options.command ?? 'claude';
     this.timeoutMs = options.timeoutMs ?? AGENT_TIMEOUT_MS;
+    this.roadmapTimeoutMs = options.roadmapTimeoutMs ?? AGENT_ROADMAP_TIMEOUT_MS;
   }
 
   async propose(context: StudyAgentContext, { signal }: StudyAgentOptions = {}): Promise<TaskProposal[]> {
-    const { prompt, schema } = buildAgentRequest(context);
+    return readAgentProposals(await this.send(buildAgentRequest(context), this.timeoutMs, signal), context.route);
+  }
+
+  async draftRoadmap(brief: RoadmapBrief, { signal }: StudyAgentOptions = {}): Promise<RoadmapDraft> {
+    return readAgentRoadmap(await this.send(buildRoadmapRequest(brief), this.roadmapTimeoutMs, signal));
+  }
+
+  /** Comprueba la sesión, envía la petición y devuelve la respuesta del agente sin validar. */
+  private async send({ prompt, schema }: AgentRequest<object>, timeoutMs: number, signal?: AbortSignal): Promise<unknown> {
     const args = claudeCodeArgs(prompt, schema, this.options.model);
     const status = await runAgentCli(this.command, CLAUDE_CODE_STATUS_ARGS, {
       name: CLAUDE_CODE_NAME,
-      timeoutMs: Math.min(this.timeoutMs, AGENT_LOGIN_TIMEOUT_MS),
+      timeoutMs: Math.min(timeoutMs, AGENT_LOGIN_TIMEOUT_MS),
       killGraceMs: this.options.killGraceMs,
       signal,
     });
     checkClaudeCodeLogin(status.stdout, status.exitCode);
     const { stdout, exitCode } = await runAgentCli(this.command, args, {
       name: CLAUDE_CODE_NAME,
-      timeoutMs: this.timeoutMs,
+      timeoutMs,
       killGraceMs: this.options.killGraceMs,
       signal,
     });
-    return readAgentProposals(readClaudeCodeOutput(stdout, exitCode), context.route);
+    return readClaudeCodeOutput(stdout, exitCode);
   }
 }

@@ -4,9 +4,9 @@ import type { Notifier, TimerHandle, Timers } from '../../src/main/common/ports'
 import type { SoundPlayer } from '../../src/main/focus/ports';
 import type { IpcRegistrar } from '../../src/main/ipc/ports';
 import type { QuitReason, QuitSignals } from '../../src/main/lifecycle/ports';
-import { buildAgentRequest, readAgentProposals, type AgentRequest } from '../../src/main/study/agent-prompt';
+import { buildAgentRequest, buildRoadmapRequest, readAgentProposals, readAgentRoadmap, type AgentRequest, type RoadmapSchema } from '../../src/main/study/agent-prompt';
 import type { AgentDetector, AgentLogin, StudyAgent, StudyAgentCli, StudyAgentContext, StudyAgentFactory, StudyAgentOptions } from '../../src/main/study/ports';
-import type { StudyProvider, TaskProposal } from '../../src/shared/study/contract';
+import type { RoadmapBrief, RoadmapDraft, StudyProvider, TaskProposal } from '../../src/shared/study/contract';
 import type { IpcResult } from '../../src/shared/ipc';
 
 /** Rechaza cuando se aborta `signal`, como `execFile` al terminar el proceso hijo. */
@@ -124,12 +124,14 @@ export class FakeQuitSignals implements QuitSignals {
 }
 
 /**
- * Agente en memoria que se comporta como un adaptador: arma la petición con `buildAgentRequest()`,
- * la registra y valida con `readAgentProposals()` la salida preparada con `respondWith()`, que puede
- * ser JSON o texto. Puede fallar a demanda o quedarse esperando hasta que se aborte su `signal`.
+ * Agente en memoria que se comporta como un adaptador: arma la petición con `buildAgentRequest()` o
+ * `buildRoadmapRequest()`, la registra y valida con `readAgentProposals()` o `readAgentRoadmap()` la
+ * salida preparada con `respondWith()`, que puede ser JSON o texto. Puede fallar a demanda o quedarse
+ * esperando hasta que se aborte su `signal`.
  */
 export class FakeStudyAgent implements StudyAgent {
   readonly requests: Array<AgentRequest & { context: StudyAgentContext }> = [];
+  readonly roadmapRequests: Array<AgentRequest<RoadmapSchema> & { brief: RoadmapBrief }> = [];
   private output: unknown = { proposals: [] };
   private failure?: Error;
   private waiting = false;
@@ -141,17 +143,27 @@ export class FakeStudyAgent implements StudyAgent {
 
   async propose(context: StudyAgentContext, options: StudyAgentOptions = {}): Promise<TaskProposal[]> {
     this.requests.push({ ...buildAgentRequest(context), context });
+    return readAgentProposals(await this.answer(options), context.route);
+  }
+
+  async draftRoadmap(brief: RoadmapBrief, options: StudyAgentOptions = {}): Promise<RoadmapDraft> {
+    this.roadmapRequests.push({ ...buildRoadmapRequest(brief), brief });
+    return readAgentRoadmap(await this.answer(options));
+  }
+
+  /** La salida preparada, después de esperar o fallar si se pidió. */
+  private async answer({ signal }: StudyAgentOptions): Promise<unknown> {
     if (this.waiting) {
       this.waiting = false;
       await new Promise((_resolve, reject) => {
-        if (options.signal?.aborted) reject(new Error('Se canceló la petición al agente.'));
-        options.signal?.addEventListener('abort', () => reject(new Error('Se canceló la petición al agente.')), { once: true });
+        if (signal?.aborted) reject(new Error('Se canceló la petición al agente.'));
+        signal?.addEventListener('abort', () => reject(new Error('Se canceló la petición al agente.')), { once: true });
       });
     }
     const failure = this.failure;
     this.failure = undefined;
     if (failure) throw failure;
-    return readAgentProposals(this.output, context.route);
+    return this.output;
   }
 }
 
