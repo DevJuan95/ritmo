@@ -52,9 +52,12 @@ export function safePlannedDate(value: unknown): string {
   return value;
 }
 
+/** Largo máximo del título de una tarea. */
+export const MAX_TASK_TITLE = 160;
+
 export function safeTaskTitle(value: unknown): string {
   const title = String(value || '').trim().replace(/\s+/g, ' ');
-  if (!title || title.length > 160) throw new PublicError('La tarea debe tener entre 1 y 160 caracteres.');
+  if (!title || title.length > MAX_TASK_TITLE) throw new PublicError(`La tarea debe tener entre 1 y ${MAX_TASK_TITLE} caracteres.`);
   return title;
 }
 

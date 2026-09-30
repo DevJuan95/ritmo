@@ -3,6 +3,9 @@ import type { Notifier, TimerHandle, Timers } from '../../src/main/common/ports'
 import type { SoundPlayer } from '../../src/main/focus/ports';
 import type { IpcRegistrar } from '../../src/main/ipc/ports';
 import type { QuitReason, QuitSignals } from '../../src/main/lifecycle/ports';
+import { buildAgentRequest, readAgentProposals, type AgentRequest } from '../../src/main/study/agent-prompt';
+import type { StudyAgent, StudyAgentContext, StudyAgentOptions } from '../../src/main/study/ports';
+import type { TaskProposal } from '../../src/shared/study/contract';
 import type { IpcResult } from '../../src/shared/ipc';
 
 /** Rechaza cuando se aborta `signal`, como `execFile` al terminar el proceso hijo. */
@@ -117,6 +120,38 @@ export class FakeQuitSignals implements QuitSignals {
   private readonly listeners: Array<(reason: QuitReason) => void> = [];
   subscribe(listener: (reason: QuitReason) => void): void { this.listeners.push(listener); }
   emit(reason: QuitReason): void { this.listeners.forEach(listener => listener(reason)); }
+}
+
+/**
+ * Agente en memoria que se comporta como un adaptador: arma la petición con `buildAgentRequest()`,
+ * la registra y valida con `readAgentProposals()` la salida preparada con `respondWith()`, que puede
+ * ser JSON o texto. Puede fallar a demanda o quedarse esperando hasta que se aborte su `signal`.
+ */
+export class FakeStudyAgent implements StudyAgent {
+  readonly requests: Array<AgentRequest & { context: StudyAgentContext }> = [];
+  private output: unknown = { proposals: [] };
+  private failure?: Error;
+  private waiting = false;
+
+  respondWith(output: unknown): void { this.output = output; }
+  failNext(error = new Error('No se pudo lanzar el agente.')): void { this.failure = error; }
+  /** La siguiente petición no responde hasta que se aborta. */
+  hang(): void { this.waiting = true; }
+
+  async propose(context: StudyAgentContext, options: StudyAgentOptions = {}): Promise<TaskProposal[]> {
+    this.requests.push({ ...buildAgentRequest(context), context });
+    if (this.waiting) {
+      this.waiting = false;
+      await new Promise((_resolve, reject) => {
+        if (options.signal?.aborted) reject(new Error('Se canceló la petición al agente.'));
+        options.signal?.addEventListener('abort', () => reject(new Error('Se canceló la petición al agente.')), { once: true });
+      });
+    }
+    const failure = this.failure;
+    this.failure = undefined;
+    if (failure) throw failure;
+    return readAgentProposals(this.output, context.route);
+  }
 }
 
 type Listener = (event: unknown, ...args: any[]) => unknown;
