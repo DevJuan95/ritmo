@@ -36,6 +36,9 @@ const ritmo: RitmoAPI = {
   updateStudyRoute: (id, route) => invoke('update-study-route', id, route),
   deleteStudyRoute: id => invoke('delete-study-route', id),
   getStudyProgress: () => invoke('get-study-progress'),
+  getAgentSettings: () => invoke('get-agent-settings'),
+  saveAgentSettings: settings => invoke('save-agent-settings', settings),
+  checkStudyAgents: () => invoke('check-study-agents'),
   onState: callback => {
     const channel = 'state' satisfies keyof RitmoEvents;
     const listener = (_event: Electron.IpcRendererEvent, state: RitmoEvents[typeof channel]) => callback(state);

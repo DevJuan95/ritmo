@@ -19,3 +19,9 @@ test('agentEnv quita las claves de API de Claude Code y de Codex y conserva el r
   assert.equal(env.ANTHROPIC_API_KEY, 'sk-ant');
   assert.deepEqual([...AGENT_API_KEY_VARIABLES].sort(), ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'CODEX_API_KEY', 'OPENAI_API_KEY']);
 });
+
+test('agentEnv antepone las carpetas pedidas al PATH sin repetir ninguna', () => {
+  assert.deepEqual(agentEnv({ PATH: '/usr/bin:/bin', OPENAI_API_KEY: 'sk' }, ['/opt/homebrew/bin', '/usr/bin']), { PATH: '/opt/homebrew/bin:/usr/bin:/bin' });
+  assert.deepEqual(agentEnv({}, ['/opt/homebrew/bin']), { PATH: '/opt/homebrew/bin' });
+  assert.deepEqual(agentEnv({ PATH: '/usr/bin' }, []), { PATH: '/usr/bin' });
+});

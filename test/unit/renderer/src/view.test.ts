@@ -3,10 +3,11 @@ import assert from 'node:assert/strict';
 import type { RitmoAPI } from '../../../../src/shared/api';
 import { GENERIC_ERROR_MESSAGE } from '../../../../src/shared/ipc';
 import type { AppState, PublicState } from '../../../../src/shared/state/contract';
-import { DEFAULT_AGENT_INSTRUCTIONS, MAX_STAGES, type StudyRoute } from '../../../../src/shared/study/contract';
+import { DEFAULT_AGENT_INSTRUCTIONS, DEFAULT_AGENT_SETTINGS, MAX_STAGES, type AgentStatus, type StudyRoute } from '../../../../src/shared/study/contract';
 import type { Task } from '../../../../src/shared/tasks/contract';
 import {
-  LEVEL_LABELS, calendarRange, canSaveDraft, completionText, dateLabel, dayButtonLabel, dayIndicator, dayToDate, domainsLocked, draftChanged, draftProblem,
+  LEVEL_LABELS, agentModelHint, agentPathPlaceholder, agentSettingsChanged, agentSettingsProblem, agentStatusView, agentSummary, uncheckedAgents, withProviderSettings,
+  calendarRange, canSaveDraft, completionText, dateLabel, dayButtonLabel, dayIndicator, dayToDate, domainsLocked, draftChanged, draftProblem,
   draftToInput, emptyRouteDraft, errorMessage, focusCountText, isPlannableDate, monthOf, moveStage, newStageDraft, oneAtATime, parseTopics, plannedDateToSave,
   linkFromStage, routeProgressView, routeSummary, routeToDraft, stageLimits, stageOptions, stageProgressView, taskStageValue, tasksRevision, timerActions, timerView, withDraft
 } from '../../../../src/renderer/src/view';
@@ -311,4 +312,61 @@ test('el selector muestra la etapa de la tarea solo si sigue en su ruta', () => 
   assert.equal(taskStageValue(routes, { routeId: null, stageId: null }), '');
   assert.equal(taskStageValue(routes, { routeId: 'r2', stageId: 's2' }), '');
   assert.equal(taskStageValue(routes, { routeId: 'r1', stageId: 'borrada' }), '');
+});
+
+const agentStatus = (patch: Partial<AgentStatus> = {}): AgentStatus => ({ provider: 'claude', availability: 'ready', path: '/Users/ana/.local/bin/claude', configured: false, ...patch });
+
+test('agentStatusView explica cada estado del CLI y cómo resolverlo', () => {
+  assert.deepEqual(agentStatusView('claude', undefined), { tone: 'checking', label: 'Comprobando…', detail: 'Buscando Claude Code y su sesión.' });
+  assert.deepEqual(agentStatusView('claude', agentStatus()), { tone: 'ready', label: 'Listo', detail: 'Sesión iniciada con tu cuenta de claude.ai.' });
+  assert.deepEqual(agentStatusView('codex', agentStatus({ provider: 'codex', availability: 'missing', path: null })), {
+    tone: 'missing', label: 'No encontrado', detail: 'No se encontró Codex en este Mac. Instálalo o indica la ruta del ejecutable.'
+  });
+  assert.match(agentStatusView('codex', agentStatus({ availability: 'missing', path: null, configured: true })).detail, /en la ruta indicada/);
+  assert.deepEqual(agentStatusView('codex', agentStatus({ availability: 'logged-out' })), {
+    tone: 'warning', label: 'Sin sesión', detail: 'Ejecuta «codex login» en la terminal con tu cuenta de ChatGPT y vuelve a comprobarlo.'
+  });
+  const apiKey = agentStatusView('claude', agentStatus({ availability: 'api-key' }));
+  assert.equal(apiKey.label, 'Con clave de API');
+  assert.match(apiKey.detail, /se factura aparte\. Ejecuta «claude auth login»/);
+  assert.deepEqual(agentStatusView('claude', agentStatus({ availability: 'unknown' })), {
+    tone: 'warning', label: 'Sin confirmar', detail: 'No se pudo comprobar la sesión de Claude Code. Se comprobará otra vez al pedir tareas.'
+  });
+});
+
+test('uncheckedAgents deja los dos proveedores sin confirmar', () => {
+  assert.deepEqual(uncheckedAgents().map(status => [status.provider, status.availability, status.path]), [['claude', 'unknown', null], ['codex', 'unknown', null]]);
+});
+
+test('agentPathPlaceholder muestra dónde se detectó el CLI', () => {
+  assert.equal(agentPathPlaceholder(agentStatus()), 'Detectado en /Users/ana/.local/bin/claude');
+  assert.equal(agentPathPlaceholder(agentStatus({ configured: true })), 'Detectar automáticamente');
+  assert.equal(agentPathPlaceholder(agentStatus({ path: null })), 'Detectar automáticamente');
+  assert.equal(agentPathPlaceholder(undefined), 'Detectar automáticamente');
+});
+
+test('agentModelHint nombra el modelo ligero por defecto', () => {
+  assert.equal(agentModelHint('codex'), 'Por defecto, «gpt-6-luna», un modelo ligero. Vacío, usa el que tenga configurado Codex.');
+});
+
+test('la configuración del agente se edita por proveedor y se valida como en el proceso principal', () => {
+  const settings = withProviderSettings(DEFAULT_AGENT_SETTINGS, 'codex', { path: '/opt/homebrew/bin/codex' });
+  assert.deepEqual(settings.codex, { path: '/opt/homebrew/bin/codex', model: 'gpt-6-luna' });
+  assert.deepEqual(settings.claude, DEFAULT_AGENT_SETTINGS.claude);
+  assert.equal(DEFAULT_AGENT_SETTINGS.codex.path, '');
+  assert.equal(agentSettingsProblem(settings), null);
+  assert.match(agentSettingsProblem(withProviderSettings(settings, 'claude', { path: 'claude' }))!, /La ruta de Claude Code debe ser absoluta/);
+  assert.equal(agentSettingsChanged(settings, DEFAULT_AGENT_SETTINGS), true);
+  assert.equal(agentSettingsChanged(withProviderSettings(DEFAULT_AGENT_SETTINGS, 'claude', { model: ' haiku ' }), DEFAULT_AGENT_SETTINGS), false);
+  assert.equal(agentSettingsChanged({ ...DEFAULT_AGENT_SETTINGS, provider: 'codex' }, DEFAULT_AGENT_SETTINGS), true);
+});
+
+test('agentSummary resume el agente elegido para la pantalla de rutas', () => {
+  const codex = { ...DEFAULT_AGENT_SETTINGS, provider: 'codex' as const };
+  assert.deepEqual(agentSummary(DEFAULT_AGENT_SETTINGS, undefined), { tone: 'checking', text: 'Comprobando Claude Code…' });
+  assert.deepEqual(agentSummary(DEFAULT_AGENT_SETTINGS, [agentStatus()]), { tone: 'ready', text: 'Las tareas las propondrá Claude Code con haiku.' });
+  assert.deepEqual(agentSummary(withProviderSettings(DEFAULT_AGENT_SETTINGS, 'claude', { model: '' }), [agentStatus()]), { tone: 'ready', text: 'Las tareas las propondrá Claude Code.' });
+  assert.deepEqual(agentSummary(codex, [agentStatus(), agentStatus({ provider: 'codex', availability: 'logged-out' })]), { tone: 'warning', text: 'Codex no está listo: sin sesión.' });
+  assert.deepEqual(agentSummary(codex, [agentStatus({ provider: 'codex', availability: 'missing', path: null })]), { tone: 'missing', text: 'Codex no está listo: no encontrado.' });
+  assert.deepEqual(agentSummary(codex, uncheckedAgents()), { tone: 'warning', text: 'No se pudo confirmar la sesión de Codex.' });
 });

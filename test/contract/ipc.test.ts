@@ -5,7 +5,7 @@ import path from 'node:path';
 import type { RitmoAPI } from '../../src/shared/api';
 import { GENERIC_ERROR_MESSAGE, PublicError } from '../../src/shared/ipc';
 import type { PublicState } from '../../src/shared/state/contract';
-import { DEFAULT_AGENT_INSTRUCTIONS, type StudyRouteInput } from '../../src/shared/study/contract';
+import { DEFAULT_AGENT_INSTRUCTIONS, DEFAULT_AGENT_SETTINGS, type StudyRouteInput } from '../../src/shared/study/contract';
 import { registerHandlers } from '../../src/main/ipc/register';
 import { errorMessage } from '../../src/renderer/src/view';
 import { FakeIpc } from '../helpers/fakes';
@@ -80,7 +80,10 @@ const sampleCalls: { [K in Exclude<keyof RitmoAPI, 'onState'>]: Parameters<Ritmo
   createStudyRoute: [studyRoute],
   updateStudyRoute: ['study-1', studyRoute],
   deleteStudyRoute: ['study-1'],
-  getStudyProgress: []
+  getStudyProgress: [],
+  getAgentSettings: [],
+  saveAgentSettings: [DEFAULT_AGENT_SETTINGS],
+  checkStudyAgents: []
 };
 
 test('cada método del preload invoca un canal registrado por el proceso principal con sus argumentos', async t => {

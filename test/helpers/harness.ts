@@ -7,11 +7,12 @@ import { DomainService } from '../../src/main/blocking/domain-service';
 import { FocusService } from '../../src/main/focus/focus-service';
 import { LifecycleService } from '../../src/main/lifecycle/lifecycle-service';
 import { StateStore } from '../../src/main/state/state-store';
+import { AgentService } from '../../src/main/study/agent-service';
 import { StudyRepository } from '../../src/main/study/study-repository';
 import { StudyService } from '../../src/main/study/study-service';
 import { TaskService } from '../../src/main/tasks/task-service';
 import { TaskRepository } from '../../src/main/tasks/task-repository';
-import { FakeBlocker, FakeClock, FakeNotifier, FakeSoundPlayer, sequentialIds } from './fakes';
+import { FakeAgentDetector, FakeBlocker, FakeClock, FakeNotifier, FakeSoundPlayer, sequentialIds } from './fakes';
 import { tempDir } from './temp';
 
 export function buildState(overrides: Partial<AppState> = {}, clock = new FakeClock()): AppState {
@@ -46,6 +47,9 @@ export interface Harness {
   tasks: TaskService;
   domains: DomainService;
   study: StudyService;
+  /** Configuración y estado del agente, con `detector` en lugar de los CLI reales. */
+  agents: AgentService;
+  detector: FakeAgentDetector;
   /** Usa `clock` como temporizadores. */
   lifecycle: LifecycleService;
   /** Vuelve a abrir el estado desde disco con las mismas dependencias. */
@@ -74,6 +78,7 @@ export function createHarness(t: TestContext, options: HarnessOptions = {}): Har
   const focus = new FocusService(store, { blocker, notifier, sound });
 
   const tasks = new TaskService(store, repository, studyRepository);
+  const detector = new FakeAgentDetector();
 
   return {
     directory, statePath, dbPath, clock, blocker, notifier, sound, published, repository, studyRepository, store, focus,
@@ -81,6 +86,8 @@ export function createHarness(t: TestContext, options: HarnessOptions = {}): Har
     tasks,
     domains: new DomainService(store),
     study: new StudyService(studyRepository, tasks),
+    agents: new AgentService(studyRepository, detector),
+    detector,
     reopen: open,
     readSaved: () => JSON.parse(fs.readFileSync(statePath, 'utf8'))
   };

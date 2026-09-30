@@ -117,11 +117,16 @@ test('lanza codex sin las claves de API del entorno, para usar la suscripción',
 });
 
 test('sin sesión pide iniciarla y no envía la petición', async (t) => {
-  for (const status of [loginStatus('Not logged in', 1), loginStatus('Not logged in', 0), loginStatus('Error: algo interno', 2)]) {
+  for (const status of [loginStatus('Not logged in', 1), loginStatus('Not logged in', 0)]) {
     const cli = fakeCodex(t, JSON.stringify({ proposals: [proposal] }), 0, status);
     await assert.rejects(new CodexAgent({ command: cli.command }).propose(context), publicError(CODEX_LOGIN));
     assert.deepEqual(cli.calls().map((call) => call.args), [CODEX_STATUS_ARGS]);
   }
+});
+
+test('un error al comprobar la sesión que no dice que falte no bloquea la petición', async (t) => {
+  const cli = fakeCodex(t, JSON.stringify({ proposals: [proposal] }), 0, loginStatus('Error: algo interno', 2));
+  assert.deepEqual(await new CodexAgent({ command: cli.command }).propose(context), [proposal]);
 });
 
 test('con una clave de API guardada pide usar la suscripción y no envía la petición', async (t) => {

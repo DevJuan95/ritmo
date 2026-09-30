@@ -1,8 +1,8 @@
 import { PublicError } from '../../shared/ipc';
-import { INVALID_AGENT_RESPONSE, type TaskProposal } from '../../shared/study/contract';
-import { AGENT_LOGIN_TIMEOUT_MS, AGENT_MODEL_PATTERN, AGENT_TIMEOUT_MS, runAgentCli } from './agent-cli';
+import { AGENT_MODEL_PATTERN, INVALID_AGENT_RESPONSE, type TaskProposal } from '../../shared/study/contract';
+import { AGENT_LOGIN_TIMEOUT_MS, AGENT_TIMEOUT_MS, runAgentCli } from './agent-cli';
 import { buildAgentRequest, readAgentProposals } from './agent-prompt';
-import type { StudyAgent, StudyAgentContext, StudyAgentOptions } from './ports';
+import type { AgentLogin, StudyAgent, StudyAgentContext, StudyAgentOptions } from './ports';
 
 export const CODEX_NAME = 'Codex';
 export const CODEX_FAILED = 'Codex no pudo completar la petición. Inténtalo de nuevo.';
@@ -59,14 +59,27 @@ export function readCodexOutput(output: string | undefined, exitCode: number): s
 }
 
 /**
- * Comprueba la salida de `codex login status`, que Codex escribe en la salida de error. Sale con 1 e
- * imprime «Not logged in» si no hay sesión, y dice «Logged in using an API key» si la sesión es una
- * clave de API guardada. En esos casos rechaza con un mensaje que dice cómo iniciar sesión con la
- * suscripción. Otra salida con código 0 no bloquea la petición: si falta la sesión, fallará igual.
+ * Estado de la sesión según la salida de `codex login status`, que Codex escribe en la salida de
+ * error. Sale con 1 e imprime «Not logged in» si no hay sesión, dice «Logged in using an API key» si
+ * la sesión es una clave de API guardada y «Logged in using ChatGPT» con la suscripción. Cualquier
+ * otra salida es `unknown`, también con un código distinto de 0: un `config.toml` inválido o la falta
+ * de `node` (127) no significan que falte la sesión.
+ */
+export function codexLogin(stdout: string, exitCode: number): AgentLogin {
+  if (/not logged in/i.test(stdout)) return 'logged-out';
+  if (exitCode !== 0) return 'unknown';
+  if (/api key/i.test(stdout)) return 'api-key';
+  return /logged in/i.test(stdout) ? 'ready' : 'unknown';
+}
+
+/**
+ * Rechaza sin sesión o con una clave de API, con un mensaje que dice cómo iniciar sesión con la
+ * suscripción. Un estado que no reconoce no bloquea la petición: si falta la sesión, fallará igual.
  */
 export function checkCodexLogin(stdout: string, exitCode: number): void {
-  if (exitCode !== 0 || /not logged in/i.test(stdout)) throw new PublicError(CODEX_LOGIN);
-  if (/api key/i.test(stdout)) throw new PublicError(CODEX_API_KEY);
+  const login = codexLogin(stdout, exitCode);
+  if (login === 'logged-out') throw new PublicError(CODEX_LOGIN);
+  if (login === 'api-key') throw new PublicError(CODEX_API_KEY);
 }
 
 /**

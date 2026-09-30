@@ -4,8 +4,8 @@ import type { SoundPlayer } from '../../src/main/focus/ports';
 import type { IpcRegistrar } from '../../src/main/ipc/ports';
 import type { QuitReason, QuitSignals } from '../../src/main/lifecycle/ports';
 import { buildAgentRequest, readAgentProposals, type AgentRequest } from '../../src/main/study/agent-prompt';
-import type { StudyAgent, StudyAgentContext, StudyAgentOptions } from '../../src/main/study/ports';
-import type { TaskProposal } from '../../src/shared/study/contract';
+import type { AgentDetector, AgentLogin, StudyAgent, StudyAgentContext, StudyAgentOptions } from '../../src/main/study/ports';
+import type { StudyProvider, TaskProposal } from '../../src/shared/study/contract';
 import type { IpcResult } from '../../src/shared/ipc';
 
 /** Rechaza cuando se aborta `signal`, como `execFile` al terminar el proceso hijo. */
@@ -151,6 +151,29 @@ export class FakeStudyAgent implements StudyAgent {
     this.failure = undefined;
     if (failure) throw failure;
     return readAgentProposals(this.output, context.route);
+  }
+}
+
+/**
+ * Detector de CLI en memoria. Cada proveedor tiene un ejecutable detectado y un estado de sesión;
+ * una ruta configurada solo se encuentra si está en `executables`. Registra las llamadas.
+ */
+export class FakeAgentDetector implements AgentDetector {
+  readonly detected: Record<StudyProvider, string | null> = { claude: '/usr/local/bin/claude', codex: null };
+  readonly logins: Record<StudyProvider, AgentLogin> = { claude: 'ready', codex: 'ready' };
+  /** Rutas configuradas que existen y se pueden ejecutar. */
+  readonly executables = new Set<string>();
+  readonly calls: Array<{ method: 'locate'; provider: StudyProvider; configured: string } | { method: 'login'; provider: StudyProvider; command: string }> = [];
+
+  async locate(provider: StudyProvider, configured: string): Promise<string | null> {
+    this.calls.push({ method: 'locate', provider, configured });
+    if (configured) return this.executables.has(configured) ? configured : null;
+    return this.detected[provider];
+  }
+
+  async login(provider: StudyProvider, command: string): Promise<AgentLogin> {
+    this.calls.push({ method: 'login', provider, command });
+    return this.logins[provider];
   }
 }
 
