@@ -107,3 +107,47 @@ test('rechaza una salida mayor que el límite y termina el CLI', async (t) => {
   await assert.rejects(runAgentCli(cli.command, [], options({ maxOutputBytes: 1000, killGraceMs: 100 })), (error: Error) =>
     error instanceof PublicError && error.message === 'Claude Code devolvió una respuesta demasiado larga.');
 });
+
+test('escribe los archivos de la petición en el directorio temporal y lee el de la respuesta', async (t) => {
+  const cli = fakeCli(t, `
+fs.writeFileSync('respuesta.json', fs.readFileSync(process.argv[2], 'utf8').toUpperCase());
+fs.writeFileSync(path.join(dir, 'mode'), String(fs.statSync(process.argv[2]).mode & 0o777));
+`);
+  const result = await runAgentCli(cli.command, ['esquema.json'], options({ files: { 'esquema.json': 'hola' }, outputFile: 'respuesta.json' }));
+  assert.deepEqual(result, { stdout: '', exitCode: 0, output: 'HOLA' });
+  assert.equal(fs.readFileSync(path.join(cli.dir, 'mode'), 'utf8'), String(0o600));
+  assert.equal(fs.existsSync(cli.calls()[0].cwd), false);
+});
+
+test('sin el archivo de respuesta devuelve output indefinido, también si es un enlace o una carpeta', async (t) => {
+  for (const body of ['', `fs.symlinkSync('/etc/hosts', 'respuesta.json');`, `fs.mkdirSync('respuesta.json');`]) {
+    const cli = fakeCli(t, body);
+    const result = await runAgentCli(cli.command, [], options({ outputFile: 'respuesta.json' }));
+    assert.equal('output' in result, true);
+    assert.equal(result.output, undefined);
+  }
+});
+
+test('rechaza un archivo de respuesta mayor que el límite', async (t) => {
+  const cli = fakeCli(t, `fs.writeFileSync('respuesta.json', 'x'.repeat(2000));`);
+  await assert.rejects(runAgentCli(cli.command, [], options({ outputFile: 'respuesta.json', maxOutputBytes: 1000 })), (error: Error) =>
+    error instanceof PublicError && error.message === 'Claude Code devolvió una respuesta demasiado larga.');
+});
+
+test('un archivo de respuesta que no se puede leer da un error público y se borra el directorio', async (t) => {
+  const cli = fakeCli(t, `fs.writeFileSync('respuesta.json', '{}', { mode: 0 });`);
+  await assert.rejects(runAgentCli(cli.command, [], options({ outputFile: 'respuesta.json' })), (error: Error) =>
+    error instanceof PublicError && error.message === 'No se pudo leer la respuesta de Claude Code.');
+  assert.equal(fs.existsSync(cli.calls()[0].cwd), false);
+});
+
+test('no admite nombres de archivo con carpetas', async (t) => {
+  const cli = fakeCli(t, '');
+  await assert.rejects(runAgentCli(cli.command, [], options({ files: { '../fuera.json': '{}' } })), (error: Error) =>
+    error instanceof PublicError && error.message === 'No se pudo iniciar Claude Code.');
+  assert.deepEqual(cli.calls(), []);
+  for (const outputFile of ['../fuera.json', '.', '']) {
+    await assert.rejects(runAgentCli(cli.command, [], options({ outputFile })), (error: Error) =>
+      error instanceof PublicError && error.message === 'No se pudo leer la respuesta de Claude Code.');
+  }
+});

@@ -1,14 +1,11 @@
 import { PublicError } from '../../shared/ipc';
 import { INVALID_AGENT_RESPONSE, type TaskProposal } from '../../shared/study/contract';
-import { AGENT_TIMEOUT_MS, runAgentCli } from './agent-cli';
+import { AGENT_MODEL_PATTERN, AGENT_TIMEOUT_MS, runAgentCli } from './agent-cli';
 import { buildAgentRequest, readAgentProposals } from './agent-prompt';
 import type { StudyAgent, StudyAgentContext, StudyAgentOptions } from './ports';
 
 export const CLAUDE_CODE_NAME = 'Claude Code';
 export const CLAUDE_CODE_FAILED = 'Claude Code no pudo completar la petición. Inténtalo de nuevo.';
-
-/** Nombre o alias de modelo que se pasa a `--model`: sin espacios y sin empezar por `-`. */
-const MODEL_PATTERN = /^[A-Za-z0-9][\w.:[\]-]{0,99}$/;
 
 export interface ClaudeCodeAgentOptions {
   /** Ruta o nombre del ejecutable `claude`. */
@@ -31,7 +28,7 @@ export interface ClaudeCodeAgentOptions {
 export function claudeCodeArgs(prompt: string, schema: object, model?: string): string[] {
   const args = ['-p', prompt, '--output-format', 'json', '--json-schema', JSON.stringify(schema), '--tools', '', '--strict-mcp-config', '--safe-mode', '--no-session-persistence'];
   if (model === undefined) return args;
-  if (!MODEL_PATTERN.test(model)) throw new PublicError('El modelo de Claude Code no es válido.');
+  if (!AGENT_MODEL_PATTERN.test(model)) throw new PublicError('El modelo de Claude Code no es válido.');
   return [...args, '--model', model];
 }
 
