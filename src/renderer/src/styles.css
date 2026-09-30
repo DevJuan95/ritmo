@@ -109,6 +109,11 @@
   --calendar-cell-height: clamp(46px, 8.2vh, 70px);
   --row-date-max-width: 140px;
   --edit-input-min-width: 140px;
+  --study-columns: minmax(220px, .7fr) minmax(0, 1.6fr);
+  --study-stage-number: 34px;
+  --study-segment-height: 6px;
+  --study-bar-width: 120px;
+  --study-instructions-min-height: 110px;
   --dashboard-columns: minmax(360px, 1.15fr) minmax(290px, .85fr);
   --page-padding-inline: clamp(24px, 4vw, 60px);
   --dashboard-gap: clamp(28px, 3.5vw, 52px);
@@ -287,12 +292,63 @@ h2 { font-family:var(--serif); font-size:var(--fs-heading); font-weight:var(--we
 .planner-edit-form { display:flex; flex:1; gap:6px; min-width:0; flex-wrap:wrap; align-items:center; }
 .planner-edit-form input { flex:1; min-width:var(--edit-input-min-width); height:var(--control-md); background:var(--sheet); font-size:var(--fs-base); }
 
+/* Rutas de estudio: un índice de rutas y, al lado, la hoja de la ruta elegida. */
+.study-layout { display:grid; grid-template-columns:var(--study-columns); gap:var(--planner-gap); align-items:start; margin-top:22px; }
+.study-index { min-width:0; }
+.study-route-list { list-style:none; margin:0; padding:0; border-top:var(--stroke) solid var(--rule); }
+.study-route-list li { border-bottom:var(--stroke) solid var(--rule); }
+.study-route { display:grid; gap:5px; width:100%; padding:12px 8px; border:0; border-radius:var(--corner-sm); background:transparent; color:var(--ink); text-align:left; }
+.study-route:hover { background:var(--ink-hover); }
+.study-route-topic { font-family:var(--serif); font-size:var(--fs-xl); font-weight:var(--weight-semibold); letter-spacing:var(--tracking-heading); line-height:var(--lh-snug); overflow-wrap:anywhere; }
+/* La ruta abierta lleva el resaltador, como la sección activa de la barra lateral. */
+.study-route[aria-current="true"] .study-route-topic { text-decoration:underline; text-decoration-color:var(--highlight); text-decoration-thickness:.5em; text-underline-offset:-.3em; text-decoration-skip-ink:none; }
+.study-route-meta { color:var(--graphite); font-size:var(--fs-xs); line-height:var(--lh-normal); }
+/* Una marca por etapa: entintadas las completas, en rojo la etapa en curso. */
+.study-route-stages { display:flex; gap:3px; margin:3px 0 1px; }
+.study-route-stages i { flex:1; height:var(--study-segment-height); border-radius:var(--corner-sm); background:var(--rule); }
+.study-route-stages i[data-state="done"] { background:var(--leaf); }
+.study-route-stages i[data-state="current"] { background:var(--margin); }
+
+.study-editor { min-width:0; padding:22px 26px 20px; background:var(--sheet); border:var(--stroke) solid var(--rule); border-top:var(--stroke-accent) solid var(--ink); border-radius:var(--corner-md); }
+.study-editor .planner-day-heading { overflow-wrap:anywhere; }
+.study-fields { display:grid; grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1fr); gap:14px; margin-top:18px; }
+.study-field { display:grid; gap:5px; align-content:start; min-width:0; }
+.study-field > span { color:var(--graphite); font-size:var(--fs-sm); font-weight:var(--weight-medium); }
+.study-field-full { grid-column:1 / -1; }
+.study-field small { color:var(--pencil); font-size:var(--fs-xs); line-height:var(--lh-loose); max-width:var(--measure-note); }
+.study-editor input, .study-editor textarea, .study-select { background:var(--sheet); border-color:var(--rule); box-shadow:none; color:var(--ink); font-size:var(--fs-base); }
+.study-editor input::placeholder, .study-editor textarea::placeholder { color:var(--pencil); }
+.study-select { height:var(--control-button); width:100%; padding:0 8px; border:var(--stroke) solid var(--rule); border-radius:var(--corner-md); font:inherit; font-size:var(--fs-base); }
+.study-instructions { margin-top:22px; }
+.study-instructions textarea { min-height:var(--study-instructions-min-height); line-height:var(--lh-loose); }
+
+.study-stages { margin:26px 0 0; padding:0; border:0; min-width:0; }
+.study-stages legend { padding:0; font-family:var(--serif); font-size:var(--fs-xl); font-weight:var(--weight-semibold); letter-spacing:var(--tracking-heading); }
+.study-stage-list { list-style:none; margin:12px 0 0; padding:0; border-top:var(--stroke) solid var(--rule); }
+.study-stage { display:grid; grid-template-columns:var(--study-stage-number) minmax(0,1fr) auto; gap:12px; align-items:start; padding:12px 0; border-bottom:var(--stroke) solid var(--rule); }
+.study-stage-number { padding-top:2px; color:var(--margin); font-family:var(--serif); font-size:var(--fs-heading-lg); font-weight:var(--weight-medium); line-height:var(--lh-none); text-align:right; font-variant-numeric:lining-nums; }
+.study-stage-body { display:grid; gap:6px; min-width:0; }
+.study-stage-body input { height:var(--control-md); }
+.study-stage-body input:first-child { font-weight:var(--weight-semibold); }
+.study-stage-progress { display:flex; align-items:center; gap:10px; color:var(--graphite); font-size:var(--fs-xs); }
+.study-stage-bar { flex:none; width:var(--study-bar-width); height:var(--study-segment-height); border-radius:var(--corner-sm); background:var(--rule); overflow:hidden; }
+.study-stage-bar i { display:block; height:100%; background:var(--ink-light); }
+.study-stage-progress[data-complete="true"] { color:var(--leaf); }
+.study-stage-progress[data-complete="true"] .study-stage-bar i { background:var(--leaf); }
+.study-stage-actions { display:flex; gap:2px; }
+.study-stage-actions .row-action { width:var(--control-sm); padding:0; font-size:var(--fs-lg); }
+.study-add-stage { margin-top:8px; }
+
+.study-footer { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:10px 16px; margin-top:22px; padding-top:16px; border-top:var(--stroke) solid var(--rule); }
+.study-hint { margin:0; color:var(--graphite); font-size:var(--fs-sm); line-height:var(--lh-relaxed); }
+.study-footer-actions { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-left:auto; }
+
 @media (prefers-reduced-motion: reduce) {
   .timer-panel, .timer-beats { transition:none; }
 }
 /* Los puntos de corte no admiten variables CSS: se mantienen como literales. */
 @media (max-width:1100px) {
-  .planner-layout { grid-template-columns:1fr; }
+  .planner-layout, .study-layout { grid-template-columns:1fr; }
 }
 @media (max-width:950px) {
   .app-shell { grid-template-columns:var(--sidebar-width-compact) minmax(0,1fr); }
@@ -313,4 +369,8 @@ h2 { font-family:var(--serif); font-size:var(--fs-heading); font-weight:var(--we
   .topbar { flex-direction:column; align-items:start; gap:6px; }
   .timer-panel { padding:22px 18px; }
   .planner-list li { align-items:flex-start; }
+  .study-editor { padding:18px 16px; }
+  .study-fields { grid-template-columns:1fr 1fr; }
+  .study-field-wide { grid-column:1 / -1; }
+  .study-stage { gap:8px; }
 }

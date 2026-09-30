@@ -1,6 +1,7 @@
 import type { RitmoAPI } from '../../shared/api.js';
 import { MINUTES } from '../../shared/focus/contract.js';
-import { GENERIC_ERROR_MESSAGE } from '../../shared/ipc.js';
+import { GENERIC_ERROR_MESSAGE, type PublicError } from '../../shared/ipc.js';
+import { DEFAULT_AGENT_INSTRUCTIONS, MAX_STAGES, safeStudyRoute, type StudyLevel, type StudyRoute, type StudyRouteInput } from '../../shared/study/contract.js';
 import { todayKey, type PublicState } from '../../shared/state/contract.js';
 import { FIRST_PLANNED_DATE, LAST_PLANNED_DATE, safePlannedDate, type DaySummary, type Task } from '../../shared/tasks/contract.js';
 
@@ -161,4 +162,184 @@ export function timerActions(state: PublicState): TimerAction[] {
     { label: 'Descanso 5 min', style: 'secondary', run: api => api.startBreak('shortBreak') },
     { label: 'Descanso 15 min', style: 'ghost', run: api => api.startBreak('longBreak') }
   ];
+}
+
+// Rutas de estudio.
+
+export const LEVEL_LABELS: Record<StudyLevel, string> = {
+  beginner: 'Principiante',
+  intermediate: 'Intermedio',
+  advanced: 'Avanzado'
+};
+
+/** Etapa tal como se edita en el formulario: los temas en un solo campo, separados por comas. */
+export interface StageDraft {
+  /** Clave estable para React; en las etapas guardadas es su `id`. */
+  key: string;
+  id?: string;
+  title: string;
+  topics: string;
+}
+
+/** Ruta tal como se edita en el formulario, con los números como texto del campo. */
+export interface RouteDraft {
+  topic: string;
+  goal: string;
+  level: StudyLevel;
+  dailyPomodoros: string;
+  instructions: string;
+  stages: StageDraft[];
+}
+
+export function newStageDraft(key: string): StageDraft {
+  return { key, title: '', topics: '' };
+}
+
+/** Borrador de una ruta nueva: una etapa vacía y las instrucciones por defecto del agente. */
+export function emptyRouteDraft(stageKey: string): RouteDraft {
+  return { topic: '', goal: '', level: 'beginner', dailyPomodoros: '4', instructions: DEFAULT_AGENT_INSTRUCTIONS, stages: [newStageDraft(stageKey)] };
+}
+
+export function routeToDraft(route: StudyRoute): RouteDraft {
+  return {
+    topic: route.topic,
+    goal: route.goal,
+    level: route.level,
+    dailyPomodoros: String(route.dailyPomodoros),
+    instructions: route.instructions,
+    stages: route.stages.map(stage => ({ key: stage.id, id: stage.id, title: stage.title, topics: stage.topics.join(', ') }))
+  };
+}
+
+/** Temas escritos en un campo, separados por comas o saltos de línea, sin vacíos. */
+export function parseTopics(text: string): string[] {
+  return text.split(/[,\n]/).map(topic => topic.trim()).filter(Boolean);
+}
+
+/** Lo que se envía al proceso principal, que vuelve a validarlo. */
+export function draftToInput(draft: RouteDraft): StudyRouteInput {
+  const pomodoros = draft.dailyPomodoros.trim();
+  return {
+    topic: draft.topic,
+    goal: draft.goal,
+    level: draft.level,
+    dailyPomodoros: pomodoros === '' ? NaN : Number(pomodoros),
+    instructions: draft.instructions,
+    stages: draft.stages.map(stage => ({ ...(stage.id ? { id: stage.id } : {}), title: stage.title, topics: parseTopics(stage.topics) }))
+  };
+}
+
+/** Por qué no se puede guardar todavía el borrador, con las mismas reglas del proceso principal, o `null`. */
+export function draftProblem(draft: RouteDraft): string | null {
+  try { safeStudyRoute(draftToInput(draft)); return null; }
+  // `safeStudyRoute()` solo lanza `PublicError`, con un mensaje pensado para el usuario.
+  catch (error) { return (error as PublicError).message; }
+}
+
+/** Si el borrador difiere de la ruta guardada (o de una ruta nueva vacía). */
+export function draftChanged(draft: RouteDraft, saved: RouteDraft): boolean {
+  const comparable = (value: RouteDraft) => JSON.stringify(draftToInput(value));
+  return comparable(draft) !== comparable(saved);
+}
+
+/** Borradores sin guardar por clave de editor; conservan el trabajo al cambiar de ruta o de pantalla. */
+export type RouteDrafts = Readonly<Record<string, RouteDraft>>;
+
+/** Copia de `drafts` con el borrador de `key` sustituido, o quitado si es `undefined`. */
+export function withDraft(drafts: RouteDrafts, key: string, draft: RouteDraft | undefined): RouteDrafts {
+  const { [key]: _previous, ...rest } = drafts;
+  return draft ? { ...rest, [key]: draft } : rest;
+}
+
+/** Mueve una etapa una posición hacia arriba (`-1`) o hacia abajo (`1`); fuera de rango no cambia nada. */
+export function moveStage<T>(stages: readonly T[], index: number, delta: -1 | 1): T[] {
+  const target = index + delta;
+  if (index < 0 || index >= stages.length || target < 0 || target >= stages.length) return [...stages];
+  const next = [...stages];
+  [next[index], next[target]] = [next[target], next[index]];
+  return next;
+}
+
+/** Si el editor puede guardar: hay cambios válidos y no queda otra operación en curso. */
+export function canSaveDraft(changed: boolean, problem: string | null, busy: boolean): boolean {
+  return changed && !problem && !busy;
+}
+
+/**
+ * Crea un guardián que ejecuta una operación a la vez: mientras una sigue en curso, las demás
+ * llamadas se ignoran y devuelven `false`. Evita, por ejemplo, crear dos rutas con un doble clic.
+ * `onBusyChange` avisa al empezar y al terminar, para desactivar los botones.
+ */
+export function oneAtATime(onBusyChange: (busy: boolean) => void = () => {}): (operation: () => Promise<void>) => Promise<boolean> {
+  let busy = false;
+  return async operation => {
+    if (busy) return false;
+    busy = true;
+    onBusyChange(true);
+    try { await operation(); return true; }
+    finally { busy = false; onBusyChange(false); }
+  };
+}
+
+/** Si se puede añadir o quitar una etapa sin salir del rango que admite una ruta. */
+export function stageLimits(count: number): { canAdd: boolean; canRemove: boolean } {
+  return { canAdd: count < MAX_STAGES, canRemove: count > 1 };
+}
+
+/** Resumen de una ruta en la lista, p. ej. «3 etapas, 4 pomodoros al día, intermedio». */
+export function routeSummary(route: StudyRoute): string {
+  const stages = route.stages.length;
+  const pomodoros = route.dailyPomodoros;
+  return `${stages} ${stages === 1 ? 'etapa' : 'etapas'}, ${pomodoros} ${pomodoros === 1 ? 'pomodoro' : 'pomodoros'} al día, ${LEVEL_LABELS[route.level].toLowerCase()}`;
+}
+
+/** Tareas de una etapa y cuántas están completadas. */
+export interface StageProgress {
+  done: number;
+  total: number;
+}
+
+export interface StageProgressView {
+  text: string;
+  /** Ancho de la barra de avance, p. ej. «40%». */
+  percent: string;
+  complete: boolean;
+}
+
+/** Avance de una etapa según sus tareas; sin tareas, la etapa aún no empieza. */
+export function stageProgressView(progress: StageProgress | undefined): StageProgressView {
+  if (!progress?.total) return { text: 'Sin tareas todavía', percent: '0%', complete: false };
+  const done = Math.min(progress.done, progress.total);
+  return {
+    text: `${done} de ${progress.total} ${progress.total === 1 ? 'tarea' : 'tareas'}`,
+    percent: `${(done / progress.total) * 100}%`,
+    complete: done === progress.total
+  };
+}
+
+export interface RouteProgressView {
+  /** Etapas con todas sus tareas completadas. */
+  completed: number;
+  /** Índice de la primera etapa sin completar, o `null` si la ruta está terminada. */
+  current: number | null;
+  /** Estado de cada etapa, en orden: completa, la primera sin completar o pendiente. */
+  stages: StageState[];
+  text: string;
+}
+
+export type StageState = 'done' | 'current' | 'next';
+
+/** Avance de una ruta: cuántas etapas están completas y en cuál va. */
+export function routeProgressView(route: StudyRoute, progress: Readonly<Record<string, StageProgress>>): RouteProgressView {
+  const complete = route.stages.map(stage => stageProgressView(progress[stage.id]).complete);
+  const completed = complete.filter(Boolean).length;
+  const index = complete.indexOf(false);
+  const current = index === -1 ? null : index;
+  const total = route.stages.length;
+  return {
+    completed,
+    current,
+    stages: complete.map((done, stage): StageState => done ? 'done' : stage === current ? 'current' : 'next'),
+    text: current === null ? 'Ruta completada' : `Etapa ${current + 1} de ${total}: ${route.stages[current].title}`
+  };
 }
