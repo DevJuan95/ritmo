@@ -38,8 +38,10 @@ export const MCP_TOOLS = [
     name: 'get_study_route',
     title: 'Leer una ruta de estudio',
     description:
-      'Lee una ruta de estudio de Ritmo: objetivo, nivel, pomodoros al día, instrucciones del usuario, el día de hoy, ' +
-      'cada etapa con su id, sus temas y su avance, y las tareas vinculadas más recientes.',
+      'Lee el roadmap de una ruta de estudio de Ritmo: objetivo, nivel, pomodoros al día, enfoque, proyecto final, ' +
+      'reglas de estudio, instrucciones del usuario y el día de hoy; cada etapa en orden con su id, su resumen, lo que ' +
+      'hay que dominar (topics), lo que no priorizar todavía (deprioritized), su proyecto, sus recursos y su avance; ' +
+      'y las tareas vinculadas más recientes. Los campos del roadmap pueden venir vacíos.',
     inputSchema: { type: 'object', properties: { routeId: ID }, required: ['routeId'], additionalProperties: false },
     annotations: { readOnlyHint: true, openWorldHint: false }
   },

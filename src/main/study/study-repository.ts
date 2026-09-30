@@ -13,6 +13,9 @@ interface RouteRow {
   goal: string;
   level: string;
   daily_pomodoros: number;
+  approach: string;
+  final_project: string;
+  study_rules: string;
   instructions: string;
   created_at: string;
   updated_at: string;
@@ -22,21 +25,41 @@ interface StageRow {
   id: string;
   route_id: string;
   title: string;
+  summary: string;
   topics: string;
+  deprioritized: string;
+  project: string;
+  resources: string;
 }
 
-/** Los campos del roadmap (enfoque, proyecto final, reglas y los de cada etapa) todavía no se guardan: se leen vacíos. */
 function routeFromRow(row: RouteRow, stages: StudyStage[]): StudyRoute {
   return {
     id: row.id, topic: row.topic, goal: row.goal, level: row.level as StudyLevel,
-    dailyPomodoros: Number(row.daily_pomodoros), approach: '', stages, finalProject: '', studyRules: '', instructions: row.instructions,
-    createdAt: row.created_at, updatedAt: row.updated_at
+    dailyPomodoros: Number(row.daily_pomodoros), approach: row.approach, stages, finalProject: row.final_project,
+    studyRules: row.study_rules, instructions: row.instructions, createdAt: row.created_at, updatedAt: row.updated_at
   };
 }
 
 function stageFromRow(row: StageRow): StudyStage {
-  return { id: row.id, title: row.title, summary: '', topics: JSON.parse(row.topics) as string[], deprioritized: [], project: '', resources: [] };
+  return {
+    id: row.id, title: row.title, summary: row.summary, topics: JSON.parse(row.topics) as string[],
+    deprioritized: JSON.parse(row.deprioritized) as string[], project: row.project, resources: JSON.parse(row.resources) as string[]
+  };
 }
+
+/**
+ * Columnas del roadmap que se añadieron después de crear las tablas, con su valor en las filas que
+ * ya existían: texto vacío o una lista JSON vacía.
+ */
+const ROADMAP_COLUMNS: ReadonlyArray<readonly [table: string, column: string, empty: string]> = [
+  ['study_routes', 'approach', "''"],
+  ['study_routes', 'final_project', "''"],
+  ['study_routes', 'study_rules', "''"],
+  ['study_stages', 'summary', "''"],
+  ['study_stages', 'deprioritized', "'[]'"],
+  ['study_stages', 'project', "''"],
+  ['study_stages', 'resources', "'[]'"]
+];
 
 export interface StudyRepositoryDeps {
   now?: Clock;
@@ -50,8 +73,9 @@ const AGENT_NOTICES_KEY = 'agent-notices';
 
 /**
  * Rutas de estudio en las tablas `study_routes` y `study_stages` de `ritmo.db`, con su propia
- * conexión. Las etapas guardan su posición en la ruta y sus temas como JSON; borrar una ruta borra
- * sus etapas. La configuración del agente y los avisos aceptados van como JSON en `study_settings`.
+ * conexión. Las etapas guardan su posición en la ruta y sus listas (temas, temas que no priorizar y
+ * recursos) como JSON; borrar una ruta borra sus etapas. Las columnas del roadmap se añaden al abrir
+ * una base anterior (`ROADMAP_COLUMNS`). La configuración del agente y los avisos aceptados van como JSON en `study_settings`.
  */
 export class StudyRepository implements StudyRepositoryPort, StudyRouteReaderPort, StudyStagesPort, AgentSettingsRepositoryPort, AgentNoticeRepositoryPort {
   private readonly db: DatabaseSync;
@@ -89,6 +113,7 @@ export class StudyRepository implements StudyRepositoryPort, StudyRouteReaderPor
         value TEXT NOT NULL
       );
     `);
+    this.addRoadmapColumns();
   }
 
   list(): StudyRoute[] {
@@ -108,9 +133,11 @@ export class StudyRepository implements StudyRepositoryPort, StudyRouteReaderPor
     const id = this.newId();
     this.transaction(() => {
       this.db.prepare(`
-        INSERT INTO study_routes (id, topic, goal, level, daily_pomodoros, instructions, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(id, route.topic, route.goal, route.level, route.dailyPomodoros, route.instructions, timestamp, timestamp);
+        INSERT INTO study_routes
+          (id, topic, goal, level, daily_pomodoros, approach, final_project, study_rules, instructions, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(id, route.topic, route.goal, route.level, route.dailyPomodoros, route.approach, route.finalProject, route.studyRules,
+        route.instructions, timestamp, timestamp);
       this.writeStages(id, route, new Set());
     });
     return this.get(id);
@@ -121,8 +148,10 @@ export class StudyRepository implements StudyRepositoryPort, StudyRouteReaderPor
     const owned = new Set((this.db.prepare('SELECT id FROM study_stages WHERE route_id = ?').all(id) as unknown as Array<{ id: string }>).map(row => row.id));
     this.transaction(() => {
       this.db.prepare(`
-        UPDATE study_routes SET topic = ?, goal = ?, level = ?, daily_pomodoros = ?, instructions = ?, updated_at = ? WHERE id = ?
-      `).run(route.topic, route.goal, route.level, route.dailyPomodoros, route.instructions, this.timestamp(), id);
+        UPDATE study_routes SET topic = ?, goal = ?, level = ?, daily_pomodoros = ?, approach = ?, final_project = ?, study_rules = ?,
+          instructions = ?, updated_at = ? WHERE id = ?
+      `).run(route.topic, route.goal, route.level, route.dailyPomodoros, route.approach, route.finalProject, route.studyRules,
+        route.instructions, this.timestamp(), id);
       this.db.prepare('DELETE FROM study_stages WHERE route_id = ?').run(id);
       this.writeStages(id, route, owned);
     });
@@ -187,11 +216,28 @@ export class StudyRepository implements StudyRepositoryPort, StudyRouteReaderPor
 
   /** Inserta las etapas en orden. Una etapa con `id` debe estar en `owned`: las de la ruta antes del cambio. */
   private writeStages(routeId: string, route: StudyRouteInput, owned: ReadonlySet<string>): void {
-    const insert = this.db.prepare('INSERT INTO study_stages (id, route_id, position, title, topics) VALUES (?, ?, ?, ?, ?)');
+    const insert = this.db.prepare(`
+      INSERT INTO study_stages (id, route_id, position, title, summary, topics, deprioritized, project, resources)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
     route.stages.forEach((stage, position) => {
       if (stage.id !== undefined && !owned.has(stage.id)) throw new PublicError('La etapa no es válida.');
-      insert.run(stage.id ?? this.newId(), routeId, position, stage.title, JSON.stringify(stage.topics));
+      insert.run(stage.id ?? this.newId(), routeId, position, stage.title, stage.summary, JSON.stringify(stage.topics),
+        JSON.stringify(stage.deprioritized), stage.project, JSON.stringify(stage.resources));
     });
+  }
+
+  /**
+   * Las bases creadas antes del roadmap completo no tienen sus columnas: las añade con su valor
+   * vacío, así que las rutas guardadas se conservan. Es idempotente.
+   */
+  private addRoadmapColumns(): void {
+    for (const [table, column, empty] of ROADMAP_COLUMNS) {
+      const columns = this.db.prepare(`PRAGMA table_info(${table})`).all() as unknown as Array<{ name: string }>;
+      if (!columns.some(existing => existing.name === column)) {
+        this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} TEXT NOT NULL DEFAULT ${empty}`);
+      }
+    }
   }
 
   private transaction(work: () => void): void {

@@ -176,3 +176,77 @@ test('unos avisos guardados que no se pueden leer cuentan como ninguno aceptado'
     assert.deepEqual(repository.loadAgentNotices(), expected);
   }
 });
+
+const roadmap = (): StudyRouteInput => input({
+  approach: '60-70 % sistemas distribuidos,\n30-40 % Java.', finalProject: 'Un servicio de pagos con colas.', studyRules: 'Java y sistemas en paralelo.',
+  stages: [
+    stage({
+      title: 'Fundamentos', summary: 'Bases del sistema.', topics: ['Replicación', 'Particiones'], deprioritized: ['Kubernetes'],
+      project: 'Un almacén clave-valor.', resources: ['DDIA', 'Curso de MIT 6.824']
+    }),
+    stage({ title: 'Traits', topics: [] })
+  ]
+});
+
+test('guarda y lee los campos del roadmap de la ruta y de cada etapa al crear, editar, leer y listar', t => {
+  const { repository, dbPath, clock } = openRepository(t);
+  const at = new Date(clock.now()).toISOString();
+  const created = repository.create(roadmap());
+  const [first, second] = roadmap().stages;
+  assert.deepEqual(created, {
+    ...roadmap(), id: 'id-1', stages: [{ ...first, id: 'id-2' }, { ...second, id: 'id-3' }], createdAt: at, updatedAt: at
+  });
+  assert.deepEqual(repository.get(created.id), created);
+  assert.deepEqual(repository.list(), [created]);
+
+  const [fundamentals] = created.stages;
+  const updated = repository.update(created.id, input({
+    approach: 'Solo Java.', finalProject: '', studyRules: 'Una hora al día.',
+    stages: [stage({ ...fundamentals, summary: 'Otro resumen.', deprioritized: [], project: '', resources: ['DDIA'] })]
+  }));
+  assert.equal(updated.approach, 'Solo Java.');
+  assert.equal(updated.finalProject, '');
+  assert.equal(updated.studyRules, 'Una hora al día.');
+  assert.deepEqual(updated.stages, [{ ...fundamentals, summary: 'Otro resumen.', deprioritized: [], project: '', resources: ['DDIA'] }]);
+
+  repository.close();
+  const reopened = new StudyRepository(dbPath);
+  t.after(() => reopened.close());
+  assert.deepEqual(reopened.list(), [updated]);
+});
+
+test('abre una base con el esquema anterior al roadmap y conserva sus rutas con los campos nuevos vacíos', t => {
+  const dbPath = path.join(tempDir(t), 'ritmo.db');
+  const old = new DatabaseSync(dbPath);
+  old.exec(`
+    CREATE TABLE study_routes (
+      id TEXT PRIMARY KEY, topic TEXT NOT NULL, goal TEXT NOT NULL, level TEXT NOT NULL, daily_pomodoros INTEGER NOT NULL,
+      instructions TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE TABLE study_stages (
+      id TEXT PRIMARY KEY, route_id TEXT NOT NULL REFERENCES study_routes(id) ON DELETE CASCADE,
+      position INTEGER NOT NULL, title TEXT NOT NULL, topics TEXT NOT NULL
+    );
+    INSERT INTO study_routes VALUES ('r1', 'Rust', 'Escribir una CLI.', 'beginner', 4, 'En español.', '2026-01-01T00:00:00.000Z', '2026-01-02T00:00:00.000Z');
+    INSERT INTO study_stages VALUES ('s2', 'r1', 1, 'Traits', '[]');
+    INSERT INTO study_stages VALUES ('s1', 'r1', 0, 'Ownership', '["Move","Borrowing"]');
+  `);
+  old.close();
+
+  const expected = {
+    id: 'r1', topic: 'Rust', goal: 'Escribir una CLI.', level: 'beginner', dailyPomodoros: 4, ...emptyRouteRoadmap(),
+    stages: [stage({ id: 's1', title: 'Ownership', topics: ['Move', 'Borrowing'] }), stage({ id: 's2', title: 'Traits', topics: [] })],
+    instructions: 'En español.', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-02T00:00:00.000Z'
+  };
+  const repository = new StudyRepository(dbPath, { newId: sequentialIds('id') });
+  assert.deepEqual(repository.list(), [expected]);
+  const updated = repository.update('r1', { ...roadmap(), stages: [stage({ id: 's1', title: 'Ownership', resources: ['The Book'] })] });
+  repository.close();
+
+  // Abrirla otra vez no vuelve a añadir las columnas ni pierde nada.
+  const reopened = new StudyRepository(dbPath);
+  t.after(() => reopened.close());
+  assert.deepEqual(reopened.list(), [updated]);
+  assert.deepEqual(updated.stages[0].resources, ['The Book']);
+  assert.equal(updated.approach, roadmap().approach);
+});

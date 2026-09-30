@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
-import { INVALID_BRIDGE_REQUEST, MAX_BRIDGE_MESSAGE, type BridgeResponse } from '../../shared/bridge/contract';
+import { INVALID_BRIDGE_REQUEST, MAX_BRIDGE_REQUEST, type BridgeResponse } from '../../shared/bridge/contract';
 import { GENERIC_ERROR_MESSAGE, PublicError } from '../../shared/ipc';
 import type { BridgeHandler, BridgeServer } from './ports';
 
@@ -44,7 +44,7 @@ function socketAlive(socketPath: string): Promise<boolean> {
 /**
  * Servidor del puente en un socket Unix. Lo crea en una carpeta solo para el usuario (0700) con permisos
  * 0600, de modo que solo los procesos del mismo usuario pueden conectarse. Cada conexión envía una línea
- * de JSON de como máximo `MAX_BRIDGE_MESSAGE` bytes, recibe una respuesta y se cierra.
+ * de JSON de como máximo `MAX_BRIDGE_REQUEST` bytes, recibe una respuesta y se cierra.
  */
 export class SocketBridgeServer implements BridgeServer {
   private server?: net.Server;
@@ -104,8 +104,8 @@ export class SocketBridgeServer implements BridgeServer {
     const onData = (chunk: Buffer) => {
       received = Buffer.concat([received, chunk]);
       const end = received.indexOf(0x0a);
-      if (end >= 0 && end <= MAX_BRIDGE_MESSAGE) reply(bridgeResponse(handler, received.subarray(0, end).toString('utf8'), this.log));
-      else if (received.length > MAX_BRIDGE_MESSAGE) reply({ ok: false, error: INVALID_BRIDGE_REQUEST });
+      if (end >= 0 && end <= MAX_BRIDGE_REQUEST) reply(bridgeResponse(handler, received.subarray(0, end).toString('utf8'), this.log));
+      else if (received.length > MAX_BRIDGE_REQUEST) reply({ ok: false, error: INVALID_BRIDGE_REQUEST });
     };
     const reply = (response: BridgeResponse) => {
       socket.off('data', onData);

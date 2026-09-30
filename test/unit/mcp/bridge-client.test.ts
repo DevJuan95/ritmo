@@ -6,7 +6,7 @@ import path from 'node:path';
 import {
   APP_CLOSED, APP_INVALID_RESPONSE, APP_TIMEOUT, APP_UNREACHABLE, BRIDGE_TIMEOUT_MS, callBridge, defaultSocketPath
 } from '../../../src/mcp/bridge-client';
-import { MAX_BRIDGE_MESSAGE } from '../../../src/shared/bridge/contract';
+import { MAX_BRIDGE_RESPONSE } from '../../../src/shared/bridge/contract';
 import { staleSocket } from '../../helpers/sockets';
 import { tempDir } from '../../helpers/temp';
 
@@ -53,7 +53,7 @@ test('una respuesta sin forma o demasiado grande no se usa', async t => {
     const { socketPath } = await fakeApp(t, () => answer);
     assert.deepEqual(await callBridge(socketPath, {}), { ok: false, error: APP_INVALID_RESPONSE }, answer);
   }
-  const { socketPath } = await fakeApp(t, () => 'x'.repeat(MAX_BRIDGE_MESSAGE + 10));
+  const { socketPath } = await fakeApp(t, () => 'x'.repeat(MAX_BRIDGE_RESPONSE + 10));
   assert.deepEqual(await callBridge(socketPath, {}), { ok: false, error: APP_INVALID_RESPONSE });
 });
 
