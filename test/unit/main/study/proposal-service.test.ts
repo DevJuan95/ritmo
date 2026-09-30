@@ -4,10 +4,11 @@ import { PublicError } from '../../../../src/shared/ipc';
 import { AGENT_CANCELLED, DEFAULT_AGENT_SETTINGS, type TaskProposal } from '../../../../src/shared/study/contract';
 import { AGENT_BUSY, agentMissing, agentNoticeRequired } from '../../../../src/main/study/proposal-service';
 import { createHarness } from '../../../helpers/harness';
+import { stage } from '../../../helpers/study';
 
 const rustRoute = {
   topic: 'Rust', goal: 'Escribir una CLI.', level: 'beginner', dailyPomodoros: 3,
-  stages: [{ title: 'Ownership', topics: ['Borrowing'] }, { title: 'Traits', topics: [] }], instructions: 'En español.'
+  stages: [stage({ title: 'Ownership', topics: ['Borrowing'] }), stage({ title: 'Traits', topics: [] })], instructions: 'En español.'
 };
 
 function setup(t: TestContext) {

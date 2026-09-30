@@ -6,21 +6,43 @@ export type StudyProvider = 'claude' | 'codex';
 
 export type StudyLevel = 'beginner' | 'intermediate' | 'advanced';
 
-/** Hito de una ruta, con los temas que cubre. */
+/**
+ * Hito de una ruta: qué se busca en ella, lo que hay que dominar (`topics`), lo que no conviene
+ * priorizar todavía, un proyecto práctico y los recursos recomendados. Los campos del roadmap
+ * quedan vacíos en las etapas que no los tienen.
+ */
 export interface StudyStage {
   id: string;
   title: string;
+  /** Qué se busca en la etapa. */
+  summary: string;
+  /** Temas que hay que dominar. */
   topics: string[];
+  /** Temas que conviene no priorizar todavía. */
+  deprioritized: string[];
+  /** Proyecto práctico de la etapa. */
+  project: string;
+  /** Libros, cursos o herramientas recomendados. */
+  resources: string[];
 }
 
-/** Roadmap de un tema, con las instrucciones que se dan al agente al pedirle tareas. */
+/**
+ * Roadmap de un tema: objetivo, enfoque recomendado, etapas en orden, proyecto final, reglas de
+ * estudio y las instrucciones que se dan al agente al pedirle tareas.
+ */
 export interface StudyRoute {
   id: string;
   topic: string;
   goal: string;
   level: StudyLevel;
   dailyPomodoros: number;
+  /** Enfoque recomendado, p. ej. «60-70 % sistemas distribuidos, 30-40 % Java». */
+  approach: string;
   stages: StudyStage[];
+  /** Proyecto final que integra las etapas. */
+  finalProject: string;
+  /** Reglas de estudio y principio guía. */
+  studyRules: string;
   instructions: string;
   createdAt: string;
   updatedAt: string;
@@ -31,6 +53,12 @@ export type StudyStageInput = Omit<StudyStage, 'id'> & { id?: string };
 
 /** Datos editables de una ruta; el proceso principal asigna los identificadores y las fechas. */
 export type StudyRouteInput = Omit<StudyRoute, 'id' | 'stages' | 'createdAt' | 'updatedAt'> & { stages: StudyStageInput[] };
+
+/** Roadmap que propone el agente a partir de un brief: una ruta sin guardar, con etapas sin `id`. */
+export type RoadmapDraft = Omit<StudyRouteInput, 'stages'> & { stages: Array<Omit<StudyStageInput, 'id'>> };
+
+/** Lo que el usuario pide al agente para generar un roadmap, en texto libre. */
+export type RoadmapBrief = string;
 
 /** Tarea que propone el agente para una etapa. Al aceptarla se convierte en una tarea del Planner. */
 export interface TaskProposal {
@@ -54,6 +82,15 @@ export const STUDY_PROVIDERS: readonly StudyProvider[] = ['claude', 'codex'];
 export const STUDY_LEVELS: readonly StudyLevel[] = ['beginner', 'intermediate', 'advanced'];
 export const MAX_STAGES = 30;
 export const MAX_TOPICS_PER_STAGE = 20;
+/** Máximo de temas que no priorizar y de recursos por etapa. */
+export const MAX_DEPRIORITIZED_PER_STAGE = 20;
+export const MAX_RESOURCES_PER_STAGE = 20;
+/** Largo máximo del resumen y del proyecto de una etapa. */
+export const MAX_STAGE_TEXT = 1000;
+/** Largo máximo del enfoque, del proyecto final y de las reglas de estudio de una ruta. */
+export const MAX_ROADMAP_TEXT = 2000;
+/** Largo máximo del brief de un roadmap. */
+export const MAX_ROADMAP_BRIEF = 4000;
 export const MAX_DAILY_POMODOROS = 16;
 export const MAX_PROPOSALS = 10;
 export const MAX_PROPOSAL_POMODOROS = 8;
@@ -99,15 +136,32 @@ export function safeStudyLevel(value: unknown): StudyLevel {
   return value as StudyLevel;
 }
 
+/**
+ * Lista de textos de una línea, sin repetidos, de hasta `max` elementos. Si falta la lista, vacía;
+ * así siguen siendo válidas las etapas guardadas antes de que existiera el campo.
+ */
+function lines(value: unknown, optional: boolean, max: number, itemMax: number, listMessage: string, itemMessage: string): string[] {
+  if (optional && (value === undefined || value === null)) return [];
+  if (!Array.isArray(value) || value.length > max) throw new PublicError(listMessage);
+  return [...new Set(value.map((item) => line(item, 1, itemMax, itemMessage)))];
+}
+
 export function safeStudyStage(value: unknown): StudyStageInput {
   const stage = record(value, 'La etapa no es válida.');
   const title = line(stage.title, 1, 120, 'Cada etapa debe tener un título de 1 a 120 caracteres.');
-  if (!Array.isArray(stage.topics) || stage.topics.length > MAX_TOPICS_PER_STAGE) {
-    throw new PublicError(`Cada etapa admite hasta ${MAX_TOPICS_PER_STAGE} temas.`);
-  }
-  const topics = [...new Set(stage.topics.map((topic) => line(topic, 1, 80, 'Cada tema debe tener de 1 a 80 caracteres.')))];
-  if (stage.id === undefined) return { title, topics };
-  return { id: line(stage.id, 1, 64, 'La etapa no es válida.'), title, topics };
+  const topics = lines(stage.topics, false, MAX_TOPICS_PER_STAGE, 80,
+    `Cada etapa admite hasta ${MAX_TOPICS_PER_STAGE} temas.`, 'Cada tema debe tener de 1 a 80 caracteres.');
+  const roadmap = {
+    summary: paragraph(stage.summary, MAX_STAGE_TEXT, `El resumen de cada etapa admite hasta ${MAX_STAGE_TEXT} caracteres.`),
+    topics,
+    deprioritized: lines(stage.deprioritized, true, MAX_DEPRIORITIZED_PER_STAGE, 120,
+      `Cada etapa admite hasta ${MAX_DEPRIORITIZED_PER_STAGE} temas que no priorizar.`, 'Cada tema que no priorizar debe tener de 1 a 120 caracteres.'),
+    project: paragraph(stage.project, MAX_STAGE_TEXT, `El proyecto de cada etapa admite hasta ${MAX_STAGE_TEXT} caracteres.`),
+    resources: lines(stage.resources, true, MAX_RESOURCES_PER_STAGE, 200,
+      `Cada etapa admite hasta ${MAX_RESOURCES_PER_STAGE} recursos.`, 'Cada recurso debe tener de 1 a 200 caracteres.'),
+  };
+  if (stage.id === undefined) return { title, ...roadmap };
+  return { id: line(stage.id, 1, 64, 'La etapa no es válida.'), title, ...roadmap };
 }
 
 export function safeStudyRoute(value: unknown): StudyRouteInput {
@@ -123,9 +177,20 @@ export function safeStudyRoute(value: unknown): StudyRouteInput {
     goal: paragraph(route.goal, 500, 'El objetivo admite hasta 500 caracteres.'),
     level: safeStudyLevel(route.level),
     dailyPomodoros: integer(route.dailyPomodoros, 1, MAX_DAILY_POMODOROS, `Elige de 1 a ${MAX_DAILY_POMODOROS} pomodoros por día.`),
+    approach: paragraph(route.approach, MAX_ROADMAP_TEXT, `El enfoque admite hasta ${MAX_ROADMAP_TEXT} caracteres.`),
     stages,
+    finalProject: paragraph(route.finalProject, MAX_ROADMAP_TEXT, `El proyecto final admite hasta ${MAX_ROADMAP_TEXT} caracteres.`),
+    studyRules: paragraph(route.studyRules, MAX_ROADMAP_TEXT, `Las reglas de estudio admiten hasta ${MAX_ROADMAP_TEXT} caracteres.`),
     instructions: paragraph(route.instructions, 2000, 'Las instrucciones admiten hasta 2000 caracteres.'),
   };
+}
+
+/** Brief de un roadmap: texto libre de 1 a `MAX_ROADMAP_BRIEF` caracteres, con sus saltos de línea. */
+export function safeRoadmapBrief(value: unknown): RoadmapBrief {
+  const message = `Describe qué quieres estudiar en 1 a ${MAX_ROADMAP_BRIEF} caracteres.`;
+  const brief = paragraph(value, MAX_ROADMAP_BRIEF, message);
+  if (!brief) throw new PublicError(message);
+  return brief;
 }
 
 /** Error público de una petición al agente que canceló el usuario o el cierre de la app. */
@@ -159,6 +224,21 @@ export function safeTaskProposals(value: unknown, stageIds: ReadonlySet<string>)
       reason: paragraph(proposal.reason, MAX_PROPOSAL_TEXT, invalid),
     };
   });
+}
+
+/**
+ * Valida el roadmap que devuelve el agente con las mismas reglas que una ruta, como entrada externa:
+ * cualquier problema, o una etapa con `id`, rechaza la respuesta entera con `INVALID_AGENT_RESPONSE`.
+ */
+export function safeRoadmapDraft(value: unknown): RoadmapDraft {
+  let draft: StudyRouteInput;
+  try {
+    draft = safeStudyRoute(value);
+  } catch {
+    throw new PublicError(INVALID_AGENT_RESPONSE);
+  }
+  if (draft.stages.some((stage) => stage.id !== undefined)) throw new PublicError(INVALID_AGENT_RESPONSE);
+  return draft as RoadmapDraft;
 }
 
 /** Identificador de una ruta: texto de 1 a 64 caracteres. */

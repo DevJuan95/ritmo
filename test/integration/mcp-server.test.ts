@@ -7,6 +7,7 @@ import { BridgeService } from '../../src/main/bridge/bridge-service';
 import { SocketBridgeServer } from '../../src/main/bridge/socket-server';
 import { APP_CLOSED } from '../../src/mcp/bridge-client';
 import { createHarness } from '../helpers/harness';
+import { stage } from '../helpers/study';
 
 /** El servidor MCP compilado por `tsc`, que se ejecuta con `node` como lo harían Claude Code o Codex. */
 const MCP_ENTRY = path.join(__dirname, '..', '..', 'src', 'mcp', 'index.js');
@@ -35,7 +36,7 @@ test('Claude Code o Codex leen una ruta y crean una tarea en la app abierta por 
   const harness = createHarness(t);
   const route = harness.study.create({
     topic: 'Rust', goal: 'Escribir una CLI.', level: 'beginner', dailyPomodoros: 2,
-    stages: [{ title: 'Ownership', topics: ['Borrowing'] }], instructions: 'En español.'
+    stages: [stage({ title: 'Ownership', topics: ['Borrowing'] })], instructions: 'En español.'
   });
   const socketPath = path.join(harness.directory, 'ritmo.sock');
   const bridge = new BridgeService({

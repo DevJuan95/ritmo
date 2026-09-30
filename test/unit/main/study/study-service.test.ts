@@ -1,15 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHarness } from '../../../helpers/harness';
+import { stage } from '../../../helpers/study';
 
-const input = { topic: '  Sistemas   distribuidos ', goal: ' Entender Raft. ', level: 'advanced', dailyPomodoros: 3, stages: [{ title: 'Consenso', topics: ['Raft', 'Raft'] }], instructions: '' };
+const input = { topic: '  Sistemas   distribuidos ', goal: ' Entender Raft. ', level: 'advanced', dailyPomodoros: 3, stages: [stage({ title: 'Consenso', topics: ['Raft', 'Raft'] })], instructions: '' };
 
 test('valida y normaliza la ruta antes de guardarla', t => {
   const { study } = createHarness(t);
   const route = study.create(input);
   assert.equal(route.topic, 'Sistemas distribuidos');
   assert.equal(route.goal, 'Entender Raft.');
-  assert.deepEqual(route.stages, [{ id: 'study-2', title: 'Consenso', topics: ['Raft'] }]);
+  assert.deepEqual(route.stages, [stage({ id: 'study-2', title: 'Consenso', topics: ['Raft'] })]);
   assert.deepEqual(study.list(), [route]);
 });
 
@@ -29,7 +30,7 @@ test('edita y borra una ruta por su id', t => {
   const { study, clock } = createHarness(t);
   const route = study.create(input);
   clock.advanceMinutes(1);
-  const updated = study.update(route.id, { ...input, stages: [...route.stages, { title: 'Replicación', topics: [] }] });
+  const updated = study.update(route.id, { ...input, stages: [...route.stages, stage({ title: 'Replicación', topics: [] })] });
   assert.deepEqual(updated.stages.map(stage => stage.title), ['Consenso', 'Replicación']);
   assert.equal(updated.stages[0].id, route.stages[0].id);
   assert.notEqual(updated.updatedAt, route.updatedAt);
@@ -39,7 +40,7 @@ test('edita y borra una ruta por su id', t => {
 
 test('el avance viene de las tareas vinculadas a cada etapa', t => {
   const { study, tasks, store } = createHarness(t);
-  const route = study.create({ ...input, stages: [{ title: 'Consenso', topics: [] }, { title: 'Replicación', topics: [] }] });
+  const route = study.create({ ...input, stages: [stage({ title: 'Consenso', topics: [] }), stage({ title: 'Replicación', topics: [] })] });
   const [consensus, replication] = route.stages;
   assert.deepEqual(study.progress(), {});
   tasks.add('Leer el paper de Raft', undefined, { routeId: route.id, stageId: consensus.id });
@@ -51,7 +52,7 @@ test('el avance viene de las tareas vinculadas a cada etapa', t => {
 
 test('quitar una etapa o borrar la ruta deja sus tareas en el Planner, sin vincular', t => {
   const { study, tasks, store, repository } = createHarness(t);
-  const route = study.create({ ...input, stages: [{ title: 'Consenso', topics: [] }, { title: 'Replicación', topics: [] }] });
+  const route = study.create({ ...input, stages: [stage({ title: 'Consenso', topics: [] }), stage({ title: 'Replicación', topics: [] })] });
   const other = study.create({ ...input, topic: 'Go' });
   const [consensus, replication] = route.stages;
   tasks.add('Raft', undefined, { routeId: route.id, stageId: consensus.id });

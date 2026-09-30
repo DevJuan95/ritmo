@@ -14,6 +14,7 @@ import { systemTimers } from '../../../src/main/common/timers';
 import { StateStore } from '../../../src/main/state/state-store';
 import { SocketBridgeServer } from '../../../src/main/bridge/socket-server';
 import { tempDir } from '../../helpers/temp';
+import { stage } from '../../helpers/study';
 
 const resourcesPath = '/app/resources';
 
@@ -87,7 +88,7 @@ test('arma las rutas de estudio sobre ritmo.db', async t => {
   t.after(() => container.dispose());
   const { study, studyRepository } = container.cradle;
   assert.equal(container.cradle.study, study);
-  const route = study.create({ topic: 'Rust', goal: '', level: 'beginner', dailyPomodoros: 2, stages: [{ title: 'Ownership', topics: [] }], instructions: '' });
+  const route = study.create({ topic: 'Rust', goal: '', level: 'beginner', dailyPomodoros: 2, stages: [stage({ title: 'Ownership', topics: [] })], instructions: '' });
   assert.equal(route.createdAt, new Date(clock.now()).toISOString());
   assert.deepEqual(studyRepository.list(), [route]);
   assert.ok(fs.existsSync(path.join(directory, 'ritmo.db')));
@@ -135,7 +136,7 @@ test('el puente usa el socket de los datos de la app, que se abre al arrancar y 
   t.after(() => container.dispose());
   const { bridge, bridgeServer, lifecycle, study } = container.cradle;
   assert.ok(bridgeServer instanceof SocketBridgeServer);
-  const route = study.create({ topic: 'Rust', goal: '', level: 'beginner', dailyPomodoros: 2, stages: [{ title: 'Ownership', topics: [] }], instructions: '' });
+  const route = study.create({ topic: 'Rust', goal: '', level: 'beginner', dailyPomodoros: 2, stages: [stage({ title: 'Ownership', topics: [] })], instructions: '' });
   bridge.handle({ op: 'add-task', routeId: route.id, stageId: route.stages[0].id, title: 'Leer' });
   assert.deepEqual(container.cradle.store.state.tasks.map(task => task.title), ['Leer']);
   lifecycle.start(error => assert.fail(String(error)));

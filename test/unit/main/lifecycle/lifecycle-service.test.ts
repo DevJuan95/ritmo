@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { DEFAULT_SHUTDOWN_TIMEOUT_MS, LifecycleService } from '../../../../src/main/lifecycle/lifecycle-service';
 import { FakeClock, FakeQuitSignals } from '../../../helpers/fakes';
 import { createHarness } from '../../../helpers/harness';
+import { stage } from '../../../helpers/study';
 
 /** Deja correr las promesas pendientes sin avanzar el reloj. */
 const settle = () => new Promise<void>(resolve => setImmediate(resolve));
@@ -370,7 +371,7 @@ test('cierra todas las bases aunque falle una y sale con ese error', async t => 
 test('cancela la petición al agente en curso y la espera antes de cerrar SQLite', async t => {
   const harness = createHarness(t);
   const { lifecycle, proposals, agent, study } = harness;
-  const route = study.create({ topic: 'Rust', goal: '', level: 'beginner', dailyPomodoros: 2, stages: [{ title: 'Ownership', topics: [] }], instructions: '' });
+  const route = study.create({ topic: 'Rust', goal: '', level: 'beginner', dailyPomodoros: 2, stages: [stage({ title: 'Ownership', topics: [] })], instructions: '' });
   proposals.acceptNotice('claude');
   agent.hang();
   const running = proposals.propose(route.id);

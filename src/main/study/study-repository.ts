@@ -25,16 +25,17 @@ interface StageRow {
   topics: string;
 }
 
+/** Los campos del roadmap (enfoque, proyecto final, reglas y los de cada etapa) todavía no se guardan: se leen vacíos. */
 function routeFromRow(row: RouteRow, stages: StudyStage[]): StudyRoute {
   return {
     id: row.id, topic: row.topic, goal: row.goal, level: row.level as StudyLevel,
-    dailyPomodoros: Number(row.daily_pomodoros), stages, instructions: row.instructions,
+    dailyPomodoros: Number(row.daily_pomodoros), approach: '', stages, finalProject: '', studyRules: '', instructions: row.instructions,
     createdAt: row.created_at, updatedAt: row.updated_at
   };
 }
 
 function stageFromRow(row: StageRow): StudyStage {
-  return { id: row.id, title: row.title, topics: JSON.parse(row.topics) as string[] };
+  return { id: row.id, title: row.title, summary: '', topics: JSON.parse(row.topics) as string[], deprioritized: [], project: '', resources: [] };
 }
 
 export interface StudyRepositoryDeps {

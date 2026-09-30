@@ -8,12 +8,14 @@ import type { Task } from '../../../../src/shared/tasks/contract';
 import {
   LEVEL_LABELS, agentModelHint, agentPathPlaceholder, agentSettingsChanged, agentSettingsProblem, agentStatusView, agentSummary, uncheckedAgents, withProviderSettings,
   calendarRange, canSaveDraft, completionText, dateLabel, dayButtonLabel, dayIndicator, dayToDate, domainsLocked, draftChanged, draftProblem,
-  draftToInput, emptyRouteDraft, errorMessage, focusCountText, isPlannableDate, monthOf, moveStage, newStageDraft, oneAtATime, parseTopics, plannedDateToSave,
+  draftToInput, emptyRouteDraft, errorMessage, focusCountText, isPlannableDate, monthOf, moveStage, newStageDraft, oneAtATime, parseLines,
+  parseTopics, plannedDateToSave,
   acceptableProposals, addDays, agentNoticeText, elapsedText, pomodorosText, proposalGate, proposalProblem, proposalsSummary, proposalStageLabel, relativeDayLabel,
   scheduleProposals, withoutProposals, withProposal, withRouteProposals, type ProposalDraft,
   linkFromStage, routeProgressView, routeSummary, routeToDraft, stageLimits, stageOptions, stageProgressView, taskStageValue, tasksRevision, timerActions, timerView, withDraft
 } from '../../../../src/renderer/src/view';
 import { buildState } from '../../../helpers/harness';
+import { emptyRouteRoadmap, stage } from '../../../helpers/study';
 
 const now = new Date(2026, 8, 29, 9, 0, 0).getTime();
 
@@ -154,37 +156,61 @@ test('la etiqueta accesible de cada día dice la fecha, si es hoy y sus tareas',
 
 function studyRoute(overrides: Partial<StudyRoute> = {}): StudyRoute {
   return {
-    id: 'r1', topic: 'Rust', goal: 'Escribir un CLI', level: 'intermediate', dailyPomodoros: 3,
-    stages: [{ id: 's1', title: 'Ownership', topics: ['borrowing', 'lifetimes'] }, { id: 's2', title: 'Traits', topics: [] }],
+    id: 'r1', topic: 'Rust', goal: 'Escribir un CLI', level: 'intermediate', dailyPomodoros: 3, ...emptyRouteRoadmap(),
+    stages: [stage({ id: 's1', title: 'Ownership', topics: ['borrowing', 'lifetimes'] }), stage({ id: 's2', title: 'Traits', topics: [] })],
     instructions: 'En español.', createdAt: '', updatedAt: '', ...overrides
   };
 }
 
 test('el borrador de una ruta nueva trae una etapa vacía y las instrucciones por defecto', () => {
   assert.deepEqual(emptyRouteDraft('k1'), {
-    topic: '', goal: '', level: 'beginner', dailyPomodoros: '4', instructions: DEFAULT_AGENT_INSTRUCTIONS,
-    stages: [{ key: 'k1', title: '', topics: '' }]
+    topic: '', goal: '', level: 'beginner', dailyPomodoros: '4', approach: '', finalProject: '', studyRules: '',
+    instructions: DEFAULT_AGENT_INSTRUCTIONS, stages: [newStageDraft('k1')]
   });
-  assert.deepEqual(newStageDraft('k2'), { key: 'k2', title: '', topics: '' });
+  assert.deepEqual(newStageDraft('k2'), { key: 'k2', title: '', summary: '', topics: '', deprioritized: '', project: '', resources: '' });
 });
 
 test('una ruta guardada se edita con los temas separados por comas y vuelve igual', () => {
   const route = studyRoute();
   const draft = routeToDraft(route);
   assert.deepEqual(draft.stages, [
-    { key: 's1', id: 's1', title: 'Ownership', topics: 'borrowing, lifetimes' },
-    { key: 's2', id: 's2', title: 'Traits', topics: '' }
+    { key: 's1', id: 's1', title: 'Ownership', summary: '', topics: 'borrowing, lifetimes', deprioritized: '', project: '', resources: '' },
+    { key: 's2', id: 's2', title: 'Traits', summary: '', topics: '', deprioritized: '', project: '', resources: '' }
   ]);
   assert.equal(draft.dailyPomodoros, '3');
   assert.deepEqual(draftToInput(draft), {
-    topic: 'Rust', goal: 'Escribir un CLI', level: 'intermediate', dailyPomodoros: 3, instructions: 'En español.',
-    stages: [{ id: 's1', title: 'Ownership', topics: ['borrowing', 'lifetimes'] }, { id: 's2', title: 'Traits', topics: [] }]
+    topic: 'Rust', goal: 'Escribir un CLI', level: 'intermediate', dailyPomodoros: 3, ...emptyRouteRoadmap(), instructions: 'En español.',
+    stages: [stage({ id: 's1', title: 'Ownership', topics: ['borrowing', 'lifetimes'] }), stage({ id: 's2', title: 'Traits', topics: [] })]
   });
+});
+
+test('el borrador conserva el roadmap: los recursos van uno por línea porque pueden llevar comas', () => {
+  const roadmap = { approach: '70 % sistemas distribuidos', finalProject: 'Un almacén clave-valor replicado.', studyRules: 'Java y sistemas en paralelo.' };
+  const route = studyRoute({
+    ...roadmap,
+    stages: [stage({
+      id: 's1', title: 'Fundamentos', summary: 'Modelo de datos.', topics: ['Replicación'], deprioritized: ['Kubernetes', 'Service mesh'],
+      project: 'Un log replicado.', resources: ['Designing Data-Intensive Applications, Kleppmann', 'MIT 6.824']
+    })]
+  });
+  const draft = routeToDraft(route);
+  assert.equal(draft.approach, roadmap.approach);
+  assert.deepEqual(draft.stages[0], {
+    key: 's1', id: 's1', title: 'Fundamentos', summary: 'Modelo de datos.', topics: 'Replicación', deprioritized: 'Kubernetes, Service mesh',
+    project: 'Un log replicado.', resources: 'Designing Data-Intensive Applications, Kleppmann\nMIT 6.824'
+  });
+  const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, ...input } = route;
+  assert.deepEqual(draftToInput(draft), input);
 });
 
 test('los temas se separan por comas o saltos de línea, sin vacíos', () => {
   assert.deepEqual(parseTopics(' a, b\nc ,, \n'), ['a', 'b', 'c']);
   assert.deepEqual(parseTopics(''), []);
+});
+
+test('los recursos se separan solo por saltos de línea, sin vacíos', () => {
+  assert.deepEqual(parseLines(' DDIA, Kleppmann \n\n  MIT 6.824\n'), ['DDIA, Kleppmann', 'MIT 6.824']);
+  assert.deepEqual(parseLines(''), []);
 });
 
 test('una etapa nueva se envía sin id y un número vacío no es válido', () => {
@@ -257,7 +283,7 @@ test('el guardián se libera aunque la operación falle', async () => {
 
 test('resume una ruta con sus etapas, pomodoros y nivel', () => {
   assert.equal(routeSummary(studyRoute()), '2 etapas, 3 pomodoros al día, intermedio');
-  const one = studyRoute({ dailyPomodoros: 1, level: 'advanced', stages: [{ id: 's1', title: 'Todo', topics: [] }] });
+  const one = studyRoute({ dailyPomodoros: 1, level: 'advanced', stages: [stage({ id: 's1', title: 'Todo', topics: [] })] });
   assert.equal(routeSummary(one), '1 etapa, 1 pomodoro al día, avanzado');
   assert.equal(LEVEL_LABELS.beginner, 'Principiante');
 });
@@ -293,7 +319,7 @@ test('los borradores se guardan y se quitan por clave sin tocar los demás', () 
 });
 
 test('el selector de etapa agrupa las etapas numeradas por ruta', () => {
-  const go = studyRoute({ id: 'r2', topic: 'Go', stages: [{ id: 's3', title: 'Goroutines', topics: [] }] });
+  const go = studyRoute({ id: 'r2', topic: 'Go', stages: [stage({ id: 's3', title: 'Goroutines', topics: [] })] });
   assert.deepEqual(stageOptions([studyRoute(), go]), [
     { label: 'Rust', options: [{ value: 's1', label: '1. Ownership' }, { value: 's2', label: '2. Traits' }] },
     { label: 'Go', options: [{ value: 's3', label: '1. Goroutines' }] }
@@ -302,7 +328,7 @@ test('el selector de etapa agrupa las etapas numeradas por ruta', () => {
 });
 
 test('la etapa elegida se convierte en el vínculo de la tarea', () => {
-  const routes = [studyRoute(), studyRoute({ id: 'r2', stages: [{ id: 's3', title: 'Goroutines', topics: [] }] })];
+  const routes = [studyRoute(), studyRoute({ id: 'r2', stages: [stage({ id: 's3', title: 'Goroutines', topics: [] })] })];
   assert.deepEqual(linkFromStage(routes, 's2'), { routeId: 'r1', stageId: 's2' });
   assert.deepEqual(linkFromStage(routes, 's3'), { routeId: 'r2', stageId: 's3' });
   assert.equal(linkFromStage(routes, ''), null);

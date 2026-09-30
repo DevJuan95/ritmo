@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHarness } from '../../../helpers/harness';
+import { stage } from '../../../helpers/study';
 
 test('añade tareas para hoy por defecto y publica la lista del día', t => {
   const { tasks, store, published } = createHarness(t);
@@ -92,7 +93,7 @@ test('las operaciones de tareas avanzan de día antes de actuar', t => {
   assert.deepEqual(store.state.tasks.map(task => [task.title, task.plannedDate]), [['Nueva', '2026-09-30']]);
 });
 
-const rustRoute = { topic: 'Rust', goal: '', level: 'beginner', dailyPomodoros: 2, stages: [{ title: 'Ownership', topics: [] }, { title: 'Traits', topics: [] }], instructions: '' };
+const rustRoute = { topic: 'Rust', goal: '', level: 'beginner', dailyPomodoros: 2, stages: [stage({ title: 'Ownership', topics: [] }), stage({ title: 'Traits', topics: [] })], instructions: '' };
 
 test('vincula una tarea a una etapa existente de su ruta al crearla o editarla', t => {
   const { tasks, store, study } = createHarness(t);

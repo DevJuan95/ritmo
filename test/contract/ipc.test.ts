@@ -11,6 +11,7 @@ import { errorMessage } from '../../src/renderer/src/view';
 import { FakeIpc } from '../helpers/fakes';
 import { createHarness } from '../helpers/harness';
 import { distRoot } from '../helpers/paths';
+import { emptyRouteRoadmap, stage } from '../helpers/study';
 
 interface LoadedPreload {
   api: RitmoAPI;
@@ -56,8 +57,8 @@ function loadPreload(invoke?: (channel: string, ...args: unknown[]) => Promise<u
 }
 
 const studyRoute: StudyRouteInput = {
-  topic: 'Rust', goal: 'Escribir una CLI.', level: 'beginner', dailyPomodoros: 4,
-  stages: [{ title: 'Ownership', topics: ['Borrowing'] }], instructions: DEFAULT_AGENT_INSTRUCTIONS
+  topic: 'Rust', goal: 'Escribir una CLI.', level: 'beginner', dailyPomodoros: 4, ...emptyRouteRoadmap(),
+  stages: [stage({ title: 'Ownership', topics: ['Borrowing'] })], instructions: DEFAULT_AGENT_INSTRUCTIONS
 };
 
 /** Un ejemplo de llamada por método. Si RitmoAPI crece, este objeto deja de compilar. */
