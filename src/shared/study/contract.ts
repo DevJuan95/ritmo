@@ -57,6 +57,8 @@ export const MAX_TOPICS_PER_STAGE = 20;
 export const MAX_DAILY_POMODOROS = 16;
 export const MAX_PROPOSALS = 10;
 export const MAX_PROPOSAL_POMODOROS = 8;
+/** Largo máximo del criterio de «hecho» y del motivo de una propuesta. */
+export const MAX_PROPOSAL_TEXT = 300;
 
 export const DEFAULT_AGENT_INSTRUCTIONS =
   'Propón tareas concretas y verificables, de 1 a 4 pomodoros, que alternen lectura, ejercicios y práctica. Indica un recurso o un criterio claro para saber cuándo está hecha. Responde en español.';
@@ -126,12 +128,15 @@ export function safeStudyRoute(value: unknown): StudyRouteInput {
   };
 }
 
+/** Error público de una respuesta del agente que no cumple el esquema; no incluye la respuesta. */
+export const INVALID_AGENT_RESPONSE = 'El agente devolvió una respuesta que no se puede usar.';
+
 /**
  * Valida la respuesta del agente: `{ proposals: TaskProposal[] }`, con cada propuesta en una etapa de
  * la ruta. Es una entrada externa, así que se valida igual que la que llega por IPC.
  */
 export function safeTaskProposals(value: unknown, stageIds: ReadonlySet<string>): TaskProposal[] {
-  const invalid = 'El agente devolvió una respuesta que no se puede usar.';
+  const invalid = INVALID_AGENT_RESPONSE;
   const { proposals } = record(value, invalid);
   if (!Array.isArray(proposals) || proposals.length < 1 || proposals.length > MAX_PROPOSALS) throw new PublicError(invalid);
   return proposals.map((item) => {
@@ -147,8 +152,8 @@ export function safeTaskProposals(value: unknown, stageIds: ReadonlySet<string>)
       title,
       stageId: proposal.stageId,
       pomodoros: integer(proposal.pomodoros, 1, MAX_PROPOSAL_POMODOROS, invalid),
-      doneWhen: paragraph(proposal.doneWhen, 300, invalid),
-      reason: paragraph(proposal.reason, 300, invalid),
+      doneWhen: paragraph(proposal.doneWhen, MAX_PROPOSAL_TEXT, invalid),
+      reason: paragraph(proposal.reason, MAX_PROPOSAL_TEXT, invalid),
     };
   });
 }

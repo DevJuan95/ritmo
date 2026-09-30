@@ -166,6 +166,8 @@ flowchart LR
 
 Los servicios guardan a través de `StateStore`, salvo `StudyService`, que usa su repositorio y pide a `TaskService` (`StudyTasksPort`) el avance de las etapas y que desvincule las tareas de las etapas que se quitan, para que las tareas de hoy queden al día. `TaskService` comprueba con `StudyStagesPort`, que implementa `StudyRepository`, que la etapa de un vínculo existe. `LifecycleService` depende de `FocusService` y cierra las dos conexiones SQLite como `Database`.
 
+`study/ports.ts` declara también `StudyAgent`, el puerto del CLI que propondrá tareas (Claude Code o Codex). `study/agent-prompt.ts` tiene lo que comparten sus adaptadores: `buildAgentRequest()` arma el prompt y el esquema JSON de la respuesta a partir de `StudyAgentContext` (la ruta, sus tareas vinculadas y el día), y `readAgentProposals()` valida la salida con `safeTaskProposals()`. Aún no tiene adaptadores ni consumidor, así que no está en el contenedor; las pruebas usan `FakeStudyAgent`.
+
 ```mermaid
 flowchart LR
   focus["FocusService"]
