@@ -5,7 +5,7 @@ import path from 'node:path';
 import type { RitmoAPI } from '../../src/shared/api';
 import { GENERIC_ERROR_MESSAGE, PublicError } from '../../src/shared/ipc';
 import type { PublicState } from '../../src/shared/state/contract';
-import { registerHandlers } from '../../src/main/ipc/handlers';
+import { registerHandlers } from '../../src/main/ipc/register';
 import { errorMessage } from '../../src/renderer/src/view';
 import { FakeIpc } from '../helpers/fakes';
 import { createHarness } from '../helpers/harness';

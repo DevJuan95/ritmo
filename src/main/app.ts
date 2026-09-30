@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain, Notification, powerMonitor, screen } from 
 import path from 'node:path';
 import type { RitmoEvents } from '../shared/api';
 import { createMainContainer } from './container';
-import { registerHandlers } from './ipc/handlers';
+import { registerHandlers } from './ipc/register';
 import { createQuitSignals } from './lifecycle/quit-signals';
 import { initialWindowSize } from './window-size';
 

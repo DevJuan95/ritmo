@@ -6,7 +6,7 @@ Si cambias un puerto, un servicio o su interfaz, un módulo, su registro en `src
 
 ## 1. Procesos
 
-El renderer no tiene acceso a Node ni a Electron. Todo pasa por `window.ritmo`, que `src/preload/index.ts` expone con `contextBridge`. Cada método, salvo `onState()`, invoca un canal IPC; `ipc/handlers.ts` lo conecta con un servicio, que valida la entrada. Los handlers devuelven `IpcResult`: los errores `PublicError` conservan un mensaje útil; las excepciones inesperadas se registran en el proceso principal y cruzan IPC sin detalle. Preload convierte los fallos, incluidos los de `ipcRenderer.invoke`, en `ApiError`; el renderer solo muestra esos mensajes. El estado vuelve por un solo canal, `state`, que `onState()` escucha, cada vez que `StateStore` guarda o empieza una operación protegida. `StateStore.publicState()` reemplaza cualquier `blockError` guardado por una indicación fija con la acción de recuperación.
+El renderer no tiene acceso a Node ni a Electron. Todo pasa por `window.ritmo`, que `src/preload/index.ts` expone con `contextBridge`. Cada método, salvo `onState()`, invoca un canal IPC; el `ipc.ts` del módulo dueño del canal lo conecta con su servicio, que valida la entrada, e `ipc/register.ts` compone esos registros. Los handlers devuelven `IpcResult` (los envuelve `createHandle()`, de `ipc/handle.ts`): los errores `PublicError` conservan un mensaje útil; las excepciones inesperadas se registran en el proceso principal y cruzan IPC sin detalle. Preload convierte los fallos, incluidos los de `ipcRenderer.invoke`, en `ApiError`; el renderer solo muestra esos mensajes. El estado vuelve por un solo canal, `state`, que `onState()` escucha, cada vez que `StateStore` guarda o empieza una operación protegida. `StateStore.publicState()` reemplaza cualquier `blockError` guardado por una indicación fija con la acción de recuperación.
 
 ```mermaid
 flowchart LR
@@ -21,7 +21,7 @@ flowchart LR
   end
 
   subgraph main["Proceso principal"]
-    ipc["ipc/handlers.ts<br/>registerHandlers"]
+    ipc["ipc/register.ts y<br/>&lt;módulo&gt;/ipc.ts"]
     services["FocusService<br/>TaskService<br/>DomainService"]
     store["StateStore"]
     ipc --> services
@@ -36,13 +36,13 @@ flowchart LR
   api -- "onState(callback)" --> ui
 ```
 
-Canales: `get-state` (`state`), `start-focus`, `finish-focus`, `start-break` y `finish-break` (`focus`), `add-task`, `toggle-task`, `delete-task`, `get-tasks-for-day`, `get-task-summary` y `update-task` (`tasks`), y `add-domain`, `remove-domain` y `retry-unblock` (`blocking`), en `invoke`, y `state`, que va del proceso principal al renderer. `retry-unblock` y `finish-focus` llaman al mismo método, `FocusService.finishFocus()`. `get-task-summary` devuelve el resumen de tareas del rango que muestra el calendario del Planner en una sola consulta, en lugar de pedir cada día con `get-tasks-for-day`. `test/contract/` comprueba que `RitmoAPI`, el preload e `ipc/handlers.ts` sigan sincronizados.
+Canales: `get-state` (`state`), `start-focus`, `finish-focus`, `start-break` y `finish-break` (`focus`), `add-task`, `toggle-task`, `delete-task`, `get-tasks-for-day`, `get-task-summary` y `update-task` (`tasks`), y `add-domain`, `remove-domain` y `retry-unblock` (`blocking`), en `invoke`, y `state`, que va del proceso principal al renderer. `retry-unblock` y `finish-focus` llaman al mismo método, `FocusService.finishFocus()`. `get-task-summary` devuelve el resumen de tareas del rango que muestra el calendario del Planner en una sola consulta, en lugar de pedir cada día con `get-tasks-for-day`. `test/contract/` comprueba que `RitmoAPI`, el preload e `ipc/register.ts` sigan sincronizados.
 
 ### 1.1 Contratos compartidos
 
 Lo que cruza procesos está en `src/shared/`, con un contrato por módulo en `src/shared/<módulo>/contract.ts` (`focus`, `tasks`, `blocking`, `state` y `study`). Cada uno declara sus tipos, su parte de `AppState`, la API que ofrece al renderer, sus canales IPC y la validación de su entrada, que usan los servicios del proceso principal y la vista. `study/contract.ts` es la primera pieza de las rutas de estudio (#36): por ahora solo declara sus tipos y su validación, sin API, canales ni servicio, así que `api.ts` todavía no lo compone. `src/shared/ipc.ts` guarda lo común a todos los canales: `PublicError`, `IpcResult`, `ApiError` y los tipos auxiliares `ChannelMap` y `UnvalidatedArgs`. `src/shared/api.ts` solo compone: `RitmoAPI`, `RitmoChannels`, `RitmoEvents` y el tipo de `window.ritmo`.
 
-Los canales son solo tipos: el preload se ejecuta con sandbox y no puede cargar módulos locales, así que importa los contratos con `import type` y repite `GENERIC_ERROR_MESSAGE`. `ChannelMap` asigna a cada método de la API de un módulo su canal y toma de él la firma. Con `RitmoChannels`, el preload solo compila si invoca un canal existente con los argumentos de su método, y `registerHandlers()` solo si registra canales existentes con la misma aridad; allí los argumentos llegan como `unknown` y los valida el servicio.
+Los canales son solo tipos: el preload se ejecuta con sandbox y no puede cargar módulos locales, así que importa los contratos con `import type` y repite `GENERIC_ERROR_MESSAGE`. `ChannelMap` asigna a cada método de la API de un módulo su canal y toma de él la firma. Con `RitmoChannels`, el preload solo compila si invoca un canal existente con los argumentos de su método, y el `ipc.ts` de cada módulo solo si registra canales de su propio contrato con la misma aridad, porque recibe un `Handle<FocusChannels>` (o el de su módulo); allí los argumentos llegan como `unknown` y los valida el servicio.
 
 ```mermaid
 flowchart LR
@@ -87,7 +87,7 @@ flowchart LR
   container["createMainContainer<br/>container.ts (Awilix)"]
   servicios["Servicios<br/>StateStore, TaskRepository,<br/>FocusService, TaskService,<br/>DomainService, LifecycleService"]
   adaptadores["Adaptadores<br/>createSiteBlocker, createNotifier,<br/>createSoundPlayer, systemTimers"]
-  ipc["registerHandlers<br/>ipc/handlers.ts"]
+  ipc["registerHandlers<br/>ipc/register.ts"]
   quit["createQuitSignals<br/>lifecycle/quit-signals.ts"]
   ipcMain["ipcMain"]:::electron
 
@@ -124,22 +124,33 @@ Orden de arranque en `app.ts`: se crea el contenedor y se resuelve `lifecycle` (
 
 ### 2.2 De IPC a los servicios
 
-`registerHandlers()` recibe cada servicio por la interfaz que usa, no por la clase.
+`registerHandlers()` (`ipc/register.ts`) solo compone: crea con `createHandle(ipcMain)` un `Handle` por módulo, tipado con los canales de su contrato, y se lo pasa al `ipc.ts` del módulo junto con la interfaz de su servicio, no la clase. `createHandle()` envuelve cada manejador para devolver `IpcResult`. `retry-unblock` pertenece al contrato de `blocking`, pero llama a `FocusService.finishFocus()`, así que `registerBlockingIpc()` recibe también esa parte de `FocusServicePort`.
 
 ```mermaid
 flowchart LR
   ipcMain["ipcMain"]:::electron
-  ipc["registerHandlers<br/>ipc/handlers.ts"]
+  register["registerHandlers<br/>ipc/register.ts"]
+  handle["createHandle<br/>ipc/handle.ts"]
+  stateIpc["registerStateIpc<br/>state/ipc.ts"]
+  focusIpc["registerFocusIpc<br/>focus/ipc.ts"]
+  tasksIpc["registerTasksIpc<br/>tasks/ipc.ts"]
+  blockingIpc["registerBlockingIpc<br/>blocking/ipc.ts"]
   store["StateStore<br/>state/state-store.ts"]
   focus["FocusService<br/>focus/focus-service.ts"]
   taskService["TaskService<br/>tasks/task-service.ts"]
   domainService["DomainService<br/>blocking/domain-service.ts"]
 
-  ipc -- "IpcRegistrar" --> ipcMain
-  ipc -- "PublicStatePort" --> store
-  ipc -- "FocusServicePort" --> focus
-  ipc -- "TaskServicePort" --> taskService
-  ipc -- "DomainServicePort" --> domainService
+  register --> handle
+  handle -- "IpcRegistrar" --> ipcMain
+  register -- "Handle&lt;StateChannels&gt;" --> stateIpc
+  register -- "Handle&lt;FocusChannels&gt;" --> focusIpc
+  register -- "Handle&lt;TasksChannels&gt;" --> tasksIpc
+  register -- "Handle&lt;BlockingChannels&gt;" --> blockingIpc
+  stateIpc -- "PublicStatePort" --> store
+  focusIpc -- "FocusServicePort" --> focus
+  tasksIpc -- "TaskServicePort" --> taskService
+  blockingIpc -- "DomainServicePort" --> domainService
+  blockingIpc -- "FocusServicePort<br/>(finishFocus)" --> focus
 
   classDef electron fill:#fde2e2,stroke:#c0392b,color:#000
 ```
