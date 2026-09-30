@@ -1,8 +1,8 @@
 # Arquitectura
 
-Cómo se conectan los procesos de Electron, los servicios del proceso principal, sus puertos y sus adaptadores, y cómo avanza una sesión. Los términos se definen en [`glosario.md`](glosario.md).
+Cómo se conectan los procesos de Electron, los servicios del proceso principal, sus puertos y sus adaptadores, cómo avanza una sesión y cómo una ruta pasa de un brief al agente a tareas en el Planner. Los términos se definen en [`glosario.md`](glosario.md).
 
-Si cambias un puerto, un servicio o su interfaz, un módulo, su registro en `src/main/container.ts`, su cableado en `src/main/app.ts` o el ciclo de una sesión, actualiza estos diagramas en el mismo cambio.
+Si cambias un puerto, un servicio o su interfaz, un módulo, su registro en `src/main/container.ts`, su cableado en `src/main/app.ts`, el ciclo de una sesión o el flujo del roadmap con el agente, actualiza estos diagramas en el mismo cambio.
 
 ## 1. Procesos
 
@@ -472,3 +472,47 @@ sequenceDiagram
 ```
 
 Si al descanso le toca terminar, el mismo `tick()` pone `session = null` y notifica «Descanso terminado», sin tocar el bloqueo.
+
+## 4. Roadmap con el agente
+
+Una ruta generada por el agente pasa por cuatro pasos: **brief → roadmap → revisión → tareas propuestas**. Solo dos envían algo al proveedor, y los dos exigen que el usuario pulse un botón y haya aceptado el aviso de privacidad del proveedor elegido: «Generar roadmap» envía solo el brief, y «Proponer tareas», la ruta guardada con su roadmap y sus tareas. Nada de lo que devuelve el agente se guarda solo: el roadmap se guarda con «Crear ruta» y cada tarea al añadirla al Planner.
+
+1. **Brief.** En «Nueva ruta con el agente» (`RoadmapPanel`), el renderer valida el brief con `briefProblem()`, las mismas reglas que `safeRoadmapBrief()`, y llama a `draftStudyRoute(brief)`. `useProposals()`, en `App`, guarda el brief, la petición en curso y el último error, así que la petición sigue aunque se cambie de sección.
+2. **Roadmap.** `ProposalService.draft()` vuelve a validar el brief y pasa por `request()`, igual que las propuestas: rechaza si hay otra petición en curso o falta el aviso, localiza el CLI, crea el adaptador y llama a `draftRoadmap()`. El adaptador arma el prompt y el esquema con `buildRoadmapRequest()`, lanza el CLI con `runAgentCli()` (hasta `AGENT_ROADMAP_TIMEOUT_MS`, 7 minutos) y valida la salida con `readAgentRoadmap()` (`safeRoadmapDraft()`). Devuelve un `RoadmapDraft` sin guardar; un error, el tiempo agotado o la cancelación llegan como `PublicError` y el panel los muestra sin perder el brief.
+3. **Revisión.** `StudyScreen` convierte el roadmap en el borrador de la ruta nueva (`roadmapToDraft()`) y lo abre en `RouteEditor`, con una nota de qué agente lo propuso; reemplaza el borrador anterior de la ruta nueva. El usuario edita cualquier campo, añade, quita o reordena etapas y lo guarda con «Crear ruta» (`createStudyRoute`), que `StudyService` valida con `safeStudyRoute()` y guarda en `StudyRepository`. La ruta guardada se lee como roadmap en `RoadmapView` y se vuelve a editar con «Editar».
+4. **Tareas propuestas.** Con la ruta guardada y sin cambios pendientes, «Proponer tareas» (`ProposalsPanel`) llama a `proposeStudyTasks(routeId)`. `ProposalService.propose()` lee la ruta guardada, no el borrador ni el brief, y le pasa al adaptador `StudyAgentContext` con sus tareas vinculadas y el día; `buildAgentRequest()` incluye el roadmap para que las tareas sigan el enfoque, las reglas y el proyecto y los recursos de la etapa en curso y la siguiente, sin lo que no hay que priorizar. Las propuestas validadas quedan «a lápiz» en el renderer, que añade las aceptadas con `addTask(title, date, link)`; su avance alimenta la siguiente petición.
+
+```mermaid
+sequenceDiagram
+  actor U as Usuario
+  participant R as Renderer (Rutas)
+  participant P as ProposalService
+  participant A as StudyAgent (Claude Code o Codex)
+  participant S as StudyService
+  participant D as StudyRepository
+  participant T as TaskService
+
+  U->>R: escribe el brief y pulsa «Generar roadmap»
+  R->>P: draftStudyRoute(brief)
+  Note over P: safeRoadmapBrief(), una petición a la vez, aviso aceptado
+  P->>A: draftRoadmap(brief, { signal })
+  Note over A: runAgentCli(): sin herramientas ni claves de API,<br/>directorio temporal, tiempo máximo y cancelación
+  A-->>P: RoadmapDraft validado con safeRoadmapDraft()
+  P-->>R: borrador sin guardar
+  R->>R: roadmapToDraft() y RouteEditor
+  U->>R: revisa, edita y pulsa «Crear ruta»
+  R->>S: createStudyRoute(input)
+  S->>D: create(safeStudyRoute(input))
+  S-->>R: StudyRoute guardada
+  U->>R: pulsa «Proponer tareas»
+  R->>P: proposeStudyTasks(routeId)
+  P->>D: ruta guardada (StudyRouteReaderPort)
+  P->>T: tareas de la ruta (RouteTasksPort)
+  P->>A: propose({ route, tasks, today }, { signal })
+  A-->>P: TaskProposal[] validadas con safeTaskProposals()
+  P-->>R: propuestas «a lápiz»
+  U->>R: acepta una propuesta
+  R->>T: addTask(title, date, link)
+```
+
+Mientras una petición está en curso, `cancelStudyProposals()` la cancela: el adaptador termina el grupo de procesos del CLI y la petición rechaza con `AGENT_CANCELLED`. El cierre ordenado hace lo mismo con `stop()` (sección 2.6). Como `request()` admite una sola petición, generar un roadmap bloquea las propuestas de cualquier ruta y al revés, y el renderer lo explica con `agentBusyText()`.
