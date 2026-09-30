@@ -12,6 +12,13 @@ const resourcesPath = app.isPackaged ? process.resourcesPath : path.join(app.get
 const iconPath = path.join(resourcesPath, 'icon.png');
 let window: BrowserWindow | undefined;
 
+// El menú de macOS («Acerca de», «Ocultar», «Salir») usa el nombre de la app al estar lista, así que se
+// cambia antes. `setName` también movería los datos a `…/Ritmo`: se conservan en `…/ritmo`, donde los
+// busca el servidor MCP, o en el `--user-data-dir` indicado.
+const userDataPath = app.getPath('userData');
+app.setName('Ritmo');
+app.setPath('userData', userDataPath);
+
 function createWindow(): void {
   window = new BrowserWindow({
     ...initialWindowSize(screen.getPrimaryDisplay().workAreaSize),
@@ -26,10 +33,9 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
-  app.setName('Ritmo');
   if (process.platform === 'darwin') app.dock?.setIcon(iconPath);
   const container = createMainContainer({
-    userDataPath: app.getPath('userData'),
+    userDataPath,
     resourcesPath,
     notificationApi: Notification,
     publish: state => { if (window && !window.isDestroyed()) window.webContents.send('state' satisfies keyof RitmoEvents, state); }

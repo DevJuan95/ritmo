@@ -20,6 +20,7 @@ La ventana abre hasta 1280 × 840 píxeles, limitada por el área útil de la pa
 - `block-sites.sh`, `install-block-helper.sh` y el icono se copian a `Contents/Resources`, fuera de `app.asar`, porque `osascript` y `sudo` no leen dentro del archivo.
 - `out/main/mcp.js` y sus `chunks/` se desempaquetan en `app.asar.unpacked`, porque el servidor MCP se ejecuta con el `node` del sistema, que tampoco lee `app.asar`.
 - La firma es ad hoc (`identity: '-'`), sin runtime endurecido ni notarización, porque no hay cuenta de Apple Developer. Basta para abrirla en tu Mac; en otro, macOS pide confirmarlo la primera vez.
+- El nombre visible es «Ritmo» (`productName` de `electron-builder.yml` para el paquete, y `app.setName` antes de que la app esté lista para el menú). Los datos siguen en `~/Library/Application Support/ritmo`, la misma carpeta que con `npm start`.
 
 ## Datos locales
 
