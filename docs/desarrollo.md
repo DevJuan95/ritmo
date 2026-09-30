@@ -6,11 +6,20 @@
 
 `tsconfig.json` comprueba el proceso principal, el preload, `shared/`, las funciones puras de `view.ts` y las pruebas; `tsc` las compila a `dist/` solo para ejecutarlas con `node --test` y medir la cobertura. `tsconfig.renderer.json` comprueba el renderer.
 
-`resources/` guarda los archivos que la app usa tal cual, sin compilar: `block-sites.sh`, `install-block-helper.sh` y el icono. `app.ts` pasa su ruta (`<app.getAppPath()>/resources`) al contenedor.
+`resources/` guarda los archivos que la app usa tal cual, sin compilar: `block-sites.sh`, `install-block-helper.sh` y el icono. `app.ts` pasa su ruta al contenedor: `<app.getAppPath()>/resources` sin empaquetar y `process.resourcesPath` (`Ritmo.app/Contents/Resources`) en la app instalada.
 
 Los componentes de `src/renderer/src/components/ui/` son de shadcn/ui y se pueden editar; `components.json` configura su CLI.
 
 La ventana abre hasta 1280 × 840 píxeles, limitada por el área útil de la pantalla.
+
+## Instalador para macOS
+
+`npm run dist:mac` compila la app y la empaqueta con `electron-builder` (`electron-builder.yml`) en `release/`: `mac-arm64/Ritmo.app` y `Ritmo-<versión>-arm64.dmg`, solo para Apple Silicon. `release/` está ignorada por Git.
+
+- `app.asar` lleva `out/` y las dependencias de producción de `package.json`, que el proceso principal carga en ejecución (solo `awilix`). Lo que Vite empaqueta en el renderer (React, Radix…) va en `devDependencies` para no copiarlo dos veces.
+- `block-sites.sh`, `install-block-helper.sh` y el icono se copian a `Contents/Resources`, fuera de `app.asar`, porque `osascript` y `sudo` no leen dentro del archivo.
+- `out/main/mcp.js` y sus `chunks/` se desempaquetan en `app.asar.unpacked`, porque el servidor MCP se ejecuta con el `node` del sistema, que tampoco lee `app.asar`.
+- La firma es ad hoc (`identity: '-'`), sin runtime endurecido ni notarización, porque no hay cuenta de Apple Developer. Basta para abrirla en tu Mac; en otro, macOS pide confirmarlo la primera vez.
 
 ## Datos locales
 
@@ -23,6 +32,12 @@ Con Ritmo abierto, Claude Code o Codex pueden leer las rutas de estudio y añadi
 ```sh
 claude mcp add ritmo -- node /ruta/a/ritmo/out/main/mcp.js
 codex mcp add ritmo -- node /ruta/a/ritmo/out/main/mcp.js
+```
+
+Con la app instalada desde el `.dmg`, la ruta es la del paquete:
+
+```sh
+claude mcp add ritmo -- node /Applications/Ritmo.app/Contents/Resources/app.asar.unpacked/out/main/mcp.js
 ```
 
 Ofrece `list_study_routes`, `get_study_route` y `add_study_task`. No abre `ritmo.db`: cada herramienta pide el trabajo a la app abierta por el socket `ritmo.sock` de los datos de la app, así que las tareas pasan por la misma validación que las del Planner y aparecen al momento en la ventana. Solo lee rutas y añade tareas; no cambia ni borra nada. Si Ritmo está cerrado, la herramienta responde «Ritmo no está abierto…». Con otro directorio de datos (`--user-data-dir`), define `RITMO_SOCKET` con la ruta de su `ritmo.sock` al registrar el servidor (`-e RITMO_SOCKET=…` en `claude mcp add`, `--env RITMO_SOCKET=…` en `codex mcp add`). Lo que lee el agente se envía a su proveedor, como cualquier otra cosa que le des en la terminal.

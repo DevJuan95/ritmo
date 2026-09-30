@@ -21,7 +21,7 @@ Ritmo es una aplicación de productividad para macOS hecha con Electron y TypeSc
 - `resources/block-sites.sh` administra una sección identificada en `/etc/hosts`; con `check` solo comprueba que se puede ejecutar. Se instala como helper de root en `/Library/PrivilegedHelperTools/ritmo-block-sites`.
 - `resources/install-block-helper.sh` instala ese helper y la regla de sudoers de la cuenta. Lo ejecuta `main/blocking/site-blocker.ts` con `osascript` y privilegios de administrador, solo cuando el helper falta, cambió o perdió el permiso.
 - `test/` está organizado por nivel; ver «Pruebas».
-- `resources/` guarda lo que la app usa sin compilar (esos dos scripts y el icono); `app.ts` pasa su ruta al contenedor como `resourcesPath`.
+- `resources/` guarda lo que la app usa sin compilar (esos dos scripts y el icono); `app.ts` pasa su ruta al contenedor como `resourcesPath` (en la app empaquetada, `process.resourcesPath`, adonde `electron-builder.yml` los copia).
 - `electron.vite.config.ts` compila con `electron-vite` las entradas `main` (con `src/mcp/index.ts` como `out/main/mcp.js`), `preload` y `renderer` a `out/`. `src/renderer/src/styles.css` usa Tailwind CSS y los tokens de shadcn/ui. `tsc` compila a `dist/` solo lo que ejecutan las pruebas. `out/` y `dist/` son generados y están ignorados por Git.
 
 ## Comandos
@@ -32,6 +32,7 @@ Ritmo es una aplicación de productividad para macOS hecha con Electron y TypeSc
 - `npm run test:unit`, `npm run test:contract`, `npm run test:integration`: borran `dist/`, compilan con `tsc` y ejecutan un solo nivel. Borrar `dist/` evita ejecutar pruebas compiladas de archivos que ya no existen.
 - `npm run coverage`: compila y ejecuta todas las pruebas con c8. Informa por archivo de `src/` (también los que no carga ninguna prueba) y falla por debajo de los umbrales de `.c8rc.json`. El HTML queda en `coverage/`.
 - `npm run build`: comprueba los tipos y genera la app en `out/` con `electron-vite`.
+- `npm run dist:mac`: compila y genera con `electron-builder` (`electron-builder.yml`) `Ritmo.app` y su `.dmg` para Apple Silicon en `release/` (ignorada por Git), con firma ad hoc; ver `docs/desarrollo.md`.
 - `npm start`: compila y abre Electron; requiere macOS para probar el bloqueo real.
 - `npm run dev`: abre Electron con el renderer servido por Vite, con recarga en caliente y datos reales; los cambios del proceso principal o del preload reinician la app. El servidor quita la CSP de `index.html`, que la compilación conserva.
 
@@ -43,7 +44,8 @@ Ritmo es una aplicación de productividad para macOS hecha con Electron y TypeSc
 - Respeta la persistencia local de `StateStore` y el reinicio diario de tareas y contador. Las operaciones de foco que cambian el estado pasan por `guarded`.
 - En el agente de estudio, no envíes nada al proveedor sin una acción explícita del usuario ni sin el aviso de privacidad aceptado, lanza los CLI solo con `runAgentCli` (sin shell, sin claves de API en el entorno, en un directorio temporal, con tiempo máximo y cancelación; Claude Code sin herramientas y Codex con sandbox de solo lectura) y valida su respuesta en el proceso principal. Las pruebas nunca lanzan el CLI real: usan `FakeStudyAgent` o el ejecutable falso de `test/helpers/fake-cli.ts`.
 - En el bloqueo de sitios, preserva las entradas ajenas a la sección de Ritmo y la recuperación tras un cierre inesperado. No ejecutes pruebas contra el `/etc/hosts` real: la prueba del script usa `RITMO_TEST_HOSTS` con un archivo temporal.
-- Antes de cerrar un cambio de código, ejecuta `npm run typecheck` y las pruebas pertinentes. Si cambias la compilación o `resources/`, ejecuta también `npm run build`.
+- Antes de cerrar un cambio de código, ejecuta `npm run typecheck` y las pruebas pertinentes. Si cambias la compilación o `resources/`, ejecuta también `npm run build`, y `npm run dist:mac` si afecta al empaquetado.
+- Solo van en `dependencies` los paquetes que el proceso principal carga en ejecución (se copian a `app.asar`); lo que Vite empaqueta en el renderer va en `devDependencies`.
 - No edites `out/`, `dist/` ni `node_modules/` directamente. Respeta los cambios locales existentes que no pertenezcan a la tarea.
 - Si cambias un puerto, un servicio o su interfaz, un módulo, su registro en `src/main/container.ts` o su cableado en `src/main/app.ts`, el ciclo de una sesión o un término del dominio (tipos de un contrato de `src/shared/` o de un `ports.ts` de `src/main/`), actualiza `docs/glosario.md` y `docs/arquitectura.md` en el mismo cambio.
 - Inyecta las dependencias nuevas con efectos externos (Electron, procesos, reloj, red) como un puerto en el `ports.ts` del módulo que la usa, o en `common/ports.ts` si la usan varios; si no encaja en ningún módulo, crea uno nuevo con su `ports.ts`.
