@@ -1,18 +1,29 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router';
-import { MAX_DAILY_POMODOROS, STUDY_LEVELS, type AgentSettings, type AgentStatus, type StudyProgress, type StudyProvider, type StudyRoute } from '../../../shared/study/contract';
+import {
+  AGENT_NAMES, MAX_DAILY_POMODOROS, MAX_ROADMAP_TEXT, MAX_STAGE_TEXT, MAX_STAGE_TITLE, STUDY_LEVELS, type AgentSettings, type AgentStatus, type StudyProgress, type StudyProvider, type StudyRoute
+} from '../../../shared/study/contract';
 import { ProposalsPanel } from '../components/proposals-panel';
+import { RoadmapPanel } from '../components/roadmap-panel';
+import { RoadmapView } from '../components/roadmap-view';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
 import {
-  LEVEL_LABELS, agentSummary, canSaveDraft, draftChanged, draftProblem, draftToInput, emptyRouteDraft, moveStage, newStageDraft, oneAtATime, routeProgressView,
-  proposalGate, routeSummary, routeToDraft, stageLimits, stageProgressView, withDraft, type RouteDraft, type RouteDrafts, type StageDraft
+  LEVEL_LABELS, agentBusyText, agentSummary, canSaveDraft, draftChanged, draftProblem, draftToInput, emptyRouteDraft, moveStage, newStageDraft, oneAtATime, routeProgressView,
+  proposalGate, roadmapToDraft, routeSummary, routeToDraft, stageLimits, stageProgressView, withDraft, type RouteDraft, type RouteDrafts, type StageDraft
 } from '../view';
 import type { ProposalsController } from '../use-proposals';
 import type { RunAction } from '../use-ritmo';
 
-type Selection = { kind: 'new' } | { kind: 'route'; id: string };
+/** Qué muestra la pantalla: una ruta guardada, el editor de una ruta nueva o el brief para el agente. */
+type Selection = { kind: 'new' } | { kind: 'agent' } | { kind: 'route'; id: string };
+
+/** Una ruta guardada se lee como roadmap o se edita. */
+type RouteMode = 'read' | 'edit';
+
+/** Clave del borrador de la ruta nueva en `RouteDrafts`. */
+const NEW_ROUTE = 'nueva';
 
 // Fuera del componente: los borradores conservados sobreviven a que la pantalla se desmonte,
 // y sus claves de etapa no deben repetirse al volver a montarla.
@@ -44,6 +55,10 @@ export function StudyScreen({ run, showError, drafts, onDraftsChange, proposals,
   const [progress, setProgress] = useState<StudyProgress>({});
   const [selection, setSelection] = useState<Selection>();
   const [agent, setAgent] = useState<AgentInfo>();
+  const [mode, setMode] = useState<RouteMode>('read');
+  // El editor de la ruta nueva se vuelve a montar cuando llega un roadmap del agente, para mostrarlo.
+  const [newEditor, setNewEditor] = useState(0);
+  const [agentDraft, setAgentDraft] = useState<StudyProvider>();
 
   // El avance se pide junto con las rutas: al quitar etapas, sus tareas dejan de contar.
   const fetchAll = useCallback(() => Promise.all([window.ritmo.listStudyRoutes(), window.ritmo.getStudyProgress()]), []);
@@ -86,9 +101,33 @@ export function StudyScreen({ run, showError, drafts, onDraftsChange, proposals,
     return () => { active = false; };
   }, [showError]);
 
+  // El roadmap que generó el agente se abre como borrador de la ruta nueva, también si llegó con la
+  // pantalla desmontada. Reemplaza el borrador anterior de la ruta nueva.
+  const { drafted, clearDrafted } = proposals;
+  useEffect(() => {
+    if (!drafted) return;
+    clearDrafted();
+    onDraftsChange(current => withDraft(current, NEW_ROUTE, roadmapToDraft(drafted.roadmap, stageKey)));
+    setAgentDraft(drafted.provider);
+    setNewEditor(count => count + 1);
+    setSelection({ kind: 'new' });
+  }, [drafted, clearDrafted, onDraftsChange]);
+
   const selected = selection?.kind === 'route' ? routes?.find(route => route.id === selection.id) : undefined;
-  const editorKey = selected ? `${selected.id}:${selected.updatedAt}` : 'nueva';
+  const editorKey = selected ? `${selected.id}:${selected.updatedAt}` : NEW_ROUTE;
   const setDraft = (key: string, draft: RouteDraft | undefined) => onDraftsChange(current => withDraft(current, key, draft));
+  const agentGate = agent && proposalGate(agent.settings.provider, agent.statuses?.find(status => status.provider === agent.settings.provider), agent.notices, false);
+
+  function selectRoute(route: StudyRoute) {
+    setSelection({ kind: 'route', id: route.id });
+    // Si la ruta tiene cambios sin guardar, se abre en el editor para no esconderlos.
+    setMode(drafts[`${route.id}:${route.updatedAt}`] ? 'edit' : 'read');
+  }
+
+  function forgetNewDraft() {
+    setDraft(NEW_ROUTE, undefined);
+    setAgentDraft(undefined);
+  }
 
   async function acceptNotice(provider: StudyProvider): Promise<boolean> {
     let notices: StudyProvider[] | undefined;
@@ -103,23 +142,35 @@ export function StudyScreen({ run, showError, drafts, onDraftsChange, proposals,
   async function afterDelete(routeId: string) {
     proposals.update(routeId, () => []);
     const items = await load();
+    setMode('read');
     setSelection(items[0] ? { kind: 'route', id: items[0].id } : { kind: 'new' });
   }
 
   return <section className="study-panel" aria-labelledby="study-heading">
     <div className="planner-header">
       <div className="sheet-head"><h2 id="study-heading">Rutas de estudio</h2><p className="section-subtitle">Traza el camino de un tema en etapas y avanza una tarea a la vez.</p></div>
-      <Button variant="outline" className="planner-today" onClick={() => setSelection({ kind: 'new' })}>Nueva ruta</Button>
+      <div className="study-header-actions">
+        <Button variant="outline" className="planner-today" aria-pressed={selection?.kind === 'new'} onClick={() => setSelection({ kind: 'new' })}>Nueva ruta</Button>
+        <Button variant="outline" className="planner-today" aria-pressed={selection?.kind === 'agent'} onClick={() => setSelection({ kind: 'agent' })}>Nueva ruta con el agente</Button>
+      </div>
     </div>
     {agent && <AgentLine settings={agent.settings} statuses={agent.statuses} />}
     <div className="study-layout">
       <nav className="study-index" aria-label="Tus rutas">
         {routes && routes.length === 0 && <p className="empty-state">Todavía no tienes rutas. Empieza por el tema que quieres dominar.</p>}
         <ul className="study-route-list">
-          {routes?.map(route => <RouteItem key={route.id} route={route} progress={progress} active={route.id === selected?.id} onSelect={() => setSelection({ kind: 'route', id: route.id })} />)}
+          {routes?.map(route => <RouteItem key={route.id} route={route} progress={progress} active={route.id === selected?.id} onSelect={() => selectRoute(route)} />)}
         </ul>
       </nav>
-      {selection && (selection.kind === 'new' || selected) && <div className="study-main">
+      {selection && (selection.kind !== 'route' || selected) && <div className="study-main">
+      {selection.kind === 'agent' && agent && agentGate && <RoadmapPanel
+        provider={agent.settings.provider}
+        gate={agentGate}
+        controller={proposals}
+        busy={agentBusyText(proposals.request, routes, null)}
+        replacesDraft={drafts[NEW_ROUTE] !== undefined}
+        onAcceptNotice={() => acceptNotice(agent.settings.provider)}
+      />}
       {selected && agent && <ProposalsPanel
         route={selected}
         provider={agent.settings.provider}
@@ -127,21 +178,34 @@ export function StudyScreen({ run, showError, drafts, onDraftsChange, proposals,
         today={today}
         controller={proposals}
         run={run}
-        busyWith={proposals.request && proposals.request.routeId !== selected.id ? routes?.find(route => route.id === proposals.request?.routeId)?.topic ?? 'otra ruta' : undefined}
+        busy={agentBusyText(proposals.request, routes, selected.id)}
         onAcceptNotice={() => acceptNotice(agent.settings.provider)}
         onTasksAdded={() => { void load().catch(showError); }}
       />}
-      <RouteEditor
-        key={editorKey}
+      {selected && <div className="study-mode" role="group" aria-label="Vista de la ruta">
+        <Button type="button" variant="ghost" className="row-action" aria-pressed={mode === 'read'} onClick={() => setMode('read')}>Roadmap</Button>
+        <Button type="button" variant="ghost" className="row-action" aria-pressed={mode === 'edit'} onClick={() => setMode('edit')}>
+          {drafts[editorKey] ? 'Editar (sin guardar)' : 'Editar'}
+        </Button>
+      </div>}
+      {selected && mode === 'read' && <RoadmapView route={selected} progress={progress} />}
+      {(selection.kind === 'new' || (selected && mode === 'edit')) && <RouteEditor
+        key={selected ? editorKey : `${NEW_ROUTE}:${newEditor}`}
         route={selected}
         progress={progress}
         saved={drafts[editorKey]}
-        onDraftChange={draft => setDraft(editorKey, draft)}
+        agentDraft={selected ? undefined : agentDraft}
+        onDraftChange={draft => { setDraft(editorKey, draft); if (!selected && !draft) setAgentDraft(undefined); }}
         newStageKey={stageKey}
         run={run}
-        onSaved={async route => { setDraft(editorKey, undefined); await load(); setSelection({ kind: 'route', id: route.id }); }}
+        onSaved={async route => {
+          if (selected) setDraft(editorKey, undefined); else forgetNewDraft();
+          await load();
+          setMode('read');
+          setSelection({ kind: 'route', id: route.id });
+        }}
         onDeleted={async () => { setDraft(editorKey, undefined); if (selected) await afterDelete(selected.id); }}
-      />
+      />}
       </div>}
     </div>
   </section>;
@@ -174,8 +238,10 @@ interface RouteEditorProps {
   route: StudyRoute | undefined;
   /** Avance de las etapas guardadas; una etapa nueva aún no tiene tareas. */
   progress: StudyProgress;
-  /** Borrador sin guardar que se conservó de una visita anterior. */
+  /** Borrador sin guardar que se conservó de una visita anterior o que generó el agente. */
   saved: RouteDraft | undefined;
+  /** Proveedor que generó el borrador de la ruta nueva, si lo generó el agente. */
+  agentDraft: StudyProvider | undefined;
   /** Conserva el borrador fuera del editor, o lo olvida con `undefined` si no tiene cambios. */
   onDraftChange: (draft: RouteDraft | undefined) => void;
   newStageKey: () => string;
@@ -184,7 +250,7 @@ interface RouteEditorProps {
   onDeleted: () => Promise<void>;
 }
 
-function RouteEditor({ route, progress: stages, saved, onDraftChange, newStageKey, run, onSaved, onDeleted }: RouteEditorProps) {
+function RouteEditor({ route, progress: stages, saved, agentDraft, onDraftChange, newStageKey, run, onSaved, onDeleted }: RouteEditorProps) {
   const [initial] = useState<RouteDraft>(() => route ? routeToDraft(route) : emptyRouteDraft(newStageKey()));
   const [draft, setDraftState] = useState(() => saved ?? initial);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -226,6 +292,7 @@ function RouteEditor({ route, progress: stages, saved, onDraftChange, newStageKe
 
   return <form className="study-editor" aria-labelledby={titleId} onSubmit={event => void save(event)}>
     <h3 id={titleId} className="planner-day-heading">{route ? route.topic : 'Nueva ruta'}</h3>
+    {agentDraft && <p className="roadmap-drafted" role="note">Roadmap propuesto por {AGENT_NAMES[agentDraft]}. Revísalo y edítalo; no se guarda hasta que pulses «Crear ruta».</p>}
 
     <div className="study-fields">
       <label className="study-field study-field-wide"><span>Tema</span><Input value={draft.topic} maxLength={80} placeholder="Por ejemplo, Rust o sistemas distribuidos" onChange={event => patch({ topic: event.target.value })} /></label>
@@ -236,11 +303,12 @@ function RouteEditor({ route, progress: stages, saved, onDraftChange, newStageKe
       </label>
       <label className="study-field"><span>Pomodoros al día</span><Input type="number" inputMode="numeric" min={1} max={MAX_DAILY_POMODOROS} value={draft.dailyPomodoros} onChange={event => patch({ dailyPomodoros: event.target.value })} /></label>
       <label className="study-field study-field-full"><span>Objetivo</span><Textarea value={draft.goal} maxLength={500} rows={2} placeholder="Qué quieres poder hacer al terminar la ruta" onChange={event => patch({ goal: event.target.value })} /></label>
+      <label className="study-field study-field-full"><span>Enfoque recomendado</span><Textarea value={draft.approach} maxLength={MAX_ROADMAP_TEXT} rows={2} placeholder="Por ejemplo, 60-70 % sistemas distribuidos y 30-40 % Java" onChange={event => patch({ approach: event.target.value })} /></label>
     </div>
 
     <fieldset className="study-stages">
       <legend>Etapas</legend>
-      <p className="section-subtitle">En orden, de la primera a la última. Separa los temas con comas.</p>
+      <p className="section-subtitle">En el orden recomendado, de la primera a la última. Escribe un tema o un recurso por línea.</p>
       <ol className="study-stage-list">
         {draft.stages.map((stage, index) => {
           const progress = stageProgressView(stage.id ? stages[stage.id] : undefined);
@@ -248,8 +316,12 @@ function RouteEditor({ route, progress: stages, saved, onDraftChange, newStageKe
           return <li key={stage.key} className="study-stage">
             <span className="study-stage-number" aria-hidden="true">{index + 1}</span>
             <div className="study-stage-body">
-              <Input value={stage.title} maxLength={120} placeholder="Título de la etapa" aria-label={`Título de la etapa ${index + 1}`} onChange={event => patchStage(stage.key, { title: event.target.value })} />
-              <Input value={stage.topics} placeholder="Temas: ownership, borrowing, lifetimes" aria-label={`Temas de la etapa ${index + 1}`} onChange={event => patchStage(stage.key, { topics: event.target.value })} />
+              <Input value={stage.title} maxLength={MAX_STAGE_TITLE} placeholder="Título de la etapa" aria-label={`Título de la etapa ${index + 1}`} onChange={event => patchStage(stage.key, { title: event.target.value })} />
+              <Textarea value={stage.summary} maxLength={MAX_STAGE_TEXT} rows={2} placeholder="Resumen: qué se busca en esta etapa" aria-label={`Resumen de la etapa ${index + 1}`} onChange={event => patchStage(stage.key, { summary: event.target.value })} />
+              <Textarea value={stage.topics} rows={2} placeholder={'Dominar, uno por línea:\nOwnership y borrowing'} aria-label={`Temas que dominar en la etapa ${index + 1}`} onChange={event => patchStage(stage.key, { topics: event.target.value })} />
+              <Textarea value={stage.deprioritized} rows={2} placeholder={'No priorizar todavía, uno por línea:\nMacros'} aria-label={`Temas que no priorizar en la etapa ${index + 1}`} onChange={event => patchStage(stage.key, { deprioritized: event.target.value })} />
+              <Textarea value={stage.project} maxLength={MAX_STAGE_TEXT} rows={2} placeholder="Proyecto práctico de la etapa" aria-label={`Proyecto de la etapa ${index + 1}`} onChange={event => patchStage(stage.key, { project: event.target.value })} />
+              <Textarea value={stage.resources} rows={2} placeholder={'Recursos, uno por línea:\nThe Rust Programming Language'} aria-label={`Recursos de la etapa ${index + 1}`} onChange={event => patchStage(stage.key, { resources: event.target.value })} />
               <div className="study-stage-progress" data-complete={progress.complete}>
                 <span className="study-stage-bar" aria-hidden="true"><i style={{ width: progress.percent }} /></span>
                 <span>{progress.text}</span>
@@ -266,6 +338,11 @@ function RouteEditor({ route, progress: stages, saved, onDraftChange, newStageKe
       <Button type="button" variant="ghost" className="row-action study-add-stage" disabled={!limits.canAdd} onClick={() => patch({ stages: [...draft.stages, newStageDraft(newStageKey())] })}>Añadir etapa</Button>
     </fieldset>
 
+    <div className="study-fields">
+      <label className="study-field study-field-full"><span>Proyecto final</span><Textarea value={draft.finalProject} maxLength={MAX_ROADMAP_TEXT} rows={2} placeholder="Un proyecto que integre las etapas" onChange={event => patch({ finalProject: event.target.value })} /></label>
+      <label className="study-field study-field-full"><span>Reglas de estudio</span><Textarea value={draft.studyRules} maxLength={MAX_ROADMAP_TEXT} rows={2} placeholder="Por ejemplo, aprender Java y sistemas distribuidos en paralelo" onChange={event => patch({ studyRules: event.target.value })} /></label>
+    </div>
+
     <label className="study-field study-field-full study-instructions">
       <span>Instrucciones para el agente</span>
       <Textarea value={draft.instructions} maxLength={2000} rows={4} onChange={event => patch({ instructions: event.target.value })} />
@@ -278,7 +355,7 @@ function RouteEditor({ route, progress: stages, saved, onDraftChange, newStageKe
         {route && (confirmDelete
           ? <><Button type="button" variant="ghost" className="row-action" disabled={busy} onClick={() => setConfirmDelete(false)}>Conservar</Button><Button type="button" variant="destructive" disabled={busy} onClick={() => void remove()}>Eliminar ruta y etapas</Button></>
           : <Button type="button" variant="ghost" className="row-action row-action-danger" disabled={busy} onClick={() => setConfirmDelete(true)}>Eliminar</Button>)}
-        {route && changed && <Button type="button" variant="ghost" className="row-action" disabled={busy} onClick={() => setDraft(initial)}>Descartar cambios</Button>}
+        {changed && <Button type="button" variant="ghost" className="row-action" disabled={busy} onClick={() => setDraft(initial)}>{route ? 'Descartar cambios' : 'Descartar borrador'}</Button>}
         <Button type="submit" disabled={!canSaveDraft(changed, problem, busy)}>{route ? 'Guardar cambios' : 'Crear ruta'}</Button>
       </div>
     </div>

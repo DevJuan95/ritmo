@@ -3,19 +3,20 @@ import assert from 'node:assert/strict';
 import type { RitmoAPI } from '../../../../src/shared/api';
 import { GENERIC_ERROR_MESSAGE } from '../../../../src/shared/ipc';
 import type { AppState, PublicState } from '../../../../src/shared/state/contract';
-import { DEFAULT_AGENT_INSTRUCTIONS, DEFAULT_AGENT_SETTINGS, MAX_STAGES, type AgentStatus, type StudyRoute, type TaskProposal } from '../../../../src/shared/study/contract';
+import { AGENT_CANCELLED, DEFAULT_AGENT_INSTRUCTIONS, DEFAULT_AGENT_SETTINGS, MAX_ROADMAP_BRIEF, MAX_STAGES, type AgentStatus, type StudyRoute, type TaskProposal } from '../../../../src/shared/study/contract';
 import type { Task } from '../../../../src/shared/tasks/contract';
 import {
   LEVEL_LABELS, agentModelHint, agentPathPlaceholder, agentSettingsChanged, agentSettingsProblem, agentStatusView, agentSummary, uncheckedAgents, withProviderSettings,
   calendarRange, canSaveDraft, completionText, dateLabel, dayButtonLabel, dayIndicator, dayToDate, domainsLocked, draftChanged, draftProblem,
   draftToInput, emptyRouteDraft, errorMessage, focusCountText, isPlannableDate, monthOf, moveStage, newStageDraft, oneAtATime, parseLines,
-  parseTopics, plannedDateToSave,
+  plannedDateToSave,
   acceptableProposals, addDays, agentNoticeText, elapsedText, pomodorosText, proposalGate, proposalProblem, proposalsSummary, proposalStageLabel, relativeDayLabel,
   scheduleProposals, withoutProposals, withProposal, withRouteProposals, type ProposalDraft,
+  ROADMAP_CANCELLED, agentBusyText, briefProblem, roadmapFailureText, roadmapNoticeText, roadmapToDraft, roadmapView,
   linkFromStage, routeProgressView, routeSummary, routeToDraft, stageLimits, stageOptions, stageProgressView, taskStageValue, tasksRevision, timerActions, timerView, withDraft
 } from '../../../../src/renderer/src/view';
 import { buildState } from '../../../helpers/harness';
-import { emptyRouteRoadmap, stage } from '../../../helpers/study';
+import { emptyRouteRoadmap, sampleRoadmap, stage } from '../../../helpers/study';
 
 const now = new Date(2026, 8, 29, 9, 0, 0).getTime();
 
@@ -170,11 +171,11 @@ test('el borrador de una ruta nueva trae una etapa vacía y las instrucciones po
   assert.deepEqual(newStageDraft('k2'), { key: 'k2', title: '', summary: '', topics: '', deprioritized: '', project: '', resources: '' });
 });
 
-test('una ruta guardada se edita con los temas separados por comas y vuelve igual', () => {
+test('una ruta guardada se edita con un tema por línea y vuelve igual', () => {
   const route = studyRoute();
   const draft = routeToDraft(route);
   assert.deepEqual(draft.stages, [
-    { key: 's1', id: 's1', title: 'Ownership', summary: '', topics: 'borrowing, lifetimes', deprioritized: '', project: '', resources: '' },
+    { key: 's1', id: 's1', title: 'Ownership', summary: '', topics: 'borrowing\nlifetimes', deprioritized: '', project: '', resources: '' },
     { key: 's2', id: 's2', title: 'Traits', summary: '', topics: '', deprioritized: '', project: '', resources: '' }
   ]);
   assert.equal(draft.dailyPomodoros, '3');
@@ -184,31 +185,26 @@ test('una ruta guardada se edita con los temas separados por comas y vuelve igua
   });
 });
 
-test('el borrador conserva el roadmap: los recursos van uno por línea porque pueden llevar comas', () => {
+test('el borrador conserva el roadmap: temas y recursos van uno por línea porque pueden llevar comas', () => {
   const roadmap = { approach: '70 % sistemas distribuidos', finalProject: 'Un almacén clave-valor replicado.', studyRules: 'Java y sistemas en paralelo.' };
   const route = studyRoute({
     ...roadmap,
     stages: [stage({
-      id: 's1', title: 'Fundamentos', summary: 'Modelo de datos.', topics: ['Replicación'], deprioritized: ['Kubernetes', 'Service mesh'],
+      id: 's1', title: 'Fundamentos', summary: 'Modelo de datos.', topics: ['Replicación, particionado y consenso'], deprioritized: ['Kubernetes', 'Service mesh'],
       project: 'Un log replicado.', resources: ['Designing Data-Intensive Applications, Kleppmann', 'MIT 6.824']
     })]
   });
   const draft = routeToDraft(route);
   assert.equal(draft.approach, roadmap.approach);
   assert.deepEqual(draft.stages[0], {
-    key: 's1', id: 's1', title: 'Fundamentos', summary: 'Modelo de datos.', topics: 'Replicación', deprioritized: 'Kubernetes, Service mesh',
+    key: 's1', id: 's1', title: 'Fundamentos', summary: 'Modelo de datos.', topics: 'Replicación, particionado y consenso', deprioritized: 'Kubernetes\nService mesh',
     project: 'Un log replicado.', resources: 'Designing Data-Intensive Applications, Kleppmann\nMIT 6.824'
   });
   const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, ...input } = route;
   assert.deepEqual(draftToInput(draft), input);
 });
 
-test('los temas se separan por comas o saltos de línea, sin vacíos', () => {
-  assert.deepEqual(parseTopics(' a, b\nc ,, \n'), ['a', 'b', 'c']);
-  assert.deepEqual(parseTopics(''), []);
-});
-
-test('los recursos se separan solo por saltos de línea, sin vacíos', () => {
+test('los temas y los recursos se separan solo por saltos de línea, sin vacíos', () => {
   assert.deepEqual(parseLines(' DDIA, Kleppmann \n\n  MIT 6.824\n'), ['DDIA, Kleppmann', 'MIT 6.824']);
   assert.deepEqual(parseLines(''), []);
 });
@@ -490,4 +486,84 @@ test('proposalGate pide el aviso la primera vez y bloquea con el motivo si el ag
     const status = { ...ready, availability };
     assert.deepEqual(proposalGate('claude', status, ['claude'], false), { kind: 'blocked', reason: agentStatusView('claude', status).detail });
   }
+});
+
+test('el roadmap del agente se abre como borrador de una ruta nueva y se guarda igual', () => {
+  const sample = sampleRoadmap();
+  const roadmap = {
+    ...sample,
+    stages: sample.stages.map((item, index) => index === 0
+      ? { ...item, topics: ['Replicación, particionado y consenso', ...item.topics], deprioritized: ['Blockchain', 'Kubernetes, Helm y operadores'] }
+      : item)
+  };
+  let key = 0;
+  const draft = roadmapToDraft(roadmap, () => `k${++key}`);
+  assert.deepEqual(draft.stages.map(item => item.key), ['k1', 'k2']);
+  assert.ok(draft.stages.every(item => !('id' in item)), 'las etapas del agente no tienen id');
+  assert.equal(draft.dailyPomodoros, '5');
+  assert.equal(draft.stages[0].deprioritized, 'Blockchain\nKubernetes, Helm y operadores');
+  assert.deepEqual(draftToInput(draft), roadmap);
+  assert.equal(draftProblem(draft), null);
+  assert.equal(draftChanged(draft, emptyRouteDraft('vacía')), true, 'se puede crear la ruta sin tocar nada');
+});
+
+test('agentBusyText explica qué petición en curso impide pedir desde cada panel', () => {
+  const routes = [studyRoute()];
+  assert.equal(agentBusyText(undefined, routes, 'r1'), undefined);
+  assert.equal(agentBusyText(undefined, routes, null), undefined);
+  const tasks = { kind: 'tasks', routeId: 'r1', startedAt: 0 } as const;
+  assert.equal(agentBusyText(tasks, routes, 'r1'), undefined, 'la petición es del propio panel');
+  assert.equal(agentBusyText(tasks, routes, 'r2'), 'Espera a que terminen las propuestas de «Rust».');
+  assert.equal(agentBusyText(tasks, routes, null), 'Espera a que terminen las propuestas de «Rust».');
+  assert.equal(agentBusyText({ ...tasks, routeId: 'borrada' }, routes, null), 'Espera a que terminen las propuestas de «otra ruta».');
+  assert.equal(agentBusyText(tasks, undefined, null), 'Espera a que terminen las propuestas de «otra ruta».');
+  const roadmap = { kind: 'roadmap', startedAt: 0 } as const;
+  assert.equal(agentBusyText(roadmap, routes, null), undefined);
+  assert.equal(agentBusyText(roadmap, routes, 'r1'), 'Espera a que el agente termine el roadmap que estás generando.');
+});
+
+test('el aviso del roadmap dice que solo se envía el brief', () => {
+  assert.match(roadmapNoticeText('claude'), /envía a Claude Code \(Anthropic\) solo el brief/);
+  assert.match(roadmapNoticeText('codex'), /envía a Codex \(OpenAI\)/);
+  assert.match(roadmapNoticeText('codex'), /solo cuando pulsas el botón/);
+});
+
+test('el brief se valida con las reglas del proceso principal', () => {
+  assert.equal(briefProblem('Senior Backend → Tech Lead, 2 h al día'), null);
+  const message = `Describe qué quieres estudiar en 1 a ${MAX_ROADMAP_BRIEF} caracteres.`;
+  assert.equal(briefProblem('  \n '), message);
+  assert.equal(briefProblem('a'.repeat(MAX_ROADMAP_BRIEF + 1)), message);
+});
+
+test('un roadmap cancelado o fallido lo dice claro y recuerda que el brief sigue ahí', () => {
+  const apiError = (message: string) => ({ kind: 'ritmo-api-error', message });
+  assert.equal(roadmapFailureText(apiError('Claude Code tardó demasiado en responder. Inténtalo de nuevo.'), false),
+    'Claude Code tardó demasiado en responder. Inténtalo de nuevo. Tu brief sigue aquí.');
+  assert.equal(roadmapFailureText(new Error('interno'), false), `${GENERIC_ERROR_MESSAGE} Tu brief sigue aquí.`);
+  assert.equal(roadmapFailureText(apiError(AGENT_CANCELLED), false), ROADMAP_CANCELLED);
+  assert.equal(roadmapFailureText(apiError('No se pudo iniciar Codex.'), true), ROADMAP_CANCELLED, 'si el usuario canceló, cualquier rechazo es la cancelación');
+  assert.match(ROADMAP_CANCELLED, /brief sigue aquí/);
+});
+
+test('roadmapView muestra el roadmap en el orden recomendado, solo con las secciones que tienen contenido', () => {
+  const roadmap = sampleRoadmap();
+  const route = studyRoute({ ...roadmap, stages: roadmap.stages.map((item, index) => ({ ...item, id: `s${index + 1}` })) });
+  const view = roadmapView(route);
+  assert.equal(view.approach, roadmap.approach);
+  assert.equal(view.finalProject, roadmap.finalProject);
+  assert.equal(view.studyRules, roadmap.studyRules);
+  assert.deepEqual(view.order, ['Fundamentos de sistemas distribuidos', 'JVM en producción']);
+  assert.deepEqual(view.stages[0], {
+    id: 's1', number: 1, title: 'Fundamentos de sistemas distribuidos', summary: 'Entender replicación, particionado y consenso.',
+    lists: [
+      { label: 'Dominar', items: ['Replicación', 'Particionado'] },
+      { label: 'No priorizar todavía', items: ['Blockchain'] },
+      { label: 'Recursos', items: ['Designing Data-Intensive Applications'] }
+    ],
+    project: 'Un almacén clave-valor replicado.'
+  });
+  assert.deepEqual(view.stages[1], { id: 's2', number: 2, title: 'JVM en producción', summary: '', lists: [{ label: 'Dominar', items: ['GC', 'JFR'] }], project: '' });
+  const plain = roadmapView(studyRoute());
+  assert.deepEqual(plain.stages[1].lists, [], 'una etapa sin temas no muestra listas vacías');
+  assert.equal(plain.approach, '');
 });
