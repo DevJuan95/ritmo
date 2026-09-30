@@ -1,0 +1,47 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { CODEX_FAILED, CODEX_OUTPUT_FILE, CODEX_SCHEMA_FILE, codexArgs, readCodexOutput } from '../../../../src/main/study/codex-agent';
+import { PublicError } from '../../../../src/shared/ipc';
+import { INVALID_AGENT_RESPONSE } from '../../../../src/shared/study/contract';
+
+// Estas pruebas no lanzan procesos; las que ejecutan `CodexAgent` con un CLI falso están en
+// test/integration/codex-agent.test.ts.
+
+const publicError = (message: string) => (error: Error) => error instanceof PublicError && error.message === message;
+
+test('codexArgs pide sandbox de solo lectura, sin sesión ni configuración del usuario, con el esquema y la respuesta en archivos', () => {
+  assert.deepEqual(codexArgs('prompt'), [
+    'exec', '--skip-git-repo-check', '--ephemeral', '--ignore-user-config', '--sandbox', 'read-only', '--color', 'never',
+    '--output-schema', CODEX_SCHEMA_FILE, '-o', CODEX_OUTPUT_FILE, '--', 'prompt',
+  ]);
+});
+
+test('codexArgs añade el modelo con -m antes del prompt', () => {
+  assert.deepEqual(codexArgs('p', 'gpt-5.1-codex-mini').slice(-4), ['-m', 'gpt-5.1-codex-mini', '--', 'p']);
+});
+
+test('codexArgs deja el prompt detrás de -- aunque empiece por -', () => {
+  assert.deepEqual(codexArgs('--dangerously-bypass-approvals-and-sandbox').slice(-2), ['--', '--dangerously-bypass-approvals-and-sandbox']);
+});
+
+test('codexArgs rechaza un modelo que parece una opción o tiene espacios', () => {
+  for (const model of ['--dangerously-bypass-approvals-and-sandbox', 'o3 extra', '']) {
+    assert.throws(() => codexArgs('p', model), publicError('El modelo de Codex no es válido.'));
+  }
+});
+
+test('readCodexOutput devuelve el último mensaje si Codex terminó bien', () => {
+  assert.equal(readCodexOutput('{"proposals":[]}', 0), '{"proposals":[]}');
+});
+
+test('readCodexOutput da respuesta inválida sin archivo o con uno vacío', () => {
+  for (const output of [undefined, '', ' \n']) {
+    assert.throws(() => readCodexOutput(output, 0), publicError(INVALID_AGENT_RESPONSE));
+  }
+});
+
+test('readCodexOutput da un error sin detalles con un código distinto de 0', () => {
+  for (const output of ['{"proposals":[]}', undefined, 'Error: algo interno']) {
+    assert.throws(() => readCodexOutput(output, 1), publicError(CODEX_FAILED));
+  }
+});
