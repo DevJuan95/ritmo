@@ -151,3 +151,31 @@ test('no admite nombres de archivo con carpetas', async (t) => {
       error instanceof PublicError && error.message === 'No se pudo leer la respuesta de Claude Code.');
   }
 });
+
+test('lanza el CLI sin claves de API en el entorno y con el resto de variables', async (t) => {
+  const saved = Object.fromEntries(['ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'RITMO_PRUEBA'].map((name) => [name, process.env[name]]));
+  process.env.ANTHROPIC_API_KEY = 'sk-ant-prueba';
+  process.env.OPENAI_API_KEY = 'sk-prueba';
+  process.env.RITMO_PRUEBA = 'sigue';
+  t.after(() => {
+    for (const [name, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  });
+  const cli = fakeCli(t, `process.stdout.write(JSON.stringify([process.env.ANTHROPIC_API_KEY ?? null, process.env.OPENAI_API_KEY ?? null, process.env.RITMO_PRUEBA]));`);
+  const { stdout } = await runAgentCli(cli.command, [], options());
+  assert.deepEqual(JSON.parse(stdout), [null, null, 'sigue']);
+});
+
+test('con mergeStderr devuelve también la salida de error; sin él, la ignora', async (t) => {
+  const cli = fakeCli(t, `process.stderr.write('Not logged in'); process.exit(1);`);
+  assert.deepEqual(await runAgentCli(cli.command, [], options({ mergeStderr: true })), { stdout: 'Not logged in', exitCode: 1 });
+  assert.deepEqual(await runAgentCli(cli.command, [], options()), { stdout: '', exitCode: 1 });
+});
+
+test('con mergeStderr la salida de error también cuenta para el límite', async (t) => {
+  const cli = fakeCli(t, `process.on('SIGTERM', () => {}); setInterval(() => process.stderr.write('x'.repeat(600)), 5);`);
+  await assert.rejects(runAgentCli(cli.command, [], options({ mergeStderr: true, maxOutputBytes: 1000, killGraceMs: 100 })), (error: Error) =>
+    error instanceof PublicError && error.message === 'Claude Code devolvió una respuesta demasiado larga.');
+});

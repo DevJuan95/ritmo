@@ -14,7 +14,24 @@ export const AGENT_MAX_OUTPUT_BYTES = 1_000_000;
 /** Nombre o alias de modelo que se pasa al CLI: sin espacios y sin empezar por `-`. */
 export const AGENT_MODEL_PATTERN = /^[A-Za-z0-9][\w.:[\]-]{0,99}$/;
 
+/** Tiempo máximo para comprobar la sesión del CLI (`claude auth status`, `codex login status`). */
+export const AGENT_LOGIN_TIMEOUT_MS = 15_000;
+
 export const AGENT_CANCELLED = 'Se canceló la petición al agente.';
+
+/**
+ * Variables del entorno que harían que un CLI de agente usara una clave de API, facturada por uso,
+ * en lugar de la sesión del usuario con su suscripción (claude.ai o ChatGPT): `ANTHROPIC_API_KEY` y
+ * `ANTHROPIC_AUTH_TOKEN` en Claude Code, y `OPENAI_API_KEY` y `CODEX_API_KEY` en Codex.
+ */
+export const AGENT_API_KEY_VARIABLES = ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'OPENAI_API_KEY', 'CODEX_API_KEY'] as const;
+
+/** Copia de `env` sin las claves de API de `AGENT_API_KEY_VARIABLES`, para lanzar un CLI de agente. */
+export function agentEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const copy = { ...env };
+  for (const name of AGENT_API_KEY_VARIABLES) delete copy[name];
+  return copy;
+}
 
 export interface AgentCliOptions {
   /** Nombre del CLI para los mensajes de error, por ejemplo «Claude Code». */
@@ -33,6 +50,11 @@ export interface AgentCliOptions {
    * borrar el directorio y llega en `AgentCliResult.output`, con el mismo límite que la salida.
    */
   outputFile?: string;
+  /**
+   * Si la salida de error se junta con la estándar en `AgentCliResult.stdout`, con el mismo límite.
+   * Sirve para comandos que informan por la salida de error, como `codex login status`.
+   */
+  mergeStderr?: boolean;
 }
 
 export interface AgentCliResult {
@@ -43,13 +65,14 @@ export interface AgentCliResult {
 }
 
 /**
- * Ejecuta un CLI de agente sin shell, sin entrada estándar y en un directorio temporal vacío que se
- * borra al terminar. El proceso va en su propio grupo para poder terminarlo con todos sus hijos
- * cuando se agota el tiempo, se cancela o la salida excede el límite: primero con `SIGTERM` y, si no
- * sale, con `SIGKILL`. Antes de lanzarlo escribe en ese directorio los archivos de `files` y, al
- * terminar, lee `outputFile` si se pidió. Resuelve con la salida estándar, el código de salida, sea
- * cual sea, y ese archivo; rechaza con un `PublicError` si el CLI no existe, no se puede lanzar o no
- * termina por sí mismo, o si su respuesta excede el límite o no se puede leer.
+ * Ejecuta un CLI de agente sin shell, sin entrada estándar, sin claves de API en el entorno (ver
+ * `agentEnv()`) y en un directorio temporal vacío que se borra al terminar. El proceso va en su
+ * propio grupo para poder terminarlo con todos sus hijos cuando se agota el tiempo, se cancela o la
+ * salida excede el límite: primero con `SIGTERM` y, si no sale, con `SIGKILL`. Antes de lanzarlo
+ * escribe en ese directorio los archivos de `files` y, al terminar, lee `outputFile` si se pidió.
+ * Resuelve con la salida estándar, el código de salida, sea cual sea, y ese archivo; rechaza con un
+ * `PublicError` si el CLI no existe, no se puede lanzar o no termina por sí mismo, o si su respuesta
+ * excede el límite o no se puede leer.
  */
 export function runAgentCli(command: string, args: readonly string[], options: AgentCliOptions): Promise<AgentCliResult> {
   const { name, timeoutMs, signal } = options;
@@ -71,7 +94,12 @@ export function runAgentCli(command: string, args: readonly string[], options: A
       for (const [file, content] of Object.entries(options.files ?? {})) {
         fs.writeFileSync(inside(cwd, file), content, { mode: 0o600 });
       }
-      child = spawn(command, args, { cwd, stdio: ['ignore', 'pipe', 'ignore'], detached: true });
+      child = spawn(command, args, {
+        cwd,
+        env: agentEnv(process.env),
+        stdio: ['ignore', 'pipe', options.mergeStderr ? 'pipe' : 'ignore'],
+        detached: true,
+      });
     } catch (error) {
       // `spawn` falla de forma síncrona con argumentos inválidos, por ejemplo con un byte NUL, y
       // escribir un archivo de la petición también puede fallar.
@@ -94,11 +122,13 @@ export function runAgentCli(command: string, args: readonly string[], options: A
     const timeout = setTimeout(() => stop(new PublicError(`${name} tardó demasiado en responder. Inténtalo de nuevo.`)), timeoutMs);
     signal?.addEventListener('abort', onAbort, { once: true });
 
-    child.stdout!.on('data', (chunk: Buffer) => {
+    const collect = (chunk: Buffer) => {
       size += chunk.length;
       if (size > maxOutputBytes) return stop(tooLong());
       chunks.push(chunk);
-    });
+    };
+    child.stdout!.on('data', collect);
+    child.stderr?.on('data', collect);
 
     child.on('error', (error: NodeJS.ErrnoException) => {
       failure = new PublicError(

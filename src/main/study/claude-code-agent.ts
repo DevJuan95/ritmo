@@ -1,11 +1,16 @@
 import { PublicError } from '../../shared/ipc';
 import { INVALID_AGENT_RESPONSE, type TaskProposal } from '../../shared/study/contract';
-import { AGENT_MODEL_PATTERN, AGENT_TIMEOUT_MS, runAgentCli } from './agent-cli';
+import { AGENT_LOGIN_TIMEOUT_MS, AGENT_MODEL_PATTERN, AGENT_TIMEOUT_MS, runAgentCli } from './agent-cli';
 import { buildAgentRequest, readAgentProposals } from './agent-prompt';
 import type { StudyAgent, StudyAgentContext, StudyAgentOptions } from './ports';
 
 export const CLAUDE_CODE_NAME = 'Claude Code';
 export const CLAUDE_CODE_FAILED = 'Claude Code no pudo completar la petición. Inténtalo de nuevo.';
+export const CLAUDE_CODE_LOGIN = 'Inicia sesión en Claude Code con tu cuenta de claude.ai: ejecuta `claude auth login` en la terminal.';
+export const CLAUDE_CODE_API_KEY = 'Claude Code está configurado con una clave de API. Inicia sesión con tu cuenta de claude.ai (`claude auth login`) para usar tu suscripción.';
+
+/** Argumentos que muestran la sesión de Claude Code en JSON, con `loggedIn` y `authMethod`. */
+export const CLAUDE_CODE_STATUS_ARGS = ['auth', 'status', '--json'];
 
 export interface ClaudeCodeAgentOptions {
   /** Ruta o nombre del ejecutable `claude`. */
@@ -54,8 +59,27 @@ export function readClaudeCodeOutput(stdout: string, exitCode: number): unknown 
 }
 
 /**
+ * Comprueba la salida de `claude auth status --json`, que sale con 1 si no hay sesión. Sin sesión,
+ * o si la sesión es una clave de API (en la configuración, porque del entorno ya se quitó), rechaza
+ * con un mensaje que dice cómo iniciar sesión con la suscripción. Una salida que no reconoce con
+ * código 0 no bloquea la petición: si falta la sesión, la petición fallará igualmente.
+ */
+export function checkClaudeCodeLogin(stdout: string, exitCode: number): void {
+  let status: unknown;
+  try {
+    status = JSON.parse(stdout);
+  } catch {
+    status = undefined;
+  }
+  const loggedIn = isRecord(status) ? status.loggedIn : undefined;
+  if (loggedIn === false || (loggedIn === undefined && exitCode !== 0)) throw new PublicError(CLAUDE_CODE_LOGIN);
+  if (isRecord(status) && status.authMethod === 'api_key') throw new PublicError(CLAUDE_CODE_API_KEY);
+}
+
+/**
  * Adaptador de `StudyAgent` que lanza `claude -p` sin herramientas, en un directorio temporal, con
- * tiempo máximo y cancelable. Solo devuelve propuestas validadas.
+ * tiempo máximo y cancelable. Antes comprueba que hay sesión con la cuenta de claude.ai, para no
+ * enviar nada si no la hay. Solo devuelve propuestas validadas.
  */
 export class ClaudeCodeAgent implements StudyAgent {
   private readonly command: string;
@@ -69,6 +93,13 @@ export class ClaudeCodeAgent implements StudyAgent {
   async propose(context: StudyAgentContext, { signal }: StudyAgentOptions = {}): Promise<TaskProposal[]> {
     const { prompt, schema } = buildAgentRequest(context);
     const args = claudeCodeArgs(prompt, schema, this.options.model);
+    const status = await runAgentCli(this.command, CLAUDE_CODE_STATUS_ARGS, {
+      name: CLAUDE_CODE_NAME,
+      timeoutMs: Math.min(this.timeoutMs, AGENT_LOGIN_TIMEOUT_MS),
+      killGraceMs: this.options.killGraceMs,
+      signal,
+    });
+    checkClaudeCodeLogin(status.stdout, status.exitCode);
     const { stdout, exitCode } = await runAgentCli(this.command, args, {
       name: CLAUDE_CODE_NAME,
       timeoutMs: this.timeoutMs,
