@@ -86,18 +86,21 @@ export function createHarness(t: TestContext, options: HarnessOptions = {}): Har
   const tasks = new TaskService(store, repository, studyRepository);
   const detector = new FakeAgentDetector();
   const agentFactory = new FakeStudyAgentFactory();
+  const proposals = new ProposalService({
+    routes: studyRepository, tasks, settings: studyRepository, notices: studyRepository, locator: detector, agents: agentFactory, day: store
+  });
 
   return {
     directory, statePath, dbPath, clock, blocker, notifier, sound, published, repository, studyRepository, store, focus,
-    lifecycle: new LifecycleService({ store, focus, notifier, databases: [repository, studyRepository], timers: clock, shutdownTimeoutMs: options.shutdownTimeoutMs }),
+    lifecycle: new LifecycleService({
+      store, focus, proposals, notifier, databases: [repository, studyRepository], timers: clock, shutdownTimeoutMs: options.shutdownTimeoutMs
+    }),
     tasks,
     domains: new DomainService(store),
     study: new StudyService(studyRepository, tasks),
     agents: new AgentService(studyRepository, detector),
     detector,
-    proposals: new ProposalService({
-      routes: studyRepository, tasks, settings: studyRepository, notices: studyRepository, locator: detector, agents: agentFactory, day: store
-    }),
+    proposals,
     agent: agentFactory.agent,
     agentFactory,
     reopen: open,

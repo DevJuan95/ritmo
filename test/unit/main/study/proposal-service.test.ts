@@ -98,3 +98,29 @@ test('una cancelación mientras busca el CLI no llega a lanzar el agente', async
   await assert.rejects(running, new PublicError(AGENT_CANCELLED));
   assert.equal(agent.requests.length, 0);
 });
+
+test('stop cancela la petición en curso, espera a que termine y rechaza las siguientes', async t => {
+  const { proposals, agent, route } = setup(t);
+  proposals.acceptNotice('claude');
+  agent.hang();
+  const running = proposals.propose(route.id);
+  running.catch(() => {});
+  await settle();
+  let stopped = false;
+  const stopping = proposals.stop().then(() => { stopped = true; });
+  assert.equal(stopped, false);
+  await stopping;
+  await assert.rejects(running, new PublicError(AGENT_CANCELLED));
+  await assert.rejects(proposals.propose(route.id), new PublicError(AGENT_CANCELLED));
+  assert.equal(agent.requests.length, 1, 'no lanza otra petición tras el cierre');
+});
+
+test('stop se cumple sin petición en curso y aunque la petición falle', async t => {
+  const { proposals, agent, route } = setup(t);
+  proposals.acceptNotice('claude');
+  agent.failNext(new PublicError('Inicia sesión en Claude Code.'));
+  const failing = proposals.propose(route.id);
+  await proposals.stop();
+  await assert.rejects(failing, new PublicError(AGENT_CANCELLED));
+  await proposals.stop();
+});

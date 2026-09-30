@@ -74,7 +74,7 @@ flowchart LR
 
 `src/main/app.ts` es la raíz de composición. Crea con `createMainContainer()` (`src/main/container.ts`, Awilix) un contenedor en el que todo es singleton, le pasa lo que viene de Electron (`userData`, la carpeta `resources/`, `Notification` y la función que publica el estado) y resuelve de él `lifecycle`. Después conecta las vías de salida con el cierre ordenado, registra los manejadores IPC con `ipcMain` y el propio `container.cradle`. Solo `app.ts` y el preload importan `electron`, y solo `container.ts` importa Awilix. Los servicios no conocen el contenedor: las fábricas de `container.ts` llaman a sus constructores de forma explícita y los servicios reciben lo de Electron a través de puertos.
 
-`src/main/` está dividido en módulos por contexto (`common/`, `state/`, `focus/`, `blocking/`, `tasks/`, `study/`, `lifecycle/` e `ipc/`; ver «Módulos» en el [glosario](glosario.md)). Cada módulo declara en su `ports.ts` los puertos de salida que necesita y las interfaces de su servicio (`StateStorePort`, `PublicStatePort`, `StateShutdownPort`, `FocusServicePort`, `FocusLifecyclePort`, `TaskServicePort`, `StudyTasksPort`, `RouteTasksPort`, `TodayPort`, `DomainServicePort`, `StudyServicePort`, `AgentServicePort`, `ProposalServicePort`, `LifecycleServicePort`), que la clase implementa. Cada consumidor recibe solo la interfaz con lo que usa. Los consumidores, `MainCradle` incluido, dependen solo de esas interfaces, y los módulos se importan entre sí solo a través de `ports.ts`: `container.ts` es el único que construye las clases de servicio.
+`src/main/` está dividido en módulos por contexto (`common/`, `state/`, `focus/`, `blocking/`, `tasks/`, `study/`, `lifecycle/` e `ipc/`; ver «Módulos» en el [glosario](glosario.md)). Cada módulo declara en su `ports.ts` los puertos de salida que necesita y las interfaces de su servicio (`StateStorePort`, `PublicStatePort`, `StateShutdownPort`, `FocusServicePort`, `FocusLifecyclePort`, `TaskServicePort`, `StudyTasksPort`, `RouteTasksPort`, `TodayPort`, `DomainServicePort`, `StudyServicePort`, `AgentServicePort`, `ProposalServicePort`, `ProposalLifecyclePort`, `LifecycleServicePort`), que la clase implementa. Cada consumidor recibe solo la interfaz con lo que usa. Los consumidores, `MainCradle` incluido, dependen solo de esas interfaces, y los módulos se importan entre sí solo a través de `ports.ts`: `container.ts` es el único que construye las clases de servicio.
 
 El grafo de dependencias se divide en vistas: composición, entrada por IPC, servicios entre sí y adaptadores con sus efectos externos. En todas, en rojo va lo que depende de Electron; las flechas continuas son dependencias en tiempo de ejecución, rotuladas con el puerto o la interfaz de servicio por la que pasan, y las discontinuas indican que `container.ts` registra el módulo.
 
@@ -103,7 +103,7 @@ flowchart LR
   classDef electron fill:#fde2e2,stroke:#c0392b,color:#000
 ```
 
-Registros de `createMainContainer()`. En `MainCradle`, los servicios y los repositorios se tipan con su interfaz: `taskRepository` como `TaskRepositoryPort`, `studyRepository` como `StudyRepositoryPort & StudyRouteReaderPort & StudyStagesPort & AgentSettingsRepositoryPort & AgentNoticeRepositoryPort`, `agentDetector` como `AgentDetector`, `agentFactory` como `StudyAgentFactory`, `store` como `StateStorePort & TodayPort & PublicStatePort & StateShutdownPort`, `focus` como `FocusServicePort & FocusLifecyclePort`, `tasks` como `TaskServicePort & StudyTasksPort & RouteTasksPort`, `domains` como `DomainServicePort`, `study` como `StudyServicePort`, `agents` como `AgentServicePort`, `proposals` como `ProposalServicePort` y `lifecycle` como `LifecycleServicePort`.
+Registros de `createMainContainer()`. En `MainCradle`, los servicios y los repositorios se tipan con su interfaz: `taskRepository` como `TaskRepositoryPort`, `studyRepository` como `StudyRepositoryPort & StudyRouteReaderPort & StudyStagesPort & AgentSettingsRepositoryPort & AgentNoticeRepositoryPort`, `agentDetector` como `AgentDetector`, `agentFactory` como `StudyAgentFactory`, `store` como `StateStorePort & TodayPort & PublicStatePort & StateShutdownPort`, `focus` como `FocusServicePort & FocusLifecyclePort`, `tasks` como `TaskServicePort & StudyTasksPort & RouteTasksPort`, `domains` como `DomainServicePort`, `study` como `StudyServicePort`, `agents` como `AgentServicePort`, `proposals` como `ProposalServicePort & ProposalLifecyclePort` y `lifecycle` como `LifecycleServicePort`.
 
 | Registro | Fábrica | Puertos sin inyectar |
 | --- | --- | --- |
@@ -125,7 +125,7 @@ Registros de `createMainContainer()`. En `MainCradle`, los servicios y los repos
 | `study` | `new StudyService(studyRepository, tasks)` | — |
 | `agents` | `new AgentService(studyRepository, agentDetector)` | — |
 | `proposals` | `new ProposalService({ routes: studyRepository, tasks, settings: studyRepository, notices: studyRepository, locator: agentDetector, agents: agentFactory, day: store })` | — |
-| `lifecycle` | `new LifecycleService({ store, focus, notifier, databases: [taskRepository, studyRepository], timers, shutdownTimeoutMs })` | — |
+| `lifecycle` | `new LifecycleService({ store, focus, proposals, notifier, databases: [taskRepository, studyRepository], timers, shutdownTimeoutMs })` | — |
 
 Orden de arranque en `app.ts`: se crea el contenedor y se resuelve `lifecycle` (con él, `store`, `focus`, los repositorios y los adaptadores). `lifecycle.listen()` conecta `createQuitSignals({ app, powerMonitor, process })` con el cierre ordenado; después vienen `registerHandlers(ipcMain, container.cradle)` y la ventana. Por último, `lifecycle.start()` llama a `focus.recover()` y `store.rollDay()`, hace un primer `focus.tick()`, que cierra de inmediato una sesión que venció con la app cerrada, y programa el tic cada segundo con `Timers`.
 
@@ -172,13 +172,13 @@ flowchart LR
 
 ### 2.3 Entre servicios
 
-Los servicios guardan a través de `StateStore`, salvo `StudyService`, que usa su repositorio y pide a `TaskService` (`StudyTasksPort`) el avance de las etapas y que desvincule las tareas de las etapas que se quitan, para que las tareas de hoy queden al día. `TaskService` comprueba con `StudyStagesPort`, que implementa `StudyRepository`, que la etapa de un vínculo existe. `LifecycleService` depende de `FocusService` y cierra las dos conexiones SQLite como `Database`.
+Los servicios guardan a través de `StateStore`, salvo `StudyService`, que usa su repositorio y pide a `TaskService` (`StudyTasksPort`) el avance de las etapas y que desvincule las tareas de las etapas que se quitan, para que las tareas de hoy queden al día. `TaskService` comprueba con `StudyStagesPort`, que implementa `StudyRepository`, que la etapa de un vínculo existe. `LifecycleService` depende de `FocusService`, cancela con `ProposalLifecyclePort` la petición al agente en curso y cierra las dos conexiones SQLite como `Database`.
 
 `study/ports.ts` declara también `StudyAgent`, el puerto del CLI que propondrá tareas (Claude Code o Codex). `study/agent-prompt.ts` tiene lo que comparten sus adaptadores: `buildAgentRequest()` arma el prompt y el esquema JSON de la respuesta a partir de `StudyAgentContext` (la ruta, sus tareas vinculadas y el día), y `readAgentProposals()` valida la salida con `safeTaskProposals()`. El adaptador de Claude Code, `ClaudeCodeAgent` (`study/claude-code-agent.ts`), lanza `claude -p` sin herramientas y con salida JSON según ese esquema mediante `runAgentCli()` (`study/agent-cli.ts`), que ejecuta el CLI sin shell en un directorio temporal, con tiempo máximo, límite de salida y cancelación por `AbortSignal`, y termina todo su grupo de procesos al acabar. `runAgentCli()` quita del entorno del CLI las claves de API (`agentEnv()`), para que use la sesión del usuario con su suscripción y no facture por API, y cada adaptador comprueba antes esa sesión (`claude auth status`, `codex login status`): sin ella, rechaza con «Inicia sesión en Claude Code/Codex…» sin enviar la petición. El de Codex, `CodexAgent` (`study/codex-agent.ts`), lanza `codex exec` con el mismo lanzador en un sandbox de solo lectura, sin guardar la sesión ni leer la configuración del usuario; como `codex` toma el esquema de un archivo y escribe la respuesta en otro, `runAgentCli()` escribe los archivos de la petición en el directorio temporal y lee el de la respuesta antes de borrarlo. Los usa `ProposalService`; las pruebas usan `FakeStudyAgent` y prueban los adaptadores con un ejecutable falso.
 
 `AgentService` (`study/agent-service.ts`) guarda la configuración del agente en `StudyRepository` (`AgentSettingsRepositoryPort`, tabla `study_settings`) y da el estado de cada CLI con `AgentDetector`, cuyo adaptador, `SystemAgentDetector` (`study/agent-detector.ts`), busca el ejecutable en la ruta configurada o, sin ella, en el `PATH` del proceso, en las carpetas de instalación habituales y en el `PATH` de la shell de login, porque una app abierta desde Finder no hereda el de la shell. La sesión la comprueba con los mismos comandos de estado que los adaptadores (`claudeCodeLogin()`, `codexLogin()`), mediante `runAgentCli()` con esas carpetas delante del `PATH` (`pathDirs`), para que un CLI de npm encuentre `node`. En las pruebas lo sustituye `FakeAgentDetector`.
 
-`ProposalService` (`study/proposal-service.ts`) pide las propuestas. Comprueba que el usuario aceptó el aviso de privacidad del proveedor elegido (`AgentNoticeRepositoryPort`, en `study_settings`) y que no hay otra petición en curso; lee la ruta guardada (`StudyRouteReaderPort`) y la configuración (`AgentSettingsReaderPort`), busca el CLI con `AgentLocator` (la parte de `AgentDetector` que localiza), crea el adaptador con `StudyAgentFactory` y le pasa el historial de la ruta que da `TaskService` (`RouteTasksPort`) y el día de `StateStore` (`TodayPort`). Guarda el `AbortController` de la petición: `cancel()` lo aborta, el adaptador termina el CLI y la petición rechaza con `AGENT_CANCELLED`. No crea tareas; el renderer añade las aceptadas con `add-task`. En las pruebas, `FakeStudyAgentFactory` devuelve un `FakeStudyAgent`.
+`ProposalService` (`study/proposal-service.ts`) pide las propuestas. Comprueba que el usuario aceptó el aviso de privacidad del proveedor elegido (`AgentNoticeRepositoryPort`, en `study_settings`) y que no hay otra petición en curso; lee la ruta guardada (`StudyRouteReaderPort`) y la configuración (`AgentSettingsReaderPort`), busca el CLI con `AgentLocator` (la parte de `AgentDetector` que localiza), crea el adaptador con `StudyAgentFactory` y le pasa el historial de la ruta que da `TaskService` (`RouteTasksPort`) y el día de `StateStore` (`TodayPort`). Guarda el `AbortController` de la petición: `cancel()` lo aborta, el adaptador termina el CLI y la petición rechaza con `AGENT_CANCELLED`. El cierre ordenado llama a `stop()` (`ProposalLifecyclePort`), que además rechaza las peticiones siguientes con `AGENT_CANCELLED` y se cumple cuando la petición en curso termina, con su CLI ya fuera y su directorio temporal borrado. No crea tareas; el renderer añade las aceptadas con `add-task`. En las pruebas, `FakeStudyAgentFactory` devuelve un `FakeStudyAgent`.
 
 ```mermaid
 flowchart LR
@@ -202,6 +202,7 @@ flowchart LR
   domainService -- "StateStorePort" --> store
   lifecycle -- "StateStorePort,<br/>StateShutdownPort" --> store
   lifecycle -- "FocusLifecyclePort" --> focus
+  lifecycle -- "ProposalLifecyclePort" --> proposalService
   lifecycle -- "Database" --> repo
   lifecycle -- "Database" --> studyRepo
   store -- "TaskRepositoryPort" --> repo
@@ -289,6 +290,7 @@ sequenceDiagram
   participant L as LifecycleService
   participant S as StateStore
   participant F as FocusService
+  participant P as ProposalService
   participant N as Notifier
   participant R as TaskRepository y StudyRepository
   participant A as app.ts
@@ -296,6 +298,8 @@ sequenceDiagram
   Q->>L: before-quit, SIGINT, SIGTERM o shutdown
   Note over L: Los avisos repetidos reutilizan el mismo cierre
   L->>L: clearInterval(tic)
+  L->>P: stop(): cancela la petición al agente y rechaza las siguientes
+  Note over P: el CLI recibe SIGTERM (y SIGKILL a los 2 s) mientras sigue el cierre
   L->>S: drain(), con su propio tiempo máximo
   S->>S: closing = true, espera la operación en curso
   L->>S: closeWith(liberar), con su propio tiempo máximo
@@ -309,6 +313,7 @@ sequenceDiagram
   end
   S->>S: busy = false, save()
   L->>S: seal(): último save(). Los posteriores no escriben
+  L->>P: espera a que termine la petición, con su propio tiempo máximo
   L->>R: close() de cada Database, aunque falle alguna
   L->>A: exit(error?)
   A->>A: app.exit(0 o 1)
@@ -327,7 +332,7 @@ sequenceDiagram
   Note over F: aborta el signal de changeBlock(): execFile mata el osascript o el sudo en curso. Si era el desbloqueo del tic, el tic no avisa
   L->>S: blockError ??= «Ritmo se cerró antes de quitar el bloqueo.», session = null
   L->>N: notify('Bloqueo aún activo', ...)
-  Note over L: sigue con seal(), close() y exit()
+  Note over L: sigue con seal(), la espera del agente, close() y exit()
 ```
 
 ## 3. Ciclo de una sesión

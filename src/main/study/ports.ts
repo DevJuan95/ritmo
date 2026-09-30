@@ -140,3 +140,12 @@ export interface ProposalServicePort {
   /** Cancela la petición en curso, si la hay. */
   cancel(): void;
 }
+
+/** Parte de la petición de propuestas que usa el cierre ordenado. */
+export interface ProposalLifecyclePort {
+  /**
+   * Deja de aceptar peticiones y cancela la que esté en curso. Se cumple, sin rechazar nunca, cuando
+   * esa petición termina: su CLI ya salió y su directorio temporal ya se borró.
+   */
+  stop(): Promise<void>;
+}
