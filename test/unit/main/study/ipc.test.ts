@@ -5,7 +5,7 @@ import { createHandle } from '../../../../src/main/ipc/handle';
 import { registerStudyIpc } from '../../../../src/main/study/ipc';
 import { FakeIpc } from '../../../helpers/fakes';
 import { createHarness } from '../../../helpers/harness';
-import { stage } from '../../../helpers/study';
+import { sampleRoadmap, stage } from '../../../helpers/study';
 
 test('los canales de rutas de estudio validan y reenvían al servicio', async t => {
   const ipc = new FakeIpc();
@@ -56,6 +56,26 @@ test('los canales de propuestas exigen el aviso, piden al agente y cancelan', as
 
   harness.agent.hang();
   const running = ipc.invoke('propose-study-tasks', route.id);
+  await new Promise(resolve => setImmediate(resolve));
+  await ipc.invoke('cancel-study-proposals');
+  await assert.rejects(running, /Se canceló la petición al agente/);
+});
+
+test('el canal del roadmap exige el aviso, valida el brief, pide al agente y se cancela', async t => {
+  const ipc = new FakeIpc();
+  const harness = createHarness(t);
+  registerStudyIpc(createHandle(ipc), harness);
+  harness.agent.respondWith(sampleRoadmap());
+  const brief = 'Rust para escribir CLIs, 1 h al día';
+
+  await assert.rejects(ipc.invoke('draft-study-route', brief), /Acepta el aviso de privacidad/);
+  await ipc.invoke('accept-agent-notice', 'claude');
+  await assert.rejects(ipc.invoke('draft-study-route', ''), /Describe qué quieres estudiar/);
+  assert.deepEqual(await ipc.invoke('draft-study-route', brief), sampleRoadmap());
+  assert.deepEqual(await ipc.invoke('list-study-routes'), [], 'el roadmap no se guarda');
+
+  harness.agent.hang();
+  const running = ipc.invoke('draft-study-route', brief);
   await new Promise(resolve => setImmediate(resolve));
   await ipc.invoke('cancel-study-proposals');
   await assert.rejects(running, /Se canceló la petición al agente/);

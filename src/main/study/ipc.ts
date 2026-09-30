@@ -14,5 +14,6 @@ export function registerStudyIpc(handle: Handle<StudyChannels>, { study, agents,
   handle('get-agent-notices', () => proposals.notices());
   handle('accept-agent-notice', (provider: unknown) => proposals.acceptNotice(provider));
   handle('propose-study-tasks', (routeId: unknown) => proposals.propose(routeId));
+  handle('draft-study-route', (brief: unknown) => proposals.draft(brief));
   handle('cancel-study-proposals', () => proposals.cancel());
 }
