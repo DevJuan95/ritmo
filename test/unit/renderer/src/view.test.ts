@@ -14,7 +14,7 @@ import {
   scheduleProposals, withoutProposals, withProposal, withRouteProposals, type ProposalDraft,
   ROADMAP_CANCELLED, agentBusyText, briefProblem, roadmapFailureText, roadmapNoticeText, roadmapToDraft, roadmapView,
   STAGE_STATE_LABELS, pendingProposalCount, routeDraftKey, stageHasDetails,
-  linkFromStage, routeProgressView, routeSummary, routeToDraft, stageLimits, stageOptions, stageProgressView, taskStageValue, tasksRevision, timerActions, timerView, withDraft
+  linkFromStage, routeProgressView, routeSummary, routeToDraft, stageLimits, stageOptions, stageProgressView, taskStageLabel, taskStageValue, tasksRevision, timerActions, timerView, withDraft
 } from '../../../../src/renderer/src/view';
 import { buildState } from '../../../helpers/harness';
 import { emptyRouteRoadmap, sampleRoadmap, stage } from '../../../helpers/study';
@@ -318,8 +318,8 @@ test('los borradores se guardan y se quitan por clave sin tocar los demás', () 
 test('el selector de etapa agrupa las etapas numeradas por ruta', () => {
   const go = studyRoute({ id: 'r2', topic: 'Go', stages: [stage({ id: 's3', title: 'Goroutines', topics: [] })] });
   assert.deepEqual(stageOptions([studyRoute(), go]), [
-    { label: 'Rust', options: [{ value: 's1', label: '1. Ownership' }, { value: 's2', label: '2. Traits' }] },
-    { label: 'Go', options: [{ value: 's3', label: '1. Goroutines' }] }
+    { routeId: 'r1', label: 'Rust', options: [{ value: 's1', label: '1. Ownership' }, { value: 's2', label: '2. Traits' }] },
+    { routeId: 'r2', label: 'Go', options: [{ value: 's3', label: '1. Goroutines' }] }
   ]);
   assert.deepEqual(stageOptions([]), []);
 });
@@ -338,6 +338,14 @@ test('el selector muestra la etapa de la tarea solo si sigue en su ruta', () => 
   assert.equal(taskStageValue(routes, { routeId: null, stageId: null }), '');
   assert.equal(taskStageValue(routes, { routeId: 'r2', stageId: 's2' }), '');
   assert.equal(taskStageValue(routes, { routeId: 'r1', stageId: 'borrada' }), '');
+});
+
+test('el botón del selector muestra la ruta y la etapa de la tarea, o nada si está suelta', () => {
+  const routes = [studyRoute()];
+  assert.deepEqual(taskStageLabel(routes, { routeId: 'r1', stageId: 's2' }), { route: 'Rust', stage: '2. Traits' });
+  assert.equal(taskStageLabel(routes, { routeId: null, stageId: null }), null);
+  assert.equal(taskStageLabel(routes, { routeId: 'r1', stageId: 'borrada' }), null);
+  assert.equal(taskStageLabel(routes, { routeId: 'r2', stageId: 's2' }), null);
 });
 
 const agentStatus = (patch: Partial<AgentStatus> = {}): AgentStatus => ({ provider: 'claude', availability: 'ready', path: '/Users/ana/.local/bin/claude', configured: false, ...patch });

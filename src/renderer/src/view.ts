@@ -407,14 +407,16 @@ export interface StageOption {
   label: string;
 }
 
-/** Etapas de una ruta para el selector de etapa de una tarea, con la ruta como grupo. */
+/** Etapas de una ruta para el selector de etapa de una tarea, con la ruta como categoría. */
 export interface StageOptionGroup {
+  routeId: string;
   label: string;
   options: StageOption[];
 }
 
 export function stageOptions(routes: readonly StudyRoute[]): StageOptionGroup[] {
   return routes.map(route => ({
+    routeId: route.id,
     label: route.topic,
     options: route.stages.map((stage, index) => ({ value: stage.id, label: `${index + 1}. ${stage.title}` }))
   }));
@@ -431,6 +433,14 @@ export function taskStageValue(routes: readonly StudyRoute[], task: Pick<Task, '
   const { routeId, stageId } = task;
   if (!stageId) return '';
   return routes.some(route => route.id === routeId && route.stages.some(stage => stage.id === stageId)) ? stageId : '';
+}
+
+/** Lo que muestra el botón del selector de etapa: la ruta y la etapa de la tarea, o `null` si está suelta. */
+export function taskStageLabel(routes: readonly StudyRoute[], task: Pick<Task, 'routeId' | 'stageId'>): { route: string; stage: string } | null {
+  const stageId = taskStageValue(routes, task);
+  const group = stageOptions(routes).find(item => item.routeId === task.routeId);
+  const option = group?.options.find(item => item.value === stageId);
+  return group && option ? { route: group.label, stage: option.label } : null;
 }
 
 // Agente de estudio.
