@@ -110,12 +110,11 @@
   --row-date-max-width: 140px;
   --row-stage-max-width: 220px;
   --edit-input-min-width: 140px;
-  --study-columns: minmax(220px, .7fr) minmax(0, 1.6fr);
+  --study-cards-columns: repeat(auto-fill, minmax(260px, 1fr));
   --study-stage-number: 34px;
   --study-segment-height: 6px;
   --study-bar-width: 120px;
   --study-instructions-min-height: 110px;
-  --study-main-gap: 22px;
   --proposal-fields-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(96px, auto);
   --pencil-line: var(--stroke) dashed var(--pencil);
   --pencil-track-width: 96px;
@@ -305,22 +304,36 @@ h2 { font-family:var(--serif); font-size:var(--fs-heading); font-weight:var(--we
 .planner-edit-form { display:flex; flex:1; gap:6px; min-width:0; flex-wrap:wrap; align-items:center; }
 .planner-edit-form input { flex:1; min-width:var(--edit-input-min-width); height:var(--control-md); background:var(--sheet); font-size:var(--fs-base); }
 
-/* Rutas de estudio: un índice de rutas y, al lado, la hoja de la ruta elegida. */
-.study-layout { display:grid; grid-template-columns:var(--study-columns); gap:var(--planner-gap); align-items:start; margin-top:22px; }
-.study-index { min-width:0; }
-.study-route-list { list-style:none; margin:0; padding:0; border-top:var(--stroke) solid var(--rule); }
-.study-route-list li { border-bottom:var(--stroke) solid var(--rule); }
-.study-route { display:grid; gap:5px; width:100%; padding:12px 8px; border:0; border-radius:var(--corner-sm); background:transparent; color:var(--ink); text-align:left; }
-.study-route:hover { background:var(--ink-hover); }
+/* Rutas de estudio: la lista de rutas en tarjetas y, al abrir una, su página con pestañas. */
+.study-cards { list-style:none; display:grid; grid-template-columns:var(--study-cards-columns); gap:14px; margin:22px 0 0; padding:0; }
+.study-card { display:grid; gap:6px; align-content:start; height:100%; padding:16px 18px 14px; background:var(--sheet); border:var(--stroke) solid var(--rule); border-top:var(--stroke-accent) solid var(--ink); border-radius:var(--corner-md); color:var(--ink); text-decoration:none; transition:border-color var(--duration-tone); }
+.study-card:hover { border-color:var(--ink); }
+.study-card-draft { border-style:dashed; border-top:var(--stroke-accent) solid var(--highlight); }
+.study-card-current { color:var(--ink); font-size:var(--fs-sm); font-weight:var(--weight-medium); line-height:var(--lh-normal); overflow-wrap:anywhere; }
+.study-card-current[data-done="true"] { color:var(--leaf); }
+.study-card-notes { color:var(--margin-deep); font-size:var(--fs-xs); font-weight:var(--weight-medium); }
 .study-route-topic { font-family:var(--serif); font-size:var(--fs-xl); font-weight:var(--weight-semibold); letter-spacing:var(--tracking-heading); line-height:var(--lh-snug); overflow-wrap:anywhere; }
-/* La ruta abierta lleva el resaltador, como la sección activa de la barra lateral. */
-.study-route[aria-current="true"] .study-route-topic { text-decoration:underline; text-decoration-color:var(--highlight); text-decoration-thickness:.5em; text-underline-offset:-.3em; text-decoration-skip-ink:none; }
-.study-route-meta { color:var(--graphite); font-size:var(--fs-xs); line-height:var(--lh-normal); }
+.study-route-meta { margin:0; color:var(--graphite); font-size:var(--fs-xs); line-height:var(--lh-normal); }
+.study-route-meta strong { color:var(--ink); font-weight:var(--weight-semibold); }
 /* Una marca por etapa: entintadas las completas, en rojo la etapa en curso. */
 .study-route-stages { display:flex; gap:3px; margin:3px 0 1px; }
 .study-route-stages i { flex:1; height:var(--study-segment-height); border-radius:var(--corner-sm); background:var(--rule); }
 .study-route-stages i[data-state="done"] { background:var(--leaf); }
 .study-route-stages i[data-state="current"] { background:var(--margin); }
+
+.study-back { display:inline-block; margin-bottom:12px; color:var(--ink-light); font-size:var(--fs-sm); font-weight:var(--weight-medium); text-decoration:none; }
+.study-back:hover { color:var(--ink); text-decoration:underline; text-underline-offset:3px; }
+.route-hero h2 { font-size:var(--fs-heading-lg); overflow-wrap:anywhere; }
+.route-hero-progress { display:grid; gap:6px; max-width:var(--measure-detail); margin-top:14px; }
+/* Pestañas de la ruta: la activa va subrayada en tinta. */
+.route-tabs { display:flex; flex-wrap:wrap; gap:4px 18px; margin:22px 0 18px; border-bottom:var(--stroke) solid var(--rule); }
+.route-tab { display:inline-flex; align-items:center; gap:6px; padding:8px 2px; margin-bottom:-1px; border-bottom:var(--stroke-focus) solid transparent; color:var(--graphite); font-size:var(--fs-md); font-weight:var(--weight-medium); text-decoration:none; }
+.route-tab:hover { color:var(--ink); }
+.route-tab.active { color:var(--ink); font-weight:var(--weight-bold); border-bottom-color:var(--ink); }
+.route-tab-badge { min-width:20px; padding:1px 6px; border-radius:var(--corner-pill); background:var(--margin); color:var(--on-ink); font-size:var(--fs-2xs); font-weight:var(--weight-bold); text-align:center; }
+.route-tasks { display:grid; gap:14px; }
+.route-tasks .study-agent { margin:0; }
+.route-tab-note { color:var(--margin-deep); font-size:var(--fs-xs); font-weight:var(--weight-medium); }
 
 .study-editor { min-width:0; padding:22px 26px 20px; background:var(--sheet); border:var(--stroke) solid var(--rule); border-top:var(--stroke-accent) solid var(--ink); border-radius:var(--corner-md); }
 .study-editor .planner-day-heading { overflow-wrap:anywhere; }
@@ -356,25 +369,52 @@ h2 { font-family:var(--serif); font-size:var(--fs-heading); font-weight:var(--we
 .study-hint { margin:0; color:var(--graphite); font-size:var(--fs-sm); line-height:var(--lh-relaxed); }
 .study-footer-actions { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-left:auto; }
 
-/* Roadmap: la ruta guardada se lee por secciones, en el orden recomendado, o se edita. */
+/* Roadmap: la ruta guardada se lee etapa por etapa, plegadas salvo la que está en curso. */
 .study-header-actions { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:8px; }
-.study-header-actions [aria-pressed="true"] { border-color:var(--ink); }
-.study-mode { display:flex; gap:4px; margin-bottom:calc(var(--study-main-gap) * -0.5); }
-.study-mode [aria-pressed="true"] { color:var(--ink); text-decoration:underline; text-decoration-color:var(--highlight); text-decoration-thickness:.4em; text-underline-offset:-.25em; text-decoration-skip-ink:none; }
 .study-stage-body textarea { min-height:0; line-height:var(--lh-relaxed); }
 .roadmap-drafted { margin:10px 0 0; padding:10px 14px; max-width:var(--measure-detail); border-left:var(--stroke-accent) solid var(--highlight); border-radius:var(--corner-sm); background:var(--highlight-soft); color:var(--ink); font-size:var(--fs-sm); line-height:var(--lh-loose); }
 .roadmap-goal { margin:8px 0 0; max-width:var(--measure-detail); color:var(--graphite); font-family:var(--serif); font-style:italic; font-size:var(--fs-md); line-height:var(--lh-loose); overflow-wrap:anywhere; }
-.roadmap-section { margin-top:22px; }
-.roadmap-section h4, .roadmap-stage h4 { margin:0; font-family:var(--serif); font-size:var(--fs-lg); font-weight:var(--weight-semibold); letter-spacing:var(--tracking-heading); overflow-wrap:anywhere; }
+.roadmap-view { min-width:0; }
 .roadmap-text { margin:6px 0 0; max-width:var(--measure-detail); color:var(--ink); font-size:var(--fs-base); line-height:var(--lh-loose); white-space:pre-line; overflow-wrap:anywhere; }
-.roadmap-order { margin:8px 0 0; padding-left:1.4em; color:var(--ink); font-size:var(--fs-base); line-height:var(--lh-loose); }
-.roadmap-order li::marker { color:var(--margin); font-weight:var(--weight-semibold); }
-.roadmap-stages { list-style:none; margin:22px 0 0; padding:0; border-top:var(--stroke) solid var(--rule); }
-.roadmap-stage { display:grid; grid-template-columns:var(--study-stage-number) minmax(0,1fr); gap:12px; align-items:start; padding:16px 0; border-bottom:var(--stroke) solid var(--rule); }
-.roadmap-stage-body { display:grid; gap:8px; min-width:0; }
+.roadmap-stages { list-style:none; display:grid; gap:8px; margin:0; padding:0; }
+.roadmap-stage { background:var(--sheet); border:var(--stroke) solid var(--rule); border-left:var(--stroke-accent) solid var(--rule); border-radius:var(--corner-md); }
+.roadmap-stages li[data-state="current"] .roadmap-stage { border-left:var(--stroke-accent) solid var(--margin); }
+.roadmap-stages li[data-state="done"] .roadmap-stage { border-left:var(--stroke-accent) solid var(--leaf); }
+.roadmap-stage > summary, .roadmap-plan-item > summary, .study-editor-more > summary, .study-stage-details > summary { cursor:pointer; list-style:none; }
+.roadmap-stage > summary::-webkit-details-marker, .roadmap-plan-item > summary::-webkit-details-marker, .study-editor-more > summary::-webkit-details-marker, .study-stage-details > summary::-webkit-details-marker { display:none; }
+/* Un chevron de texto indica si la sección está plegada. */
+.roadmap-stage > summary::after, .roadmap-plan-item > summary::before, .study-editor-more > summary::before, .study-stage-details > summary::before { content:"›"; display:inline-block; color:var(--pencil); font-size:var(--fs-lg); line-height:var(--lh-none); transition:transform var(--duration-tone); }
+.roadmap-stage[open] > summary::after, .roadmap-plan-item[open] > summary::before, .study-editor-more[open] > summary::before, .study-stage-details[open] > summary::before { transform:rotate(90deg); }
+.roadmap-stage > summary { display:grid; grid-template-columns:var(--study-stage-number) minmax(0,1fr) auto; gap:12px; align-items:center; padding:12px 16px 12px 8px; }
+.roadmap-stage > summary:hover .roadmap-stage-title { text-decoration:underline; text-decoration-color:var(--rule); text-underline-offset:3px; }
+.roadmap-stage-head { display:grid; gap:4px; min-width:0; }
+.roadmap-stage-title { font-family:var(--serif); font-size:var(--fs-lg); font-weight:var(--weight-semibold); letter-spacing:var(--tracking-heading); overflow-wrap:anywhere; }
+.roadmap-stage-meta { display:flex; flex-wrap:wrap; align-items:center; gap:4px 14px; }
+.roadmap-stage-state { color:var(--graphite); font-size:var(--fs-xs); font-weight:var(--weight-semibold); text-transform:uppercase; letter-spacing:.04em; }
+.roadmap-stages li[data-state="current"] .roadmap-stage-state { color:var(--margin); }
+.roadmap-stages li[data-state="done"] .roadmap-stage-state { color:var(--leaf); }
+.roadmap-stage-body { display:grid; gap:10px; min-width:0; padding:0 18px 16px calc(var(--study-stage-number) + 20px); }
+.roadmap-empty { margin:0; color:var(--pencil); font-family:var(--serif); font-style:italic; font-size:var(--fs-base); }
 .roadmap-list h5 { margin:0; color:var(--graphite); font-size:var(--fs-sm); font-weight:var(--weight-medium); }
-.roadmap-list ul { margin:4px 0 0; padding-left:1.2em; color:var(--ink); font-size:var(--fs-base); line-height:var(--lh-loose); overflow-wrap:anywhere; }
+.roadmap-list ul { margin:4px 0 0; padding-left:1.2em; list-style:disc; color:var(--ink); font-size:var(--fs-base); line-height:var(--lh-loose); overflow-wrap:anywhere; }
 .roadmap-list .roadmap-text { margin-top:4px; }
+.roadmap-plan { margin-top:26px; }
+.roadmap-plan h4, .study-editor-section h4 { margin:0 0 8px; font-family:var(--serif); font-size:var(--fs-xl); font-weight:var(--weight-semibold); letter-spacing:var(--tracking-heading); }
+.roadmap-plan-item { border-top:var(--stroke) solid var(--rule); }
+.roadmap-plan-item:last-child { border-bottom:var(--stroke) solid var(--rule); }
+.roadmap-plan-item > summary { display:flex; align-items:center; gap:10px; padding:10px 2px; color:var(--ink); font-size:var(--fs-md); font-weight:var(--weight-medium); }
+.roadmap-plan-item > .roadmap-text { margin:0 0 14px 22px; }
+
+/* Editor: secciones con los detalles plegados, para no mostrarlo todo a la vez. */
+.study-editor-section { margin-top:18px; }
+.study-editor-section .study-fields { margin-top:0; }
+.study-editor-more { margin-top:18px; border-top:var(--stroke) solid var(--rule); }
+.study-editor-more > summary { display:flex; align-items:baseline; flex-wrap:wrap; gap:4px 10px; padding:12px 2px 4px; font-family:var(--serif); font-size:var(--fs-xl); font-weight:var(--weight-semibold); letter-spacing:var(--tracking-heading); }
+.study-editor-more > summary small { color:var(--graphite); font-family:var(--sans); font-size:var(--fs-xs); font-weight:var(--weight-regular); letter-spacing:0; }
+.study-editor-more .study-fields { margin-top:10px; }
+.study-editor-more .study-instructions { margin-top:10px; }
+.study-stage-details > summary { display:inline-flex; align-items:center; gap:6px; padding:2px 0; color:var(--ink-light); font-size:var(--fs-sm); font-weight:var(--weight-medium); }
+.study-stage-fields { display:grid; gap:6px; margin-top:6px; }
 .roadmap-brief { margin-top:16px; }
 .roadmap-brief textarea { line-height:var(--lh-loose); }
 .roadmap-sheet textarea { background:var(--sheet); border-color:var(--rule); box-shadow:none; color:var(--ink); font-size:var(--fs-base); }
@@ -385,7 +425,6 @@ h2 { font-family:var(--serif); font-size:var(--fs-heading); font-weight:var(--we
   Propuestas del agente: van «a lápiz» (trazo discontinuo, grafito) hasta que se añaden al Planner,
   donde pasan a tinta con la marca verde de hecho.
 */
-.study-main { display:grid; gap:var(--study-main-gap); min-width:0; }
 .proposal-sheet { min-width:0; padding:20px 26px 18px; background:var(--sheet); border:var(--pencil-line); border-top:var(--stroke-accent) solid var(--graphite); border-radius:var(--corner-md); }
 .proposal-head { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:flex-start; gap:12px 20px; }
 .proposal-head .sheet-head { min-width:0; flex:1 1 280px; }
@@ -451,12 +490,12 @@ h2 { font-family:var(--serif); font-size:var(--fs-heading); font-weight:var(--we
 .agent-options:disabled { opacity:var(--opacity-quiet); }
 
 @media (prefers-reduced-motion: reduce) {
-  .timer-panel, .timer-beats { transition:none; }
+  .timer-panel, .timer-beats, .study-card, .roadmap-stage > summary::after, .roadmap-plan-item > summary::before, .study-editor-more > summary::before, .study-stage-details > summary::before { transition:none; }
   .proposal-pencil i { animation:none; width:100%; opacity:var(--opacity-quiet); }
 }
 /* Los puntos de corte no admiten variables CSS: se mantienen como literales. */
 @media (max-width:1100px) {
-  .planner-layout, .study-layout { grid-template-columns:1fr; }
+  .planner-layout { grid-template-columns:1fr; }
 }
 @media (max-width:950px) {
   .app-shell { grid-template-columns:var(--sidebar-width-compact) minmax(0,1fr); }
@@ -481,7 +520,8 @@ h2 { font-family:var(--serif); font-size:var(--fs-heading); font-weight:var(--we
   .study-editor { padding:18px 16px; }
   .study-fields { grid-template-columns:1fr 1fr; }
   .study-field-wide { grid-column:1 / -1; }
-  .study-stage, .roadmap-stage { gap:8px; }
+  .study-stage, .roadmap-stage > summary { gap:8px; }
+  .roadmap-stage-body { padding:0 14px 14px; }
   .planner-header { flex-wrap:wrap; }
   .study-header-actions { justify-content:flex-start; }
   .agent-sheet { padding:18px 16px; }
