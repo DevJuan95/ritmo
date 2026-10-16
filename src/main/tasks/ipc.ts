@@ -7,6 +7,8 @@ export function registerTasksIpc(handle: Handle<TasksChannels>, tasks: TaskServi
   handle('toggle-task', (id: unknown) => tasks.toggle(id));
   handle('delete-task', (id: unknown) => tasks.remove(id));
   handle('get-tasks-for-day', (date: unknown) => tasks.listByDay(date));
+  handle('get-tasks-for-route', (routeId: unknown) => tasks.listByRoute(routeId));
+  handle('reschedule-overdue-tasks', (routeId: unknown, date: unknown) => tasks.rescheduleOverdue(routeId, date));
   handle('get-task-summary', (from: unknown, to: unknown) => tasks.summarize(from, to));
   handle('update-task', (id: unknown, patch: unknown) => tasks.update(id, patch));
 }

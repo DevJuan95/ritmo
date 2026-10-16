@@ -14,6 +14,8 @@ export interface TaskRepositoryPort {
   unlinkStages(routeId: string, keep: readonly string[]): void;
   /** Tareas vinculadas a la ruta, de todos los días, por día. */
   listByRoute(routeId: string): Task[];
+  /** Mueve en una sola operación las pendientes de la ruta anteriores a `before`. */
+  rescheduleOverdue(routeId: string, before: string, date: string): number;
   /** Borra las tareas vinculadas a la ruta, de todos los días. */
   deleteByRoute(routeId: string): void;
   importLegacy(tasks: ReadonlyArray<{ id: string; title: string; done: boolean }>, day: string): void;
@@ -30,6 +32,8 @@ export interface TaskServicePort extends TaskCreatorPort {
   toggle(id: unknown): void;
   remove(id: unknown): void;
   listByDay(date: unknown): Task[];
+  listByRoute(routeId: unknown): Task[];
+  rescheduleOverdue(routeId: unknown, date: unknown): number;
   summarize(from: unknown, to: unknown): TaskSummary;
   update(id: unknown, patch: unknown): void;
 }

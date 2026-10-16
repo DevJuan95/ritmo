@@ -21,12 +21,14 @@ Si cambias un término, un puerto, una interfaz de servicio o un módulo, actual
 
 ## Día y tareas
 
+Una **tarea vencida** está pendiente y su `plannedDate` es anterior al día local actual. En Próximas tareas, `getTasksForRoute()` lista el historial completo con sus identificadores; `rescheduleOverdueTasks()` mueve juntas las vencidas de esa ruta a hoy o a una fecha futura y devuelve cuántas movió. Conserva identidad, etapa, título y avance; las completadas, las de hoy y las futuras mantienen su fecha.
+
 | Término | Definición | En código | Dónde |
 | --- | --- | --- | --- |
 | Día | Fecha local actual con formato `YYYY-MM-DD`. Es el día al que pertenecen el contador y la lista **Hoy**. | `AppState.day`, `todayKey()`, `StateStore.today()` | `src/shared/state/contract.ts`, `src/main/state/state-store.ts` |
 | Reinicio diario | Cambio de día detectado al abrir la app, en cada tic, en `get-state` y al crear, marcar o borrar tareas. Pone `focusCount` a 0 y recarga las tareas del nuevo día. No borra ni mueve tareas. | `StateStore.rollDay()` | `src/main/state/state-store.ts` |
 | Tarea | Algo por hacer en un día concreto. Título de 1 a 160 caracteres. Su fuente es SQLite (`ritmo.db`). `state.json` guarda además una copia de las tareas de hoy: se valida en cada arranque, pero las tareas vigentes se cargan desde SQLite. | `Task` (`id`, `title`) | `src/shared/tasks/contract.ts`, `src/main/tasks/task-repository.ts` |
-| Fecha planificada | Día al que pertenece una tarea. Las pendientes se quedan en su fecha hasta que el usuario las mueve en el **Planner**. | `Task.plannedDate`, columna `planned_date`, `safePlannedDate()` | `src/shared/tasks/contract.ts`, `src/main/tasks/task-repository.ts` |
+| Fecha planificada | Día al que pertenece una tarea. Las pendientes se quedan en su fecha hasta que el usuario las mueve en el **Planner** o en **Próximas tareas** de su ruta. | `Task.plannedDate`, columna `planned_date`, `safePlannedDate()` | `src/shared/tasks/contract.ts`, `src/main/tasks/task-repository.ts` |
 | Tarea completada | Tarea con fecha de finalización. `done` se deriva de `completedAt`; desmarcarla borra la fecha. | `Task.done`, `Task.completedAt` | `src/shared/tasks/contract.ts`, `src/main/tasks/task-repository.ts` |
 | Fecha de creación | Marca ISO de cuándo se creó la tarea; ordena la lista del día. | `Task.createdAt` | `src/shared/tasks/contract.ts` |
 | Tareas de hoy | Copia en memoria de las tareas planificadas para `day`, incluida en el estado público. Se refresca tras cada cambio de tareas y en el reinicio diario. | `AppState.tasks`, `TaskService.refreshToday()` | `src/shared/tasks/contract.ts`, `src/main/tasks/task-service.ts` |

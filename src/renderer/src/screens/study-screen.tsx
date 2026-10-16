@@ -5,6 +5,7 @@ import { DeleteRouteButton } from '../components/delete-route-dialog';
 import { ProposalsPanel } from '../components/proposals-panel';
 import { RoadmapPanel } from '../components/roadmap-panel';
 import { RoadmapView } from '../components/roadmap-view';
+import { RouteTasks } from '../components/route-tasks';
 import { RouteEditor } from '../components/route-editor';
 import { buttonVariants } from '../components/ui/button';
 import { cn } from '../lib/utils';
@@ -122,7 +123,7 @@ export function StudyScreen({ run, showError, drafts, onDraftsChange, proposals,
   }
 
   const page: RoutePageProps = {
-    routes, progress, agent, agentStatus, drafts, setDraft, proposals, today, run,
+    routes, progress, agent, agentStatus, drafts, setDraft, proposals, today, run, tasksVersion,
     reload: load,
     onError: showError,
     acceptNotice
@@ -192,6 +193,7 @@ export function StudyScreen({ run, showError, drafts, onDraftsChange, proposals,
 }
 
 interface RoutePageProps {
+  tasksVersion: number;
   routes: StudyRoute[] | undefined;
   progress: StudyProgress;
   agent: AgentInfo | undefined;
@@ -212,7 +214,7 @@ interface RoutePageProps {
  * roadmap, Próximas tareas para pedirle tareas al agente y Opciones para editarla. «Eliminar ruta»,
  * en la cabecera, pide confirmación y borra también sus tareas vinculadas.
  */
-function RoutePage({ routes, progress, agent, agentStatus, drafts, setDraft, proposals, today, run, reload, onError, acceptNotice }: RoutePageProps) {
+function RoutePage({ routes, progress, agent, agentStatus, drafts, setDraft, proposals, today, run, tasksVersion, reload, onError, acceptNotice }: RoutePageProps) {
   const { id } = useParams();
   const navigate = useNavigate();
   const route = routes?.find(item => item.id === id);
@@ -252,19 +254,22 @@ function RoutePage({ routes, progress, agent, agentStatus, drafts, setDraft, pro
     </nav>
     <Routes>
       <Route index element={<RoadmapView route={route} progress={progress} />} />
-      <Route path="tareas" element={agent && <div className="route-tasks">
-        <AgentLine settings={agent.settings} statuses={agent.statuses} />
-        <ProposalsPanel
-        route={route}
-        provider={agent.settings.provider}
-        gate={proposalGate(agent.settings.provider, agentStatus, agent.notices, drafts[key] !== undefined)}
-        today={today}
-        controller={proposals}
-        run={run}
-        busy={agentBusyText(proposals.request, routes, route.id)}
-        onAcceptNotice={() => acceptNotice(agent.settings.provider)}
-        onTasksAdded={() => { void reload().catch(onError); }}
-      />
+      <Route path="tareas" element={<div className="route-tasks">
+        <RouteTasks key={route.id} route={route} today={today} tasksVersion={tasksVersion} run={run} onError={onError} />
+        {agent && <>
+          <AgentLine settings={agent.settings} statuses={agent.statuses} />
+          <ProposalsPanel
+            route={route}
+            provider={agent.settings.provider}
+            gate={proposalGate(agent.settings.provider, agentStatus, agent.notices, drafts[key] !== undefined)}
+            today={today}
+            controller={proposals}
+            run={run}
+            busy={agentBusyText(proposals.request, routes, route.id)}
+            onAcceptNotice={() => acceptNotice(agent.settings.provider)}
+            onTasksAdded={() => { void reload().catch(onError); }}
+          />
+        </>}
       </div>} />
       <Route path="opciones" element={<RouteEditor
         key={key}

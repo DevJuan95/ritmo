@@ -72,6 +72,8 @@ const sampleCalls: { [K in Exclude<keyof RitmoAPI, 'onState'>]: Parameters<Ritmo
   toggleTask: ['id-1'],
   deleteTask: ['id-1'],
   getTasksForDay: ['2026-09-29'],
+  getTasksForRoute: ['study-1'],
+  rescheduleOverdueTasks: ['study-1', '2026-09-30'],
   getTaskSummary: ['2026-09-28', '2026-11-08'],
   updateTask: ['id-1', { done: true }],
   addDomain: ['x.com'],
@@ -181,4 +183,20 @@ test('el proceso principal registra la causa técnica de un error público', asy
   const reason = await api.startFocus().catch(error => error);
   assert.equal(errorMessage(reason), 'No se pudo activar el bloqueo.');
   assert.equal(logged[0]?.[1], cause);
+});
+
+test('el preload permite consultar y reagendar vencidas sin cambiar el vínculo ni el avance', async t => {
+  const ipc = new FakeIpc();
+  const harness = createHarness(t);
+  registerHandlers(ipc, harness);
+  const { api } = loadPreload((channel, ...args) => ipc.invokeRaw(channel, ...args));
+  const route = await api.createStudyRoute(studyRoute);
+  const link = { routeId: route.id, stageId: route.stages[0].id };
+  await api.addTask('Recuperar', '2026-09-28', link);
+  const [before] = await api.getTasksForRoute(route.id);
+  const progress = await api.getStudyProgress();
+  assert.equal(await api.rescheduleOverdueTasks(route.id, '2026-09-30'), 1);
+  assert.deepEqual(await api.getTasksForRoute(route.id), [{ ...before, plannedDate: '2026-09-30' }]);
+  assert.deepEqual(await api.getStudyProgress(), progress);
+  await assert.rejects(api.rescheduleOverdueTasks(route.id, '2026-09-28'), { message: 'Elige hoy o una fecha futura.' });
 });

@@ -171,3 +171,44 @@ test('da el historial de tareas de una ruta para el agente', t => {
   ]);
   assert.deepEqual(tasks.routeTasks('otra'), []);
 });
+
+test('lista tareas de la ruta y reagenda vencidas conservando avance y publicando hoy', t => {
+  const { tasks, store, study, published, clock } = createHarness(t);
+  const route = study.create(rustRoute);
+  const link = { routeId: route.id, stageId: route.stages[0].id };
+  tasks.add('Pendiente', undefined, link);
+  tasks.add('Hecha', undefined, link);
+  tasks.toggle(store.state.tasks[1].id);
+  tasks.add('Futura', '2026-10-05', link);
+  tasks.add('Suelta', undefined);
+  const before = tasks.listByRoute(route.id);
+  const progress = tasks.stageProgress();
+  clock.nextDay();
+  const version = store.publicState().tasksVersion;
+  assert.equal(tasks.rescheduleOverdue(route.id, '2026-09-30'), 1);
+  assert.deepEqual(tasks.listByRoute(route.id), [before[1], { ...before[0], plannedDate: '2026-09-30' }, before[2]]);
+  assert.deepEqual(store.state.tasks.map(task => task.title), ['Pendiente']);
+  assert.deepEqual(tasks.stageProgress(), progress);
+  assert.equal(published.at(-1)?.tasksVersion, version + 1);
+  assert.equal(tasks.rescheduleOverdue(route.id, '2026-10-02'), 0);
+  assert.deepEqual(tasks.listByRoute('otra'), []);
+});
+
+test('reagenda varias vencidas a futuro y valida la entrada sin cambiar tareas', t => {
+  const { tasks, study, store } = createHarness(t);
+  const route = study.create(rustRoute);
+  const link = { routeId: route.id, stageId: route.stages[0].id };
+  tasks.add('Una', '2026-09-27', link);
+  tasks.add('Dos', '2026-09-28', link);
+  const before = tasks.listByRoute(route.id);
+  for (const id of [null, 1, '', 'x'.repeat(65)]) {
+    assert.throws(() => tasks.listByRoute(id), /La ruta no es válida/);
+    assert.throws(() => tasks.rescheduleOverdue(id, store.today()), /La ruta no es válida/);
+  }
+  assert.throws(() => tasks.rescheduleOverdue(route.id, 'ayer'), /Fecha inválida/);
+  assert.throws(() => tasks.rescheduleOverdue(route.id, '2026-09-28'), /hoy o una fecha futura/);
+  assert.deepEqual(tasks.listByRoute(route.id), before);
+  assert.equal(tasks.rescheduleOverdue(route.id, '2026-10-01'), 2);
+  assert.deepEqual(tasks.listByRoute(route.id), before.map(task => ({ ...task, plannedDate: '2026-10-01' })));
+  assert.deepEqual(store.state.tasks, []);
+});

@@ -209,3 +209,28 @@ test('lista las tareas vinculadas a una ruta, de todos los días, por día', t =
   assert.deepEqual(repository.listByRoute('r1').map(task => [task.title, task.plannedDate]), [['Antes', '2026-09-01'], ['Después', '2026-10-02']]);
   assert.deepEqual(repository.listByRoute('nada'), []);
 });
+
+test('reagenda solo pendientes vencidas de la ruta y persiste el cambio íntegro', t => {
+  const { repository, dbPath } = openRepository(t);
+  const link = { routeId: 'r1', stageId: 's1' };
+  const first = repository.create('Primera', '2026-09-27', link);
+  const second = repository.create('Segunda', '2026-09-28', { ...link, stageId: 's2' });
+  const done = repository.create('Hecha', '2026-09-27', link);
+  repository.update(done.id, { done: true });
+  repository.create('Hoy', '2026-09-29', link);
+  repository.create('Futura', '2026-10-02', link);
+  const other = repository.create('Otra ruta', '2026-09-27', { routeId: 'r2', stageId: 's3' });
+  const loose = repository.create('Suelta', '2026-09-27');
+  const before = repository.listByRoute('r1');
+  assert.throws(() => repository.rescheduleOverdue('r1', '2026-09-29', '2026-02-30'), /Fecha inválida/);
+  assert.throws(() => repository.rescheduleOverdue('r1', 'ayer', '2026-10-01'), /Fecha inválida/);
+  assert.deepEqual(repository.listByRoute('r1'), before);
+  assert.equal(repository.rescheduleOverdue('r1', '2026-09-29', '2026-10-01'), 2);
+  assert.equal(repository.rescheduleOverdue('r1', '2026-09-29', '2026-10-01'), 0);
+  repository.close();
+  const reopened = new TaskRepository(dbPath);
+  t.after(() => reopened.close());
+  const expected = before.map(task => task.id === first.id || task.id === second.id ? { ...task, plannedDate: '2026-10-01' } : task);
+  assert.deepEqual(reopened.listByRoute('r1').sort((a, b) => a.id.localeCompare(b.id)), expected.sort((a, b) => a.id.localeCompare(b.id)));
+  assert.deepEqual(reopened.listByDay('2026-09-27').filter(task => !task.done), [other, loose]);
+});

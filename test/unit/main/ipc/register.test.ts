@@ -16,6 +16,8 @@ const channels: { [C in RitmoChannel]: true } = {
   'toggle-task': true,
   'delete-task': true,
   'get-tasks-for-day': true,
+  'get-tasks-for-route': true,
+  'reschedule-overdue-tasks': true,
   'get-task-summary': true,
   'update-task': true,
   'add-domain': true,
