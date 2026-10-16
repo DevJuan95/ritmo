@@ -81,6 +81,9 @@ export interface TasksAPI {
   toggleTask(id: string): Promise<void>;
   deleteTask(id: string): Promise<void>;
   getTasksForDay(date: string): Promise<Task[]>;
+  getTasksForRoute(routeId: string): Promise<Task[]>;
+  /** Mueve a `date` las pendientes anteriores a hoy de esta ruta; devuelve cuántas movió. */
+  rescheduleOverdueTasks(routeId: string, date: string): Promise<number>;
   getTaskSummary(from: string, to: string): Promise<TaskSummary>;
   updateTask(id: string, patch: TaskPatch): Promise<void>;
 }
@@ -90,6 +93,8 @@ export type TasksChannels = ChannelMap<TasksAPI, {
   toggleTask: 'toggle-task';
   deleteTask: 'delete-task';
   getTasksForDay: 'get-tasks-for-day';
+  getTasksForRoute: 'get-tasks-for-route';
+  rescheduleOverdueTasks: 'reschedule-overdue-tasks';
   getTaskSummary: 'get-task-summary';
   updateTask: 'update-task';
 }>;

@@ -777,3 +777,16 @@ export function roadmapView(route: StudyRoute): RoadmapView {
     studyRules: route.studyRules
   };
 }
+
+/** Separa el historial de una ruta sin alterar el orden por fecha ni las tareas originales. */
+export function routeTaskGroups(tasks: readonly Task[], today: string): { overdue: Task[]; pending: Task[]; completed: Task[] } {
+  const overdue: Task[] = [];
+  const pending: Task[] = [];
+  const completed: Task[] = [];
+  for (const task of tasks) {
+    if (task.done) completed.push(task);
+    else if (task.plannedDate < today) overdue.push(task);
+    else pending.push(task);
+  }
+  return { overdue, pending, completed };
+}

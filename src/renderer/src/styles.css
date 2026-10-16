@@ -546,3 +546,9 @@ h2 { font-family:var(--serif); font-size:var(--fs-heading); font-weight:var(--we
   .proposal-accepted { grid-template-columns:auto minmax(0,1fr); }
   .proposal-accepted-day { grid-column:2; white-space:normal; }
 }
+
+.route-saved-tasks { display:grid; gap:14px; min-width:0; }
+.route-saved-tasks h4 { margin:0 0 8px; font-weight:var(--weight-semibold); }
+.route-saved-tasks > details > summary { cursor:pointer; }
+.route-reschedule { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px; }
+.route-reschedule input { width:auto; }

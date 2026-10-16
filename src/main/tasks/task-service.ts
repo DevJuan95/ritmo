@@ -1,4 +1,5 @@
 import { PublicError } from '../../shared/ipc';
+import { safeStudyRouteId } from '../../shared/study/contract';
 import { safePlannedDate, safeTaskLink, type DaySummary, type Task, type TaskLink, type TaskPatch, type TaskSummary } from '../../shared/tasks/contract';
 import type { StateStorePort } from '../state/ports';
 import type { StudyStagesPort, StudyTaskRecord } from '../study/ports';
@@ -34,6 +35,21 @@ export class TaskService implements TaskServicePort, StudyTasksPort, RouteTasksP
 
   listByDay(date: unknown): Task[] {
     return this.repository.listByDay(safePlannedDate(date));
+  }
+
+  listByRoute(routeId: unknown): Task[] {
+    return this.repository.listByRoute(safeStudyRouteId(routeId));
+  }
+
+  rescheduleOverdue(routeId: unknown, date: unknown): number {
+    const id = safeStudyRouteId(routeId);
+    const plannedDate = safePlannedDate(date);
+    this.store.rollDay();
+    const today = this.store.today();
+    if (plannedDate < today) throw new PublicError('Elige hoy o una fecha futura.');
+    const moved = this.repository.rescheduleOverdue(id, today, plannedDate);
+    this.refreshToday();
+    return moved;
   }
 
   /** Resumen del rango que muestra el calendario del Planner, en una sola consulta. */

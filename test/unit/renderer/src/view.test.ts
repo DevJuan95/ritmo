@@ -9,7 +9,7 @@ import {
   LEVEL_LABELS, agentModelHint, agentPathPlaceholder, agentSettingsChanged, agentSettingsProblem, agentStatusView, agentSummary, uncheckedAgents, withProviderSettings,
   calendarRange, canSaveDraft, completionText, dateLabel, dayButtonLabel, dayIndicator, dayToDate, domainsLocked, draftChanged, draftProblem,
   draftToInput, emptyRouteDraft, errorMessage, focusCountText, isPlannableDate, monthOf, moveStage, newStageDraft, oneAtATime, parseLines,
-  plannedDateToSave,
+  plannedDateToSave, routeTaskGroups,
   acceptableProposals, addDays, agentNoticeText, elapsedText, pomodorosText, proposalGate, proposalProblem, proposalsSummary, proposalStageLabel, relativeDayLabel,
   scheduleProposals, withoutProposals, withProposal, withRouteProposals, type ProposalDraft,
   ROADMAP_CANCELLED, agentBusyText, briefProblem, roadmapFailureText, roadmapNoticeText, roadmapToDraft, roadmapView,
@@ -610,4 +610,15 @@ test('pendingProposalCount cuenta las propuestas que faltan por revisar', () => 
 
 test('STAGE_STATE_LABELS nombra cada estado de una etapa', () => {
   assert.deepEqual(STAGE_STATE_LABELS, { done: 'Completada', current: 'En curso', next: 'Pendiente' });
+});
+
+test('separa vencidas de hoy y próximas, dejando completadas fuera de la reprogramación', () => {
+  const overdue = { ...task('ayer', false), plannedDate: '2026-09-28' };
+  const today = { ...task('hoy', false), plannedDate: '2026-09-29' };
+  const future = { ...task('futura', false), plannedDate: '2026-09-30' };
+  const completed = { ...task('hecha', true), plannedDate: '2026-09-27' };
+  const tasks = Object.freeze([completed, overdue, today, future]);
+  assert.deepEqual(routeTaskGroups(tasks, '2026-09-29'), { overdue: [overdue], pending: [today, future], completed: [completed] });
+  assert.deepEqual(routeTaskGroups(tasks, '2026-09-30').overdue, [overdue, today]);
+  assert.deepEqual(routeTaskGroups([], '2026-09-29'), { overdue: [], pending: [], completed: [] });
 });

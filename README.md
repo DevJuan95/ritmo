@@ -52,6 +52,8 @@ El agente elegido en **Ajustes** te acompaña en cuatro pasos, de un brief a las
 
 ![Una ruta guardada con sus etapas y las tareas que propone el agente, por revisar antes de añadirlas al Planner](docs/capturas/rutas-etapas-y-propuestas.png)
 
+**Si no alcanzaste a completar las tareas**, abre **Rutas → tu ruta → Próximas tareas**. Allí ves las tareas guardadas, con las vencidas primero: puedes cambiar la fecha de cada una o elegir una nueva fecha y pulsar **Reagendar vencidas** para mover juntas las pendientes anteriores a hoy. Las completadas, las de hoy y las futuras conservan su fecha; el avance y el vínculo a su etapa se mantienen. No necesitas pedir nuevas tareas al agente.
+
 Solo hay una petición al agente a la vez, sea de roadmap o de tareas.
 
 - **Con tu suscripción, no con la API.** Ritmo usa la sesión de `claude` o `codex` que ya tienes iniciada y quita del entorno del CLI `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` y similares. Si el CLI no tiene sesión o usa una clave de API, Ajustes te dice cómo resolverlo. Las peticiones cuentan para los límites de uso de tu plan; por defecto van con un modelo ligero (`haiku` o `gpt-6-luna`), que puedes cambiar.

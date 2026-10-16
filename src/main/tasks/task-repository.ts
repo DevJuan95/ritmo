@@ -118,6 +118,14 @@ export class TaskRepository implements TaskRepositoryPort {
     return (this.db.prepare('SELECT * FROM tasks WHERE route_id = ? ORDER BY planned_date, created_at, id').all(routeId) as unknown as TaskRow[]).map(taskFromRow);
   }
 
+  rescheduleOverdue(routeId: string, before: string, date: string): number {
+    const result = this.db.prepare(`
+      UPDATE tasks SET planned_date = ?
+      WHERE route_id = ? AND completed_at IS NULL AND planned_date < ?
+    `).run(safePlannedDate(date), routeId, safePlannedDate(before));
+    return Number(result.changes);
+  }
+
   deleteByRoute(routeId: string): void {
     this.db.prepare('DELETE FROM tasks WHERE route_id = ?').run(routeId);
   }

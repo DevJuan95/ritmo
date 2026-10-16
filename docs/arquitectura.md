@@ -91,6 +91,17 @@ flowchart LR
 
 El grafo de dependencias se divide en vistas: composición, entrada por IPC, servicios entre sí y adaptadores con sus efectos externos. En todas, en rojo va lo que depende de Electron; las flechas continuas son dependencias en tiempo de ejecución, rotuladas con el puerto o la interfaz de servicio por la que pasan, y las discontinuas indican que `container.ts` registra el módulo.
 
+La pestaña Próximas tareas monta `RouteTasks`, que consulta `getTasksForRoute(routeId)` por IPC
+(`get-tasks-for-route` → `TaskServicePort.listByRoute()` → `TaskRepositoryPort.listByRoute()`).
+Muestra vencidas, hoy y próximas, y completadas; se recarga con `tasksVersion` para reflejar también
+cambios del Planner o del puente. Cada fecha se edita con `updateTask()`, como en el Planner.
+«Reagendar vencidas» llama a `rescheduleOverdueTasks(routeId, date)` (`reschedule-overdue-tasks` →
+`TaskServicePort.rescheduleOverdue()`). El servicio valida el identificador y la fecha, actualiza el día
+local y exige hoy o una fecha futura. `TaskRepositoryPort.rescheduleOverdue(routeId, before, date)`
+ejecuta un único `UPDATE` SQLite para pendientes de esa ruta con fecha anterior a hoy; devuelve el
+número de filas movidas. El servicio refresca Hoy y publica `tasksVersion`. No se invoca ningún agente
+ni se altera el avance por etapa, y no se mueven completadas ni tareas de otras rutas.
+
 ### 2.1 Composición
 
 Qué crea `app.ts`, qué le pasa al contenedor y qué conecta él mismo. `registerHandlers()` y `createQuitSignals()` no están en el contenedor: los llama `app.ts`.
